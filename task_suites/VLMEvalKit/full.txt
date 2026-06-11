@@ -1,0 +1,69 @@
+# Full benchmark suite for `eval.sh --suite full`.
+# Comments and blank lines are stripped by resolve_list in eval.sh.
+# 3DSRBench and OmniMedVQA are intentionally omitted here (run them via --data).
+
+# VQA / General
+GQA_TestDev_Balanced
+RealWorldQA
+SEEDBench_IMG
+SEEDBench2_Plus
+TextVQA_VAL
+DocVQA_VAL
+InfoVQA_VAL
+ChartQA_TEST
+MME
+AI2D_TEST
+MMMU_DEV_VAL
+MMMU_Pro_10c
+CMMMU_VAL
+MMVP
+MMBench_DEV_EN_V11
+MMStar
+POPE
+A-OKVQA
+BLINK
+MUIRBench
+VStarBench
+vlms_are_biased_main
+MME-RealWorld
+
+# Math / Reasoning
+VisualPuzzles
+VisuLogic
+CountBenchQA
+
+# OCR / Document
+OCRBench
+OCRBench_v2
+OmniDocBench
+
+# Spatial
+EmbSpatialBench
+OmniSpatialBench_default
+SparBench
+ViewSpatialBench
+CV-Bench-2D
+CV-Bench-3D
+MMSIBench_wo_circular
+MindCubeBench_tiny_raw_qa
+
+# Science
+ScienceQA_TEST
+
+# GUI
+ScreenSpot
+ScreenSpot_v2
+ScreenSpot_Pro
+OSWorld_G
+SiteBenchImage
+
+# Grounding / RefCOCO
+RefCOCO
+
+# Medical
+PathVQA_VAL
+PathMMU_TEST
+ERQA
+
+# Blind/Bias
+VLMBlind

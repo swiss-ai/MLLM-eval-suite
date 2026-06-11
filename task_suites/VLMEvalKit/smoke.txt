@@ -1,0 +1,5 @@
+# Smoke test — one fast benchmark so the eval pipeline can be sanity-checked
+# without burning a full sweep. Comments and blank lines are stripped by
+# resolve_list in eval.sh.
+
+3DSRBench

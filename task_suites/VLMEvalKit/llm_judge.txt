@@ -1,0 +1,13 @@
+# Benchmarks whose evaluate() phase hard-requires an LLM judge (OpenAI API by
+# default). Inference still runs without the API; the eval stage will fail and
+# can be re-run via `--mode eval` once OPENAI_API_KEY is set in the container.
+#
+# Comments and blank lines are stripped by resolve_list in eval.sh.
+
+# Math (free-form numeric / expression answers — GPT-4o-mini extracts and compares)
+MathVista_MINI
+MathVision
+MathVision_MINI
+
+# Open-ended VQA (GPT-4o judges semantic correctness)
+SimpleVQA
