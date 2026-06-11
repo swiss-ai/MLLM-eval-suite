@@ -48,8 +48,8 @@ git submodule update --remote --merge
 
 The submodules are configured as branch-tracking submodules:
 
-- `third_party/lmms-eval`: `https://github.com/swiss-ai/lmms-eval.git`, branch `apertus-1p5-eval`
-- `third_party/VLMEvalKit`: `https://github.com/swiss-ai/VLMEvalKit.git`, branch `apertus-1p5-eval`
+- `third_party/lmms-eval`: [github.com/swiss-ai/lmms-eval](https://github.com/swiss-ai/lmms-eval), branch `apertus-1p5-eval`
+- `third_party/VLMEvalKit`: [github.com/swiss-ai/VLMEvalKit](https://github.com/swiss-ai/VLMEvalKit), branch `apertus-1p5-eval`
 
 ## Example Usage
 
@@ -120,4 +120,19 @@ Changes to evaluation framework code should happen inside the corresponding subm
 
 Framework-specific production launchers under `launchers/lmms-eval/` and `launchers/VLMEvalKit/` expect `ORCH_REPO_ROOT` to be set by `launchers/eval.sh`.
 
-The combined launcher accepts common top-level arguments such as `--model`, `--tasks`, `--suite`, `--mode`, and `--run-id`. Framework-specific options can be passed after `--`.
+The production runtime expects `lmms-eval` and `VLMEvalKit` to be available under `/workspace` inside the job container. If you need a custom implementation, make the changes inside the matching `third_party/` checkout, install or update that version from `third_party/`, and use `--submit-mode interactive` so the job runs with the current shell and node allocation.
+
+When you want to install the custom checkouts from this repository directly, use:
+
+```bash
+cd third_party/lmms-eval
+uv pip install --python /opt/venv/bin/python --no-build-isolation --editable . ".[all]"
+```
+
+```bash
+uv pip install --python /opt/venv/bin/python --no-deps --editable third_party/VLMEvalKit
+```
+
+The combined launcher accepts common top-level arguments such as `--model`, `--tasks`, `--suite`, `--mode`, `--submit-mode`, and `--run-id`. Framework-specific options can be passed after `--`.
+
+Use `--submit-mode interactive` with either framework when you want the launcher to run the job script directly with `bash` on the current node allocation instead of submitting a new Slurm job.

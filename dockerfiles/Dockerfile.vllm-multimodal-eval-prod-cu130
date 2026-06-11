@@ -6,7 +6,8 @@ ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
 ARG VLLM_VERSION=0.19.0
 ARG VLLM_MAIN_CUDA_VERSION=13.0
-ARG VLMEVALKIT_BRANCH=apertus-1p5-vlmeval
+ARG VLMEVALKIT_BRANCH=apertus-1p5-eval
+ARG LMMS_EVAL_BRANCH=apertus-1p5-eval
 
 # GH200 = Hopper SM90a
 ENV TORCH_CUDA_ARCH_LIST="9.0a" \
@@ -92,7 +93,9 @@ RUN git clone https://github.com/swiss-ai/benchmark-audio-tokenizer.git /workspa
     git submodule update --init --recursive
 RUN git clone https://github.com/swiss-ai/lmms-eval.git /workspace/lmms-eval && \
     cd /workspace/lmms-eval && \
-    git checkout apertus-integration
+    git checkout "${LMMS_EVAL_BRANCH}" && \
+    echo "lmms-eval branch: ${LMMS_EVAL_BRANCH}" && \
+    echo "lmms-eval commit: $(git rev-parse HEAD)"
 RUN git clone https://github.com/swiss-ai/VLMEvalKit.git /workspace/VLMEvalKit && \
     cd /workspace/VLMEvalKit && \
     git checkout "${VLMEVALKIT_BRANCH}" && \
@@ -211,10 +214,77 @@ RUN uv pip install --python /opt/venv/bin/python \
 
 RUN /opt/venv/bin/python -c "import nltk; nltk.download('wordnet', download_dir='/usr/share/nltk_data', quiet=True)"
 
+RUN uv pip uninstall torchcodec || true && \
+    uv pip install -U pybind11 cmake ninja && \
+    cd /workspace && \
+    rm -rf torchcodec && \
+    git clone --branch v0.10.0 https://github.com/pytorch/torchcodec.git && \
+    cd /workspace/torchcodec && \
+    I_CONFIRM_THIS_IS_NOT_A_LICENSE_VIOLATION=1 \
+    BUILD_AGAINST_ALL_FFMPEG_FROM_S3=1 \
+    CMAKE_PREFIX_PATH="/opt/venv/lib/python3.12/site-packages/pybind11/share/cmake/pybind11:${CMAKE_PREFIX_PATH:-}" \
+    uv pip install -v --no-build-isolation .
 # Marker used by Apertus VLMEvalKit Slurm scripts to skip legacy runtime
 # overlays for bs4/nltk/wordnet.
 RUN echo "apertus-lmms-eval-vlmeval-cu130 $(date -u +%Y-%m-%dT%H:%M:%SZ)" > /etc/apertus_image_version
 
+RUN set -eu; \
+    /opt/venv/bin/python -m pip check > /tmp/pip-check.log 2>&1 || true; \
+    /opt/venv/bin/python - <<'PY'
+from pathlib import Path
+
+allowed = (
+    "vlmeval 0.1.0 requires cd-fvd, which is not installed.",
+    "vlmeval 0.1.0 requires decord, which is not installed.",
+    "vlmeval 0.1.0 requires dotenv, which is not installed.",
+    "vlmeval 0.1.0 has requirement antlr4-python3-runtime==4.11.1, but you have antlr4-python3-runtime 4.9.3.",
+    "latex2sympy2 1.9.1 has requirement antlr4-python3-runtime==4.7.2, but you have antlr4-python3-runtime 4.9.3.",
+    "nvidia-cusparselt-cu13 0.8.0 is not supported on this platform",
+)
+
+lines = [
+    line.strip()
+    for line in Path("/tmp/pip-check.log").read_text().splitlines()
+    if line.strip()
+]
+unexpected = [line for line in lines if line not in allowed]
+if unexpected:
+    print("Unexpected pip check failures:")
+    print("\n".join(unexpected))
+    raise SystemExit(1)
+if lines:
+    print("Ignored expected pip check metadata issues:")
+    print("\n".join(lines))
+else:
+    print("pip check passed")
+PY
+RUN /opt/venv/bin/python - <<'PY'
+import cv2
+import lmms_eval
+import torch
+import torchvision
+import transformers
+import vllm
+from google.protobuf import __version__ as protobuf_version
+from src.audio_tokenizers.implementations.wavtokenizer import WavTokenizer40
+from vlmeval.config import supported_VLM
+from vlmeval.dataset import SUPPORTED_DATASETS
+
+assert torch.__version__.startswith("2.10.0"), torch.__version__
+assert str(torch.version.cuda).startswith("13."), torch.version.cuda
+assert "Apertus-1p5-8B" in supported_VLM
+assert "3DSRBench" in SUPPORTED_DATASETS
+assert WavTokenizer40.name == "wavtokenizer-40"
+
+print("dependency preflight passed")
+print("torch:", torch.__version__, torch.version.cuda)
+print("torchvision:", torchvision.__version__)
+print("transformers:", transformers.__version__)
+print("vllm:", getattr(vllm, "__version__", "unknown"))
+print("protobuf:", protobuf_version)
+print("cv2:", cv2.__version__)
+print("lmms_eval:", getattr(lmms_eval, "__version__", "unknown"))
+PY
 # ENV CUDA_HOME=/usr/local/cuda
 # RUN uv pip install --python /opt/venv/bin/python --no-build-isolation \
 #       git+https://github.com/nickjbrowning/XIELU
@@ -224,6 +294,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && apt-get install -y --no-install-recommends nodejs npm \
  && rm -rf /var/lib/apt/lists/*
 
+RUN node --version && npm --version
+RUN npm install -g @openai/codex
+RUN codex --version
 RUN /opt/venv/bin/python - <<'PY'
 import lmms_eval
 import vllm

@@ -12,6 +12,7 @@ Common args:
   --tasks <value>           Comma list, @file, or direct suite/task file path
   --suite <name>            Framework suite name
   --mode <value>            Framework run mode
+  --submit-mode <value>     Submission mode for framework launchers
   --run-id <name>           Shared result directory name for this invocation
 
 Use -- to separate framework-specific args if desired.
@@ -21,6 +22,7 @@ Examples:
   bash launchers/eval.sh --eval-framework lmms-eval /path/to/model --suite smoke
   bash launchers/eval.sh --eval-framework VLMEvalKit --suite smoke --model Apertus-1p5-8B
   bash launchers/eval.sh --eval-framework VLMEvalKit --model Apertus-1p5-8B -- --nodes 2
+  bash launchers/eval.sh --eval-framework VLMEvalKit --model Apertus-1p5-8B --submit-mode interactive
 USAGE
 }
 
@@ -35,6 +37,7 @@ MODEL_ARG=""
 TASKS_ARG=""
 SUITE_ARG=""
 MODE_ARG=""
+SUBMIT_MODE_ARG=""
 RUN_ID_ARG=""
 PASSTHROUGH=()
 
@@ -98,6 +101,10 @@ while [[ $# -gt 0 ]]; do
       MODE_ARG="${2:-}"
       shift 2
       ;;
+    --submit-mode)
+      SUBMIT_MODE_ARG="${2:-}"
+      shift 2
+      ;;
     --run-id)
       RUN_ID_ARG="${2:-}"
       shift 2
@@ -145,6 +152,9 @@ case "${EVAL_FRAMEWORK}" in
     if [[ -n "${MODE_ARG}" ]]; then
       ARGS+=(--mode "${MODE_ARG}")
     fi
+    if [[ -n "${SUBMIT_MODE_ARG}" ]]; then
+      ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
+    fi
     ARGS+=("${PASSTHROUGH[@]}")
     exec "${ORCH_REPO_ROOT}/launchers/lmms-eval/eval.sh" "${ARGS[@]}"
     ;;
@@ -161,6 +171,9 @@ case "${EVAL_FRAMEWORK}" in
     fi
     if [[ -n "${MODE_ARG}" ]]; then
       ARGS+=(--mode "${MODE_ARG}")
+    fi
+    if [[ -n "${SUBMIT_MODE_ARG}" ]]; then
+      ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
     fi
     ARGS+=("${PASSTHROUGH[@]}")
     exec "${ORCH_REPO_ROOT}/launchers/VLMEvalKit/eval.sh" "${ARGS[@]}"

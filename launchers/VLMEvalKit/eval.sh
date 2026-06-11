@@ -6,6 +6,7 @@
 #   bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --model Apertus-1p5-8B
 #   bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --mode infer
 #   bash launchers/VLMEvalKit/eval.sh --data @datasets.txt --model @models.txt
+#   bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --model Apertus-1p5-8B --submit-mode interactive
 
 set -euo pipefail
 
@@ -34,6 +35,7 @@ MODELS_RAW="${DEFAULT_MODEL}"
 DATA_RAW=""
 SUITE="smoke"
 MODE="all"
+SUBMIT_MODE="batch"
 NODES="${NODES:-1}"
 NUM_PROCESSES="${NUM_PROCESSES:-4}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
@@ -61,6 +63,9 @@ Options:
                                     the filename). Drop a new .txt in suites/
                                     to add a suite; no script edit needed.
   --mode all|infer|eval             VLMEvalKit run mode. Default: all.
+  --submit-mode batch|interactive
+                                    Batch submits via sbatch; interactive runs
+                                    the job script directly with bash.
   --nodes <int>                     Number of slurm nodes (multi-node DP). Default: 1.
                                     Total world size = nodes * num-processes.
   --num-processes <int>             DP workers per node (= GPUs per node). Default: 4.
@@ -79,7 +84,7 @@ Options:
   --log-dir <path>                  Slurm stdout/stderr directory.
   --time <hh:mm:ss>                 Slurm time limit. Default: 04:00:00.
   --main-process-port <int>         torch.distributed master port.
-  --dry-run                         Print sbatch commands without submitting.
+  --dry-run                         Print the submission command without executing it.
   -h, --help                        Show this help.
 EOF
 }
@@ -111,6 +116,8 @@ while [[ $# -gt 0 ]]; do
       SUITE="$2"; shift 2 ;;
     --mode)
       MODE="$2"; shift 2 ;;
+    --submit-mode)
+      SUBMIT_MODE="$2"; shift 2 ;;
     --nodes)
       NODES="$2"; shift 2 ;;
     --num-processes)
@@ -152,6 +159,11 @@ done
 case "${MODE}" in
   all|infer|eval) ;;
   *) echo "--mode must be all, infer, or eval (got: ${MODE})" >&2; exit 1 ;;
+esac
+
+case "${SUBMIT_MODE}" in
+  batch|interactive) ;;
+  *) echo "--submit-mode must be batch or interactive (got: ${SUBMIT_MODE})" >&2; exit 1 ;;
 esac
 
 # Validate; the mode -> {preload, readonly, write-misses} mapping lives in
@@ -219,17 +231,15 @@ while IFS= read -r DATASET; do
     MODEL_SLUG="$(safe_name "${MODEL}")"
     JOB_NAME="vlmeval-${DATA_SLUG}"
     WORK_DIR="${WORK_BASE}/${MODEL_SLUG}/${DATA_SLUG}"
-    SBATCH_OUTPUT="${LOG_DIR}/${JOB_NAME}_${MODEL_SLUG}_%j.out"
-    SBATCH_ERROR="${LOG_DIR}/${JOB_NAME}_${MODEL_SLUG}_%j.err"
+    if [[ "${SUBMIT_MODE}" == "interactive" ]]; then
+      JOB_OUTPUT="${LOG_DIR}/${JOB_NAME}_${MODEL_SLUG}_interactive.out"
+      JOB_ERROR="${LOG_DIR}/${JOB_NAME}_${MODEL_SLUG}_interactive.err"
+    else
+      JOB_OUTPUT="${LOG_DIR}/${JOB_NAME}_${MODEL_SLUG}_%j.out"
+      JOB_ERROR="${LOG_DIR}/${JOB_NAME}_${MODEL_SLUG}_%j.err"
+    fi
 
-    CMD=(
-      sbatch
-      --job-name "${JOB_NAME}"
-      --output "${SBATCH_OUTPUT}"
-      --error "${SBATCH_ERROR}"
-      --time "${SBATCH_TIME}"
-      --nodes "${NODES}"
-      "${SLURM_TEMPLATE}"
+    JOB_ARGS=(
       --repo-dir "${REPO_DIR}"
       --model "${MODEL}"
       --data "${DATASET}"
@@ -251,12 +261,36 @@ while IFS= read -r DATASET; do
       --main-process-port "${MAIN_PROCESS_PORT}"
     )
 
+    if [[ "${SUBMIT_MODE}" == "interactive" ]]; then
+      CMD=(bash "${SLURM_TEMPLATE}" "${JOB_ARGS[@]}")
+    else
+      CMD=(
+        sbatch
+        --job-name "${JOB_NAME}"
+        --output "${JOB_OUTPUT}"
+        --error "${JOB_ERROR}"
+        --time "${SBATCH_TIME}"
+        --nodes "${NODES}"
+        "${SLURM_TEMPLATE}"
+        "${JOB_ARGS[@]}"
+      )
+    fi
+
     echo "--- submit: data=${DATASET} model=${MODEL} work=${WORK_DIR} ---"
+    echo "    logs:   ${JOB_OUTPUT} / ${JOB_ERROR}"
     if [[ "${DRY_RUN}" -eq 1 ]]; then
       printf ' %q' "${CMD[@]}"
-      printf '\n'
+      if [[ "${SUBMIT_MODE}" == "interactive" ]]; then
+        printf ' >%q 2>%q\n' "${JOB_OUTPUT}" "${JOB_ERROR}"
+      else
+        printf '\n'
+      fi
     else
-      "${CMD[@]}"
+      if [[ "${SUBMIT_MODE}" == "interactive" ]]; then
+        "${CMD[@]}" >"${JOB_OUTPUT}" 2>"${JOB_ERROR}"
+      else
+        "${CMD[@]}"
+      fi
     fi
   done <<< "${MODELS}"
 done <<< "${DATASETS}"

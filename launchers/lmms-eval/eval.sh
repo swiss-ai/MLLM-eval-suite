@@ -2,7 +2,7 @@
 # eval.sh — Apertus VLM eval CLI (per-task SQLite cache, single user entry point).
 #
 # Usage:
-#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval] [--mode fill|readonly] [--help]
+#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval] [--mode fill|readonly] [--submit-mode batch|interactive] [--help]
 #
 # <model> forms:
 #   /path/to/ckpt                       single path
@@ -13,6 +13,9 @@
 # --suite   named curation: full (default), smoke, audio-full, audio-smoke, audio-llm-eval.
 # --mode    fill|readonly. Both modes use the shared cache directly with preload
 #           on and writes enabled.
+# --submit-mode  batch|interactive. Batch submits one sbatch per task/model pair.
+#                Interactive runs the job script directly with bash so it uses
+#                the current shell's node allocation.
 #
 # Examples:
 #   bash eval.sh /path/to/ckpt                          # full suite, fill mode
@@ -21,6 +24,7 @@
 #   bash eval.sh /a,/b,/c                               # multiple models
 #   bash eval.sh @models.txt --tasks @custom.txt
 #   bash eval.sh /path/to/ckpt --mode fill              # explicit default
+#   bash eval.sh /path/to/ckpt --submit-mode interactive --suite audio-smoke
 #
 # Cache layout (per-task SQLite, bounded growth per file):
 #   $CACHE_BASE/{task}/image_tokens/apertus_image_token_cache.sqlite3
@@ -72,6 +76,7 @@ MODELS_RAW=""
 TASKS_RAW=""
 SUITE=""
 MODE="fill"
+SUBMIT_MODE="batch"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -79,6 +84,7 @@ while [[ $# -gt 0 ]]; do
     --tasks)    TASKS_RAW="$2"; shift 2 ;;
     --suite)    SUITE="$2"; shift 2 ;;
     --mode)     MODE="$2"; shift 2 ;;
+    --submit-mode) SUBMIT_MODE="$2"; shift 2 ;;
     --*)        echo "unknown flag: $1" >&2; usage; exit 1 ;;
     *)
       # First positional = model(s)
@@ -92,6 +98,7 @@ done
 if [[ -z "$MODELS_RAW" ]]; then echo "missing <model> argument" >&2; usage; exit 1; fi
 
 case "$MODE" in fill|readonly) ;; *) echo "--mode must be fill|readonly (got: $MODE)" >&2; exit 1 ;; esac
+case "$SUBMIT_MODE" in batch|interactive) ;; *) echo "--submit-mode must be batch|interactive (got: $SUBMIT_MODE)" >&2; exit 1 ;; esac
 
 # ------------------------------------------------------------------
 # Resolve models: inline path, comma-separated, or @file
@@ -192,9 +199,6 @@ fi
 # ------------------------------------------------------------------
 mkdir -p "$LOG_DIR" "$OUTPUT_PATH" "$CACHE_BASE" "$HF_HOME_PATH" "$NLTK_DATA_PATH" "$XDG_CACHE_HOME_PATH" "$VLLM_CACHE_ROOT_PATH" "$LMMS_EVAL_MODELS_CACHE_PATH"
 cd "$REPO_ROOT"
-SBATCH_OUTPUT="${SBATCH_OUTPUT:-${LOG_DIR}/eval_${MODE}_%j.out}"
-SBATCH_ERROR="${SBATCH_ERROR:-${LOG_DIR}/eval_${MODE}_%j.err}"
-
 # ------------------------------------------------------------------
 # Cache flags: use the shared per-task SQLite cache directly, preload it, and
 # allow misses to be written back.
@@ -231,7 +235,7 @@ echo "  wandb:      $ENABLE_WANDB ($WANDB_ENTITY/$WANDB_PROJECT)"
 echo "========================================"
 
 # ------------------------------------------------------------------
-# Main loop: one sbatch per (task, model) tuple.
+# Main loop: one submission per (task, model) tuple.
 # Per-task cache dir is unique → trivially parallel writes during fill,
 # bounded blast radius if any single task's cache is corrupted.
 # ------------------------------------------------------------------
@@ -252,40 +256,59 @@ while IFS= read -r TASK; do
     [[ "$MODEL_LABEL" == "HF" ]] && MODEL_LABEL="$(basename "$(dirname "$MODEL_PATH")")"
     WANDB_GROUP="${WANDB_GROUP_PREFIX}${MODEL_LABEL}"
 
+    if [[ "$SUBMIT_MODE" == "interactive" ]]; then
+      JOB_OUTPUT="${LOG_DIR}/eval_${MODE}_${TASK}_${MODEL_LABEL}_interactive.out"
+      JOB_ERROR="${LOG_DIR}/eval_${MODE}_${TASK}_${MODEL_LABEL}_interactive.err"
+    else
+      JOB_OUTPUT="${LOG_DIR}/eval_${MODE}_%j.out"
+      JOB_ERROR="${LOG_DIR}/eval_${MODE}_%j.err"
+    fi
+
     echo "--- submit: task=$TASK  model=$MODEL_LABEL ---"
     echo "    cache: $TASK_CACHE_DIR"
+    echo "    logs:  $JOB_OUTPUT / $JOB_ERROR"
 
-    sbatch \
-      --output "$SBATCH_OUTPUT" \
-      --error  "$SBATCH_ERROR" \
-      "$SLURM_TEMPLATE" \
-      --model-path "$MODEL_PATH" \
-      --tokenizer-path "$TOKENIZER_PATH" \
-      --chat-template "$CHAT_TEMPLATE" \
-      --tasks "$TASK" \
-      --output-path "$OUTPUT_PATH" \
-      --log-dir "$LOG_DIR" \
-      --hf-home "$HF_HOME_PATH" \
-      --nltk-data "$NLTK_DATA_PATH" \
-      --xdg-cache-home "$XDG_CACHE_HOME_PATH" \
-      --vllm-cache-root "$VLLM_CACHE_ROOT_PATH" \
-      --models-cache "$LMMS_EVAL_MODELS_CACHE_PATH" \
-      --num-processes "$NUM_PROCESSES" \
-      --batch-size "$BATCH_SIZE" \
-      --gen-kwargs "$GEN_KWARGS" \
-      --enable-image-token-cache true \
-      --image-token-cache-dir "$TASK_CACHE_DIR" \
-      --image-token-cache-collision-guard 0 \
-      --image-token-cache-local-copy 0 \
-      --image-token-cache-preload "$CACHE_PRELOAD" \
-      --image-token-cache-readonly "$CACHE_READONLY" \
-      --image-token-cache-write-misses "$CACHE_WRITE_MISSES" \
-      --enable-wandb "$ENABLE_WANDB" \
-      --wandb-project "$WANDB_PROJECT" \
-      --wandb-entity "$WANDB_ENTITY" \
-      --wandb-group "$WANDB_GROUP" \
-      --wandb-log-samples "$WANDB_LOG_SAMPLES" \
+    JOB_ARGS=(
+      --model-path "$MODEL_PATH"
+      --tokenizer-path "$TOKENIZER_PATH"
+      --chat-template "$CHAT_TEMPLATE"
+      --tasks "$TASK"
+      --output-path "$OUTPUT_PATH"
+      --log-dir "$LOG_DIR"
+      --hf-home "$HF_HOME_PATH"
+      --nltk-data "$NLTK_DATA_PATH"
+      --xdg-cache-home "$XDG_CACHE_HOME_PATH"
+      --vllm-cache-root "$VLLM_CACHE_ROOT_PATH"
+      --models-cache "$LMMS_EVAL_MODELS_CACHE_PATH"
+      --num-processes "$NUM_PROCESSES"
+      --batch-size "$BATCH_SIZE"
+      --gen-kwargs "$GEN_KWARGS"
+      --enable-image-token-cache true
+      --image-token-cache-dir "$TASK_CACHE_DIR"
+      --image-token-cache-collision-guard 0
+      --image-token-cache-local-copy 0
+      --image-token-cache-preload "$CACHE_PRELOAD"
+      --image-token-cache-readonly "$CACHE_READONLY"
+      --image-token-cache-write-misses "$CACHE_WRITE_MISSES"
+      --enable-wandb "$ENABLE_WANDB"
+      --wandb-project "$WANDB_PROJECT"
+      --wandb-entity "$WANDB_ENTITY"
+      --wandb-group "$WANDB_GROUP"
+      --wandb-log-samples "$WANDB_LOG_SAMPLES"
       --wandb-api-key "${WANDB_API_KEY:-}"
+    )
+
+    if [[ "$SUBMIT_MODE" == "interactive" ]]; then
+      echo "    submit: interactive bash ${SLURM_TEMPLATE}"
+      bash "$SLURM_TEMPLATE" "${JOB_ARGS[@]}" >"$JOB_OUTPUT" 2>"$JOB_ERROR"
+    else
+      echo "    submit: sbatch ${SLURM_TEMPLATE}"
+      sbatch \
+        --output "$JOB_OUTPUT" \
+        --error  "$JOB_ERROR" \
+        "$SLURM_TEMPLATE" \
+        "${JOB_ARGS[@]}"
+    fi
   done <<< "$MODELS"
 done <<< "$TASKS"
 
