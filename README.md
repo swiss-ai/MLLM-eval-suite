@@ -85,6 +85,8 @@ Image-token cache defaults are framework-specific and persistent under `cache/lm
 
 The default batch size is `512` for both production launchers unless overridden with `--batch-size` after `--` or via framework-specific environment variables.
 
+The combined launcher prefetches `BAAI/Emu3.5-VisionTokenizer` into `cache/models/BAAI/Emu3.5-VisionTokenizer` before it submits jobs, so the tokenizer files are present before evaluation starts.
+
 ## Suites
 
 Suite files live under `task_suites/` and can be passed directly to the launchers with `--tasks`.

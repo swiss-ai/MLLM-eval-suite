@@ -1,4 +1,4 @@
-image = "/capstor/store/cscs/swissai/infra01/container-images/apertus-vllm-vision-eval-prod.sqsh"
+image = "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
 
 mounts = [
   "/capstor/store/cscs/swissai/infra01/ocf-share:/ocfbin",

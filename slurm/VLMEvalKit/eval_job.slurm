@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=infra01
 #SBATCH --job-name=vlmeval-apertus
-#SBATCH --environment=/iopsstor/scratch/cscs/anunay/swissai/apertus_integration/MLLM-eval-suite/toml/shared/apertus-vllm-vision-eval-prod.toml
+#SBATCH --environment=/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/toml/shared/apertus-vllm-vision-eval-prod.toml
 #SBATCH --nodes=1
 #SBATCH --exclusive
 #SBATCH --reservation=SD-69241-apertus-1-5-0

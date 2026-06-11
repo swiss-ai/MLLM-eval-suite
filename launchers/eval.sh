@@ -27,6 +27,8 @@ USAGE
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ORCH_REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 export ORCH_REPO_ROOT
+PREFETCH_EMU35_VISION_TOKENIZER="${PREFETCH_EMU35_VISION_TOKENIZER:-true}"
+MODELS_CACHE_ROOT="${LMMS_EVAL_MODELS_CACHE:-${VLLM_APERTUS_MODELS_CACHE:-${ORCH_REPO_ROOT}/cache/models}}"
 
 EVAL_FRAMEWORK=""
 MODEL_ARG=""
@@ -35,6 +37,44 @@ SUITE_ARG=""
 MODE_ARG=""
 RUN_ID_ARG=""
 PASSTHROUGH=()
+
+is_true() {
+  local value
+  value="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  case "${value}" in
+    1|true|t|yes|y|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+prefetch_emu35_vision_tokenizer() {
+  if ! is_true "${PREFETCH_EMU35_VISION_TOKENIZER}"; then
+    return 0
+  fi
+
+  local prefetch_dir="${MODELS_CACHE_ROOT}/BAAI/Emu3.5-VisionTokenizer"
+  if [[ -f "${prefetch_dir}/config.yaml" && -f "${prefetch_dir}/model.ckpt" ]]; then
+    return 0
+  fi
+
+  mkdir -p "${MODELS_CACHE_ROOT}"
+  echo "Prefetching BAAI/Emu3.5-VisionTokenizer into ${prefetch_dir}"
+  PREFETCH_DIR="${prefetch_dir}" python - <<'PY'
+import os
+from huggingface_hub import snapshot_download
+
+snapshot_download(
+    repo_id="BAAI/Emu3.5-VisionTokenizer",
+    local_dir=os.environ["PREFETCH_DIR"],
+    allow_patterns=["config.yaml", "model.ckpt"],
+)
+PY
+
+  if [[ ! -f "${prefetch_dir}/config.yaml" || ! -f "${prefetch_dir}/model.ckpt" ]]; then
+    echo "Failed to prefetch BAAI/Emu3.5-VisionTokenizer into ${prefetch_dir}" >&2
+    exit 1
+  fi
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -83,6 +123,8 @@ if [[ -z "${EVAL_FRAMEWORK}" ]]; then
   usage >&2
   exit 2
 fi
+
+prefetch_emu35_vision_tokenizer
 
 if [[ -n "${RUN_ID_ARG}" ]]; then
   export RUN_ID="${RUN_ID_ARG}"
