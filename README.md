@@ -130,7 +130,8 @@ uv pip install --python /opt/venv/bin/python --no-build-isolation --editable . "
 ```
 
 ```bash
-uv pip install --python /opt/venv/bin/python --no-deps --editable third_party/VLMEvalKit
+cd third_party/VLMEvalKit
+uv pip install --python /opt/venv/bin/python --no-deps --editable .
 ```
 
 The combined launcher accepts common top-level arguments such as `--model`, `--tasks`, `--suite`, `--mode`, `--submit-mode`, and `--run-id`. Framework-specific options can be passed after `--`.
