@@ -72,6 +72,43 @@ bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --suite
 bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --tasks task_suites/lmms-eval/visual_full.txt
 ```
 
+Run lmms-eval audio benchmarks through the same launcher by selecting an audio suite or a specific audio task:
+
+```bash
+bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --suite audio-smoke
+bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --suite audio-full
+bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --tasks google_fleurs
+```
+
+For local audio task changes in `third_party/lmms-eval`, run interactively with `LMMS_EVAL_DEV_PATH` and pass vLLM/audio-tokenizer args after `--`:
+
+```bash
+export MODEL="/capstor/store/cscs/swissai/infra01/hf-checkpoints/Apertus-1p5-8B-sft-capfilter-lr6e-5-constant-innovator-fix-it23409"
+export TOK="/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed"
+export VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE="/workspace/benchmark-audio-tokenizer"
+
+LMMS_EVAL_DEV_PATH="$PWD/third_party/lmms-eval" \
+ENABLE_WANDB=false \
+bash launchers/eval.sh \
+  --eval-framework lmms-eval \
+  --model "$MODEL" \
+  --tasks fleurs_en_us \
+  --submit-mode interactive \
+  -- \
+  --tokenizer-path "$TOK" \
+  --gpu-memory-utilization 0.75 \
+  --trust-remote-code True \
+  --extra-model-args 'allowed_local_media_path=/,limit_mm_per_prompt={"audio":1,"image":1},mm_processor_kwargs={"apertus_audio_tokenizer_path":"/capstor/store/cscs/swissai/infra01/MLLM/wavtokenizer"}'
+```
+
+The lmms-eval launcher automatically uses `$TOK/chat_template.jinja` when `TOK` is the default Apertus tokenizer path. For any other tokenizer, pass the template explicitly after `--`:
+
+```bash
+bash launchers/eval.sh --eval-framework lmms-eval --model "$MODEL" --tasks google_fleurs -- \
+  --tokenizer-path "$TOK" \
+  --chat-template "$TOK/chat_template.jinja"
+```
+
 Submit VLMEvalKit production jobs through the combined production launcher:
 
 ```bash
@@ -121,6 +158,20 @@ Changes to evaluation framework code should happen inside the corresponding subm
 Framework-specific production launchers under `launchers/lmms-eval/` and `launchers/VLMEvalKit/` expect `ORCH_REPO_ROOT` to be set by `launchers/eval.sh`.
 
 The production runtime expects `lmms-eval` and `VLMEvalKit` to be available under `/workspace` inside the job container. If you need a custom implementation, make the changes inside the matching `third_party/` checkout, install or update that version from `third_party/`, and use `--submit-mode interactive` so the job runs with the current shell and node allocation.
+
+For local `third_party/lmms-eval` changes to be used by the lmms-eval Slurm wrapper, set `LMMS_EVAL_DEV_PATH` to this checkout. Otherwise the job prepends `/workspace/lmms-eval` to `PYTHONPATH` and your local task/model changes may not be visible:
+
+```bash
+LMMS_EVAL_DEV_PATH="$PWD/third_party/lmms-eval" \
+bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --tasks google_fleurs --submit-mode interactive
+```
+
+You can sanity-check task registration before launching a full run, but this requires `python` to be available in the active environment:
+
+```bash
+PYTHONPATH="$PWD/third_party/lmms-eval:/workspace/lmms-eval:${PYTHONPATH:-}" \
+python -m lmms_eval --tasks list | grep google_fleurs
+```
 
 When you want to install the custom checkouts from this repository directly, use:
 

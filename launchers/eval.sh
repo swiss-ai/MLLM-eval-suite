@@ -155,7 +155,9 @@ case "${EVAL_FRAMEWORK}" in
     if [[ -n "${SUBMIT_MODE_ARG}" ]]; then
       ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
     fi
-    ARGS+=("${PASSTHROUGH[@]}")
+    if [[ ${#PASSTHROUGH[@]} -gt 0 ]]; then
+      ARGS+=(-- "${PASSTHROUGH[@]}")
+    fi
     exec "${ORCH_REPO_ROOT}/launchers/lmms-eval/eval.sh" "${ARGS[@]}"
     ;;
   VLMEvalKit|vlmevalkit)

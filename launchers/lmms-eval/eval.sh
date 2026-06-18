@@ -2,7 +2,7 @@
 # eval.sh — Apertus VLM eval CLI (per-task SQLite cache, single user entry point).
 #
 # Usage:
-#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval] [--mode fill|readonly] [--submit-mode batch|interactive] [--help]
+#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval] [--mode fill|readonly] [--submit-mode batch|interactive] [--help] [-- job args...]
 #
 # <model> forms:
 #   /path/to/ckpt                       single path
@@ -25,6 +25,7 @@
 #   bash eval.sh @models.txt --tasks @custom.txt
 #   bash eval.sh /path/to/ckpt --mode fill              # explicit default
 #   bash eval.sh /path/to/ckpt --submit-mode interactive --suite audio-smoke
+#   bash eval.sh /path/to/ckpt --tasks google_fleurs -- --gpu-memory-utilization 0.75
 #
 # Cache layout (per-task SQLite, bounded growth per file):
 #   $CACHE_BASE/{task}/image_tokens/apertus_image_token_cache.sqlite3
@@ -77,6 +78,7 @@ TASKS_RAW=""
 SUITE=""
 MODE="fill"
 SUBMIT_MODE="batch"
+PASSTHROUGH=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -85,6 +87,7 @@ while [[ $# -gt 0 ]]; do
     --suite)    SUITE="$2"; shift 2 ;;
     --mode)     MODE="$2"; shift 2 ;;
     --submit-mode) SUBMIT_MODE="$2"; shift 2 ;;
+    --)         shift; PASSTHROUGH+=("$@"); break ;;
     --*)        echo "unknown flag: $1" >&2; usage; exit 1 ;;
     *)
       # First positional = model(s)
@@ -176,7 +179,7 @@ fi
 # 8192 covers ~85% of reasoning-task generations without truncation. Math/reasoning
 # tasks at lower budgets show 30-50% mid-response truncation. MCQ hits EOS well
 # before this, so no cost for short-answer tasks.
-GEN_KWARGS="${GEN_KWARGS:-max_new_tokens=8192,temperature=0}"
+GEN_KWARGS="${GEN_KWARGS:-max_new_tokens=256,temperature=0}"
 # 4 vLLM workers per node = 1 per GH200 GPU (4 GPUs). Per-task SQLite handles
 # 4 concurrent writers via WAL with sub-ms lock overhead.
 NUM_PROCESSES="${NUM_PROCESSES:-4}"
@@ -226,6 +229,7 @@ echo "  models:     $(echo "$MODELS" | tr '\n' ',' | sed 's/,$//')"
 echo "  tasks:      $(echo "$TASKS"  | tr '\n' ',' | sed 's/,$//')"
 echo "  tokenizer:  $TOKENIZER_PATH"
 echo "  template:   ${CHAT_TEMPLATE:-<tokenizer default>}"
+echo "  gen kwargs: $GEN_KWARGS"
 echo "  cache base: $CACHE_BASE"
 echo "  output:     $OUTPUT_PATH"
 echo "  run id:     $RUN_ID"
@@ -297,6 +301,7 @@ while IFS= read -r TASK; do
       --wandb-log-samples "$WANDB_LOG_SAMPLES"
       --wandb-api-key "${WANDB_API_KEY:-}"
     )
+    JOB_ARGS+=("${PASSTHROUGH[@]}")
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
       echo "    submit: interactive bash ${SLURM_TEMPLATE}"
