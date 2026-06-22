@@ -42,11 +42,6 @@ BATCH_SIZE="${BATCH_SIZE:-512}"
 SKIP_MM_PROFILING="${VLLM_APERTUS_SKIP_MM_PROFILING:-}"
 ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
 IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
-IMAGE_TOKEN_CACHE_LOCAL_COPY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_COPY:-0}"
-IMAGE_TOKEN_CACHE_PRELOAD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD:-1}"
-IMAGE_TOKEN_CACHE_READONLY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY:-0}"
-IMAGE_TOKEN_CACHE_WRITE_MISSES="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES:-1}"
-IMAGE_TOKEN_CACHE_COLLISION_GUARD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD:-0}"
 SBATCH_TIME="${SBATCH_TIME:-04:00:00}"
 MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-29541}"
 DRY_RUN=0
@@ -79,9 +74,7 @@ Options:
   --enable-image-token-cache <true|false>
                                     Export Apertus vLLM image-token cache env. Default: true.
   --image-token-cache-mode <fill|readonly>
-                                    Accepted for compatibility. Both modes preload the
-                                    shared cache and write missing image tokens.
-                                    Default: fill.
+                                    fill builds the cache; readonly uses a sealed one. Default: fill.
   --lmu-data <path>                 Persistent LMUData root for VLMEvalKit datasets.
   --runtime-cache <path>            HF/XDG/vLLM runtime cache root.
   --log-dir <path>                  Slurm stdout/stderr directory.
@@ -173,8 +166,8 @@ case "${SUBMIT_MODE}" in
   *) echo "--submit-mode must be batch or interactive (got: ${SUBMIT_MODE})" >&2; exit 1 ;;
 esac
 
-# Validate; the mode -> {preload, readonly, write-misses} mapping lives in
-# eval_job.slurm (single source of truth).
+# Validate; the mode -> {readonly, write-misses, strict} mapping lives in
+# slurm/shared/image_token_cache_env.sh (single source of truth).
 case "${IMAGE_TOKEN_CACHE_MODE}" in
   fill|readonly) ;;
   *) echo "--image-token-cache-mode must be fill or readonly (got: ${IMAGE_TOKEN_CACHE_MODE})" >&2; exit 1 ;;
@@ -261,11 +254,6 @@ while IFS= read -r DATASET; do
       --enable-image-token-cache "${ENABLE_IMAGE_TOKEN_CACHE}"
       --image-token-cache-mode "${IMAGE_TOKEN_CACHE_MODE}"
       --image-token-cache-base "${IMAGE_TOKEN_CACHE_BASE}"
-      --image-token-cache-collision-guard "${IMAGE_TOKEN_CACHE_COLLISION_GUARD}"
-      --image-token-cache-local-copy "${IMAGE_TOKEN_CACHE_LOCAL_COPY}"
-      --image-token-cache-preload "${IMAGE_TOKEN_CACHE_PRELOAD}"
-      --image-token-cache-readonly "${IMAGE_TOKEN_CACHE_READONLY}"
-      --image-token-cache-write-misses "${IMAGE_TOKEN_CACHE_WRITE_MISSES}"
       --lmu-data "${LMU_DATA}"
       --runtime-cache "${RUNTIME_CACHE}"
       --num-processes "${NUM_PROCESSES}"

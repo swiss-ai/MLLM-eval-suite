@@ -74,17 +74,7 @@ EXTRA_MODEL_ARGS=""
 SEED=1234
 EVAL_SEED="${SEED}"
 ENABLE_IMAGE_TOKEN_CACHE=true
-IMAGE_TOKEN_CACHE_COLLISION_GUARD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD:-0}"
-IMAGE_TOKEN_CACHE_LOCAL_COPY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_COPY:-0}"
-IMAGE_TOKEN_CACHE_LOCAL_BASE="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_BASE:-/tmp/${USER}/apertus_image_token_cache}"
-IMAGE_TOKEN_CACHE_PRELOAD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD:-1}"
-IMAGE_TOKEN_CACHE_READONLY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY:-0}"
-IMAGE_TOKEN_CACHE_WRITE_MISSES="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES:-1}"
-IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT:-10}"
-IMAGE_TOKEN_MEMORY_CACHE_SIZE="${VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE:-131072}"
-IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS:-5000}"
-IMAGE_TOKEN_SQLITE_MMAP_SIZE="${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE:-1073741824}"
-IMAGE_TOKEN_CACHE_DEBUG="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG:-0}"
+IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
 PREFETCH_EMU35_VISION_TOKENIZER=true
 ENABLE_WANDB=false
 WANDB_PROJECT="${WANDB_PROJECT:-lmms-eval}"
@@ -138,27 +128,8 @@ Options:
   --enable-image-token-cache <true|false>
                                          Enable Apertus image tokenization cache.
   --image-token-cache-dir <path>         Existing directory for SQLite cache.
-  --image-token-cache-collision-guard <0|1|true|false>
-                                         Enable collision guard mode.
-  --image-token-cache-local-copy <0|1|true|false>
-                                         Copy SQLite cache to node-local storage before launch. Default: 1.
-  --image-token-cache-local-base <path>  Node-local base directory for copied image-token cache.
-                                         Default: /tmp/${USER}/apertus_image_token_cache
-  --image-token-cache-preload <0|1|true|false>
-                                         Preload SQLite entries into process-local memory cache. Default: 1.
-  --image-token-cache-readonly <0|1|true|false>
-                                         Open/use image-token cache as read-only during eval. Default: 1.
-  --image-token-cache-write-misses <0|1|true|false>
-                                         Persist misses to SQLite during eval. Default: 0.
-  Environment override:
-    VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT
-                                         Safety margin (%) for node-local free-space preflight before copying cache. Default: 10.
-  --image-token-memory-cache-size <int>  In-process LRU size.
-  --image-token-sqlite-busy-timeout-ms <int>
-                                         SQLite busy timeout in milliseconds.
-  --image-token-sqlite-mmap-size <bytes> SQLite mmap_size hint in bytes.
-  --image-token-cache-debug <0|1|true|false>
-                                         Enable cache debug logs.
+  --image-token-cache-mode <fill|readonly>
+                                         fill builds the cache; readonly uses a sealed one. Default: fill.
   --prefetch-emu35-vision-tokenizer <true|false>
                                          Prefetch BAAI/Emu3.5-VisionTokenizer once before launch.
   --enable-wandb <true|false>            Enable W&B metric logging. Default: false (forced off in this script).
@@ -208,16 +179,7 @@ while [[ $# -gt 0 ]]; do
     --offline-datasets) OFFLINE_DATASETS="$2"; shift 2 ;;
     --enable-image-token-cache) ENABLE_IMAGE_TOKEN_CACHE="$2"; shift 2 ;;
     --image-token-cache-dir) IMAGE_TOKEN_CACHE_DIR="$2"; shift 2 ;;
-    --image-token-cache-collision-guard) IMAGE_TOKEN_CACHE_COLLISION_GUARD="$2"; shift 2 ;;
-    --image-token-cache-local-copy) IMAGE_TOKEN_CACHE_LOCAL_COPY="$2"; shift 2 ;;
-    --image-token-cache-local-base) IMAGE_TOKEN_CACHE_LOCAL_BASE="$2"; shift 2 ;;
-    --image-token-cache-preload) IMAGE_TOKEN_CACHE_PRELOAD="$2"; shift 2 ;;
-    --image-token-cache-readonly) IMAGE_TOKEN_CACHE_READONLY="$2"; shift 2 ;;
-    --image-token-cache-write-misses) IMAGE_TOKEN_CACHE_WRITE_MISSES="$2"; shift 2 ;;
-    --image-token-memory-cache-size) IMAGE_TOKEN_MEMORY_CACHE_SIZE="$2"; shift 2 ;;
-    --image-token-sqlite-busy-timeout-ms) IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="$2"; shift 2 ;;
-    --image-token-sqlite-mmap-size) IMAGE_TOKEN_SQLITE_MMAP_SIZE="$2"; shift 2 ;;
-    --image-token-cache-debug) IMAGE_TOKEN_CACHE_DEBUG="$2"; shift 2 ;;
+    --image-token-cache-mode) IMAGE_TOKEN_CACHE_MODE="$2"; shift 2 ;;
     --prefetch-emu35-vision-tokenizer) PREFETCH_EMU35_VISION_TOKENIZER="$2"; shift 2 ;;
     --enable-wandb) echo "Info: W&B is disabled in this script; ignoring --enable-wandb=$2"; shift 2 ;;
     --wandb-project) WANDB_PROJECT="$2"; shift 2 ;;
@@ -230,7 +192,7 @@ while [[ $# -gt 0 ]]; do
     --wandb-log-samples) WANDB_LOG_SAMPLES="$2"; shift 2 ;;
     --wandb-args) WANDB_ARGS="$2"; shift 2 ;;
     --wandb-api-key) WANDB_API_KEY="$2"; shift 2 ;;
-    --debug-mode) IMAGE_TOKEN_CACHE_DEBUG=1; shift ;;
+    --debug-mode) export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG=1; shift ;;
     --help) usage; exit 0 ;;
     *)
       echo "Unknown option: $1"
@@ -302,7 +264,6 @@ if ! [[ "${HASH_SEED}" =~ ^[0-9]+$ ]]; then
 fi
 export PYTHONHASHSEED="${PYTHONHASHSEED:-${HASH_SEED}}"
 export VLLM_SEED="${VLLM_SEED:-${SEED}}"
-export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG
 
 if is_true "${OFFLINE_DATASETS}"; then
   export HF_DATASETS_OFFLINE=1
@@ -311,78 +272,9 @@ else
 fi
 
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
-  SHARED_IMAGE_TOKEN_CACHE_DIR="${IMAGE_TOKEN_CACHE_DIR}"
-  LOCAL_JOB_CACHE_DIR="(not used)"
-
-  echo "IMAGE_TOKEN_CACHE_LOCAL_COPY=${IMAGE_TOKEN_CACHE_LOCAL_COPY}"
-  echo "Shared image-token cache dir: ${SHARED_IMAGE_TOKEN_CACHE_DIR}"
-
-  if is_true "${IMAGE_TOKEN_CACHE_LOCAL_COPY}"; then
-    LOCAL_JOB_CACHE_DIR="${IMAGE_TOKEN_CACHE_LOCAL_BASE}/${SLURM_JOB_ID:-manual}"
-    if ! [[ "${IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT}" =~ ^[0-9]+$ ]]; then
-      echo "Warning: invalid VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT=${IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT}; using 10."
-      IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT=10
-    fi
-    mkdir -p "${LOCAL_JOB_CACHE_DIR}"
-    echo "Node-local image-token cache dir: ${LOCAL_JOB_CACHE_DIR}"
-    du -sh "${SHARED_IMAGE_TOKEN_CACHE_DIR}" || true
-    if [[ -d "${SHARED_IMAGE_TOKEN_CACHE_DIR}" ]]; then
-      LOCAL_CACHE_CHECK_PATH="${IMAGE_TOKEN_CACHE_LOCAL_BASE}"
-      if [[ ! -e "${LOCAL_CACHE_CHECK_PATH}" ]]; then
-        LOCAL_CACHE_CHECK_PATH="/tmp"
-      fi
-      SRC_CACHE_BYTES="$(du -sb "${SHARED_IMAGE_TOKEN_CACHE_DIR}" | awk '{print $1}')"
-      LOCAL_CACHE_AVAIL_BYTES="$(df -B1 --output=avail "${LOCAL_CACHE_CHECK_PATH}" | tail -n1 | tr -d '[:space:]')"
-      LOCAL_CACHE_REQUIRED_BYTES=$((SRC_CACHE_BYTES + (SRC_CACHE_BYTES * IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT / 100)))
-      echo "Local-cache preflight: source_bytes=${SRC_CACHE_BYTES} available_bytes=${LOCAL_CACHE_AVAIL_BYTES} required_bytes=${LOCAL_CACHE_REQUIRED_BYTES} margin_pct=${IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT}"
-      if (( LOCAL_CACHE_AVAIL_BYTES < LOCAL_CACHE_REQUIRED_BYTES )); then
-        echo "ERROR: insufficient local space at ${LOCAL_CACHE_CHECK_PATH} for cache copy (need ${LOCAL_CACHE_REQUIRED_BYTES} bytes, have ${LOCAL_CACHE_AVAIL_BYTES})."
-        exit 1
-      fi
-      SQLITE_FILES=()
-      while IFS= read -r sqlite_file; do
-        SQLITE_FILES+=("${sqlite_file}")
-      done < <(find "${SHARED_IMAGE_TOKEN_CACHE_DIR}" -type f -name '*.sqlite3*')
-      if [[ "${#SQLITE_FILES[@]}" -gt 0 ]]; then
-        for sqlite_file in "${SQLITE_FILES[@]}"; do
-          rel_path="${sqlite_file#${SHARED_IMAGE_TOKEN_CACHE_DIR}/}"
-          rel_dir="$(dirname "${rel_path}")"
-          mkdir -p "${LOCAL_JOB_CACHE_DIR}/${rel_dir}"
-          cp -f "${sqlite_file}" "${LOCAL_JOB_CACHE_DIR}/${rel_dir}/"
-        done
-      else
-        echo "Warning: no SQLite cache files found in ${SHARED_IMAGE_TOKEN_CACHE_DIR}; local cache starts empty."
-      fi
-    else
-      echo "Warning: shared cache directory ${SHARED_IMAGE_TOKEN_CACHE_DIR} does not exist; local cache starts empty."
-    fi
-    du -sh "${LOCAL_JOB_CACHE_DIR}" || true
-    IMAGE_TOKEN_CACHE_DIR="${LOCAL_JOB_CACHE_DIR}"
-  else
-    echo "Node-local image-token cache dir: (disabled)"
-  fi
-
-  mkdir -p "${IMAGE_TOKEN_CACHE_DIR}"
-  echo "Final image-token cache dir: ${IMAGE_TOKEN_CACHE_DIR}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR="${IMAGE_TOKEN_CACHE_DIR}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD="${IMAGE_TOKEN_CACHE_COLLISION_GUARD}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD="${IMAGE_TOKEN_CACHE_PRELOAD}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY="${IMAGE_TOKEN_CACHE_READONLY}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES="${IMAGE_TOKEN_CACHE_WRITE_MISSES}"
-  export VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE="${IMAGE_TOKEN_MEMORY_CACHE_SIZE}"
-  export VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="${IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS}"
-  export VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE="${IMAGE_TOKEN_SQLITE_MMAP_SIZE}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG="${IMAGE_TOKEN_CACHE_DEBUG}"
+  source "${ORCH_REPO_ROOT}/slurm/shared/image_token_cache_env.sh"
 else
   unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG || true
 fi
 
 if [[ -z "${MODEL_PATH}" ]]; then
@@ -617,17 +509,15 @@ if is_true "${ENABLE_WANDB}"; then
 fi
 echo "ENABLE_IMAGE_TOKEN_CACHE=${ENABLE_IMAGE_TOKEN_CACHE}"
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
+  echo "IMAGE_TOKEN_CACHE_MODE=${IMAGE_TOKEN_CACHE_MODE}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD}"
+  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY}"
+  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES}"
+  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_STRICT=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_STRICT}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE=${VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS=${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE=${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_COPY=${IMAGE_TOKEN_CACHE_LOCAL_COPY}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_BASE=${IMAGE_TOKEN_CACHE_LOCAL_BASE}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES}"
 fi
 echo "HF_HOME=${HF_HOME}"
 echo "NLTK_DATA=${NLTK_DATA}"

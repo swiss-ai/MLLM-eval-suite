@@ -200,22 +200,6 @@ fi
 mkdir -p "$LOG_DIR" "$OUTPUT_PATH" "$CACHE_BASE" "$HF_HOME_PATH" "$NLTK_DATA_PATH" "$XDG_CACHE_HOME_PATH" "$VLLM_CACHE_ROOT_PATH" "$LMMS_EVAL_MODELS_CACHE_PATH"
 cd "$REPO_ROOT"
 # ------------------------------------------------------------------
-# Cache flags: use the shared per-task SQLite cache directly, preload it, and
-# allow misses to be written back.
-# ------------------------------------------------------------------
-case "$MODE" in
-  fill)
-    CACHE_READONLY=0
-    CACHE_WRITE_MISSES=1
-    CACHE_PRELOAD=1
-    ;;
-  readonly)
-    CACHE_READONLY=0
-    CACHE_WRITE_MISSES=1
-    CACHE_PRELOAD=1
-    ;;
-esac
-
 # ------------------------------------------------------------------
 # Pretty header
 # ------------------------------------------------------------------
@@ -285,11 +269,7 @@ while IFS= read -r TASK; do
       --gen-kwargs "$GEN_KWARGS"
       --enable-image-token-cache true
       --image-token-cache-dir "$TASK_CACHE_DIR"
-      --image-token-cache-collision-guard 0
-      --image-token-cache-local-copy 0
-      --image-token-cache-preload "$CACHE_PRELOAD"
-      --image-token-cache-readonly "$CACHE_READONLY"
-      --image-token-cache-write-misses "$CACHE_WRITE_MISSES"
+      --image-token-cache-mode "$MODE"
       --enable-wandb "$ENABLE_WANDB"
       --wandb-project "$WANDB_PROJECT"
       --wandb-entity "$WANDB_ENTITY"

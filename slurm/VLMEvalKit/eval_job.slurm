@@ -31,15 +31,6 @@ NUM_PROCESSES=4
 BATCH_SIZE=512
 ENABLE_IMAGE_TOKEN_CACHE=true
 IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
-IMAGE_TOKEN_CACHE_COLLISION_GUARD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD:-0}"
-IMAGE_TOKEN_CACHE_LOCAL_COPY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_COPY:-0}"
-IMAGE_TOKEN_CACHE_PRELOAD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD:-}"
-IMAGE_TOKEN_CACHE_READONLY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY:-}"
-IMAGE_TOKEN_CACHE_WRITE_MISSES="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES:-}"
-IMAGE_TOKEN_MEMORY_CACHE_SIZE="${VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE:-131072}"
-IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS:-5000}"
-IMAGE_TOKEN_SQLITE_MMAP_SIZE="${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE:-1073741824}"
-IMAGE_TOKEN_CACHE_DEBUG="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG:-0}"
 MAIN_PROCESS_PORT=29541
 SEED=1234
 PYTHON_BIN="/opt/venv/bin/python"
@@ -59,22 +50,10 @@ Options:
   --enable-image-token-cache <true|false>
                                   Export Apertus image-token cache env. Default: true.
   --image-token-cache-mode <fill|readonly>
-                                  Accepted for compatibility. Both modes preload the
-                                  shared cache and write missing image tokens.
-                                  Default: fill.
+                                  fill builds the cache; readonly uses a sealed one. Default: fill.
   --image-token-cache-base <path> Base containing per-task SQLite caches.
   --image-token-cache-task <name> Cache task name under the base. Default: dataset-derived.
   --image-token-cache-dir <path>  Exact cache dir passed to vLLM; overrides base/task.
-  --image-token-cache-collision-guard <0|1|true|false>
-  --image-token-cache-local-copy <0|1|true|false>
-                                  Must be 0 in this VLMEvalKit wrapper.
-  --image-token-cache-preload <0|1|true|false>
-  --image-token-cache-readonly <0|1|true|false>
-  --image-token-cache-write-misses <0|1|true|false>
-  --image-token-memory-cache-size <int>
-  --image-token-sqlite-busy-timeout-ms <int>
-  --image-token-sqlite-mmap-size <bytes>
-  --image-token-cache-debug <0|1|true|false>
   --lmu-data <path>              LMUData root for datasets.
   --runtime-cache <path>         Root for HF/XDG/vLLM runtime caches.
   --num-processes <int>          torch.distributed workers. Default: 4.
@@ -99,15 +78,6 @@ while [[ $# -gt 0 ]]; do
     --image-token-cache-base) IMAGE_TOKEN_CACHE_BASE="$2"; shift 2 ;;
     --image-token-cache-task) IMAGE_TOKEN_CACHE_TASK="$2"; shift 2 ;;
     --image-token-cache-dir) IMAGE_TOKEN_CACHE_DIR="$2"; shift 2 ;;
-    --image-token-cache-collision-guard) IMAGE_TOKEN_CACHE_COLLISION_GUARD="$2"; shift 2 ;;
-    --image-token-cache-local-copy) IMAGE_TOKEN_CACHE_LOCAL_COPY="$2"; shift 2 ;;
-    --image-token-cache-preload) IMAGE_TOKEN_CACHE_PRELOAD="$2"; shift 2 ;;
-    --image-token-cache-readonly) IMAGE_TOKEN_CACHE_READONLY="$2"; shift 2 ;;
-    --image-token-cache-write-misses) IMAGE_TOKEN_CACHE_WRITE_MISSES="$2"; shift 2 ;;
-    --image-token-memory-cache-size) IMAGE_TOKEN_MEMORY_CACHE_SIZE="$2"; shift 2 ;;
-    --image-token-sqlite-busy-timeout-ms) IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="$2"; shift 2 ;;
-    --image-token-sqlite-mmap-size) IMAGE_TOKEN_SQLITE_MMAP_SIZE="$2"; shift 2 ;;
-    --image-token-cache-debug) IMAGE_TOKEN_CACHE_DEBUG="$2"; shift 2 ;;
     --lmu-data) LMU_DATA="$2"; shift 2 ;;
     --runtime-cache) RUNTIME_CACHE="$2"; shift 2 ;;
     --num-processes) NUM_PROCESSES="$2"; shift 2 ;;
@@ -129,20 +99,6 @@ case "${MODE}" in
   *) echo "--mode must be all, infer, or eval (got: ${MODE})" >&2; exit 1 ;;
 esac
 
-case "${IMAGE_TOKEN_CACHE_MODE}" in
-  fill)
-    : "${IMAGE_TOKEN_CACHE_PRELOAD:=1}"
-    : "${IMAGE_TOKEN_CACHE_READONLY:=0}"
-    : "${IMAGE_TOKEN_CACHE_WRITE_MISSES:=1}"
-    ;;
-  readonly)
-    : "${IMAGE_TOKEN_CACHE_PRELOAD:=1}"
-    : "${IMAGE_TOKEN_CACHE_READONLY:=0}"
-    : "${IMAGE_TOKEN_CACHE_WRITE_MISSES:=1}"
-    ;;
-  *) echo "--image-token-cache-mode must be fill or readonly (got: ${IMAGE_TOKEN_CACHE_MODE})" >&2; exit 1 ;;
-esac
-
 is_true() {
   local value
   value="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
@@ -156,11 +112,6 @@ is_true() {
 
 if [[ ! "${NUM_PROCESSES}" =~ ^[0-9]+$ || "${NUM_PROCESSES}" -lt 1 ]]; then
   echo "--num-processes must be a positive integer (got: ${NUM_PROCESSES})" >&2
-  exit 1
-fi
-
-if is_true "${IMAGE_TOKEN_CACHE_LOCAL_COPY}"; then
-  echo "--image-token-cache-local-copy is not implemented in this VLMEvalKit wrapper; use 0." >&2
   exit 1
 fi
 
@@ -230,26 +181,9 @@ if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
     fi
     IMAGE_TOKEN_CACHE_DIR="${IMAGE_TOKEN_CACHE_BASE}/${IMAGE_TOKEN_CACHE_TASK}"
   fi
-  mkdir -p "${IMAGE_TOKEN_CACHE_DIR}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR="${IMAGE_TOKEN_CACHE_DIR}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD="${IMAGE_TOKEN_CACHE_COLLISION_GUARD}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD="${IMAGE_TOKEN_CACHE_PRELOAD}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY="${IMAGE_TOKEN_CACHE_READONLY}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES="${IMAGE_TOKEN_CACHE_WRITE_MISSES}"
-  export VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE="${IMAGE_TOKEN_MEMORY_CACHE_SIZE}"
-  export VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="${IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS}"
-  export VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE="${IMAGE_TOKEN_SQLITE_MMAP_SIZE}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG="${IMAGE_TOKEN_CACHE_DEBUG}"
+  source "${ORCH_REPO_ROOT}/slurm/shared/image_token_cache_env.sh"
 else
   unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG || true
 fi
 
 if [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]]; then
@@ -402,9 +336,9 @@ echo "ENABLE_IMAGE_TOKEN_CACHE=${ENABLE_IMAGE_TOKEN_CACHE}"
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
   echo "IMAGE_TOKEN_CACHE_MODE=${IMAGE_TOKEN_CACHE_MODE}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES}"
+  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_STRICT=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_STRICT}"
 fi
 echo "LMUData=${LMUData}"
 echo "HF_HOME=${HF_HOME}"
