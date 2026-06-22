@@ -208,6 +208,19 @@ export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export TOKENIZERS_PARALLELISM=false
 export PYTHONHASHSEED="${PYTHONHASHSEED:-${SEED}}"
 export VLLM_SEED="${VLLM_SEED:-${SEED}}"
+
+# Path-driven Apertus identity for the config.py registry entry: APERTUS_RUN_NAME
+# is the supported_VLM key (matches --model); APERTUS_MODEL_PATH is the checkpoint
+# (empty = the wrapper's built-in default). Override the optional knobs via env
+# (e.g. APERTUS_ENABLE_THINKING=1 APERTUS_TEMPERATURE=0.6) or edit the defaults
+# here; thinking needs APERTUS_TEMPERATURE > 0 and APERTUS_MAX_NEW_TOKENS ~16384.
+export APERTUS_RUN_NAME="${MODEL}"
+export APERTUS_MODEL_PATH="${APERTUS_MODEL_PATH:-}"
+export APERTUS_ENABLE_THINKING="${APERTUS_ENABLE_THINKING:-}"
+export APERTUS_TEMPERATURE="${APERTUS_TEMPERATURE:-}"
+export APERTUS_TOP_P="${APERTUS_TOP_P:-}"
+export APERTUS_REPETITION_PENALTY="${APERTUS_REPETITION_PENALTY:-}"
+export APERTUS_MAX_NEW_TOKENS="${APERTUS_MAX_NEW_TOKENS:-}"
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
