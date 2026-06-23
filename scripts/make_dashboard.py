@@ -55,13 +55,21 @@ def framework_for(task: str) -> str:
     return "VLMEvalKit" if task.lower().startswith(VLMEVALKIT_PREFIXES) else "lmms-eval"
 
 
+# Benchmarks dropped from every harness: cmmmu (removed), and the mmlu_flan
+# generative-medical subjects (exact-match scorer is format-fragile, ~0 to 0.4).
+DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan")
+
 _FAMILY = re.compile(r"^(?:apertus[-_]?1[.p]5[-_]?8b|ap1p5[-_]?8b)[-_]?", re.I)
 # Eval-mode / sampling suffixes — different runs of the SAME checkpoint, kept
 # distinct so a CoT run never merges with its direct-mode sibling.
 _MODE_SUFFIXES = [
     ("-cot-t6", "cot-t6"), ("-cot-rp105", "cot-rp105"), ("-cot-rp110", "cot-rp110"),
-    ("-cot", "cot"), ("-rp105", "rp105"), ("-rp110", "rp110"), ("-thinking", "thinking"),
+    ("-cot", "cot"), ("-rp105", "rp105"), ("-rp110", "rp110"),
 ]
+# Thinking mode carries an optional token-budget suffix (-thinking, -thinking-32k).
+# Both must tag a distinct thinking mode; otherwise the step-only sft-256k key
+# rebuild drops the suffix and the run collapses onto its direct sibling.
+_THINKING_RE = re.compile(r"-thinking(-\d+k)?$")
 _MODEL_ALIAS = {
     "sft-capfilter-lr6e-5-constant-innovator-fix-it23409": "sft-capfilter-innovator-it23409",
 }
@@ -78,10 +86,13 @@ def canonical_model_key(name: str) -> str:
     """
     s = name.lower()
     mode = None
-    for suffix, tag in _MODE_SUFFIXES:
-        if s.endswith(suffix):
-            s, mode = s[: -len(suffix)], tag
-            break
+    if (t := _THINKING_RE.search(s)):
+        s, mode = s[: t.start()], "thinking" + (t.group(1) or "")
+    else:
+        for suffix, tag in _MODE_SUFFIXES:
+            if s.endswith(suffix):
+                s, mode = s[: -len(suffix)], tag
+                break
     body = _FAMILY.sub("", s)
     step_match = re.search(r"sft-256k.*?[_-](\d{3,4})\b", body)
     if step_match:
@@ -120,39 +131,53 @@ VK_OWNED_TASKS = {
 }
 _VK_HEADLINE = ("overall", "overall_accuracy", "acc", "accuracy")
 _VK_AGG_LABELS = ("all", "overall", "none")
+# Per-benchmark headline override where the EASI-canonical metric is not plain
+# accuracy. site_bench reports chance-adjusted accuracy (overall_caa); raw
+# accuracy ~2x inflates it relative to the EASI leaderboard.
+VK_HEADLINE_BY_TASK = {
+    "site_bench": ("overall_caa", "overall_accuracy", "accuracy"),
+}
 
 
-def parse_vk_acc(path: Path) -> float | None:
+def _vk_norm(name: str) -> str:
+    return name.strip().lower().replace("(%)", "").strip()
+
+
+def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float | None:
     """Headline score from a VLMEvalKit *_acc.csv, normalized to 0-100.
 
-    Handles the three layouts these files come in: wide single-row
-    (overall/Overall column), long/melted (metric,value rows), and
-    multi-row-by-category (pick the ALL/overall aggregate row).
+    ``headline`` is a priority-ordered list of metric names; the first present
+    wins, so a benchmark whose canonical metric is chance-adjusted gets it ahead
+    of plain accuracy. Handles wide single-row, long/melted (metric,value), and
+    multi-row-by-category layouts; metric names are normalized (a trailing
+    ``(%)`` is stripped) so e.g. ``accuracy (%)`` still matches.
     """
     delim = "\t" if "\t" in path.read_text().splitlines()[0] else ","
     rows = [r for r in csv.reader(path.open(), delimiter=delim) if r]
     if len(rows) < 2:
         return None
-    header = [h.strip().lower() for h in rows[0]]
+    header = [_vk_norm(h) for h in rows[0]]
     data = rows[1:]
 
     def scale(value: float) -> float:
         return value * 100 if value <= 1.0 else value
 
     if len(header) == 2 and header[1] == "value":
-        for row in data:
-            if row[0].strip().lower() in _VK_HEADLINE:
-                return scale(float(row[1]))
+        cells = {_vk_norm(r[0]): r[1] for r in data if len(r) >= 2}
+        for want in headline:
+            if want in cells:
+                return scale(float(cells[want]))
         return None
-    columns = [i for i, h in enumerate(header) if h in _VK_HEADLINE]
-    if not columns:
-        return None
-    col = columns[0]
-    if len(data) > 1:
-        for row in data:
-            if any(c.strip().lower() in _VK_AGG_LABELS for c in row):
-                return scale(float(row[col]))
-    return scale(float(data[0][col]))
+    for want in headline:
+        if want not in header:
+            continue
+        col = header.index(want)
+        if len(data) > 1:
+            for row in data:
+                if any(_vk_norm(c) in _VK_AGG_LABELS for c in row):
+                    return scale(float(row[col]))
+        return scale(float(data[0][col]))
+    return None
 
 
 def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
@@ -175,7 +200,7 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
                 continue
             acc = Path(accs[-1])
             try:
-                value = parse_vk_acc(acc)
+                value = parse_vk_acc(acc, VK_HEADLINE_BY_TASK.get(task, _VK_HEADLINE))
             except (OSError, ValueError, IndexError):
                 value = None
             if value is None:
@@ -218,6 +243,8 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
         for task, path in newest_per_task(mdir).items():
+            if task.lower().startswith(DROPPED_TASK_PREFIXES):
+                continue
             try:
                 data = json.loads(path.read_text())
             except (OSError, json.JSONDecodeError):
@@ -406,15 +433,15 @@ footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 <div class="cards-note" id="cards-note"></div>
 
 <div class="controls">
-  <span class="viewtab"><button id="tab-charts" class="on">Charts</button><button id="tab-matrix">Matrix</button></span>
+  <span class="viewtab"><button id="tab-charts">Charts</button><button id="tab-matrix" class="on">Matrix</button></span>
   <span><label>filter&nbsp;</label><input id="q" type="search" placeholder="benchmark substring…" spellcheck="false"></span>
   <span><label>harness&nbsp;</label><select id="hfilter"><option value="">all</option><option value="lmms-eval">lmms-eval</option><option value="VLMEvalKit">VLMEvalKit</option></select></span>
   <span id="basewrap" class="hidden"><label>baseline&nbsp;</label><select id="base"><option value="">none</option></select></span>
   <span class="hint" style="margin-left:auto"><span class="hbadge lmms">lmms-eval</span> <span class="hbadge vlme">VLMEvalKit</span></span>
 </div>
 
-<div class="charts" id="charts"></div>
-<div class="matrix-wrap hidden" id="matrix-view"><table id="matrix"></table></div>
+<div class="charts hidden" id="charts"></div>
+<div class="matrix-wrap" id="matrix-view"><table id="matrix"></table></div>
 
 <footer>
   Bars share one absolute 0–100 scale · newest result per task across each model's runs ·
@@ -431,7 +458,7 @@ const coverage = {}; D.models.forEach(m => coverage[m] = D.table.filter(r => r.c
 
 let state = {
   sel: new Set(D.defaultSelected),
-  view: "charts", q: "", sort: null, dir: -1, base: "", harness: "",
+  view: "matrix", q: "", sort: null, dir: -1, base: "", harness: "",
 };
 
 const fmt = v => v.toFixed(1);
@@ -580,6 +607,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--runs-root", required=True, type=Path)
     p.add_argument("--models", nargs="*", help="filter model dirs by substring")
+    p.add_argument("--only", nargs="*", help="curate to these exact canonical checkpoint keys (drops all others)")
+    p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
     p.add_argument("-o", "--output", type=Path, default=Path("dashboard.html"))
@@ -590,6 +619,9 @@ def main():
     if args.vlmeval_root:
         models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
     models = sorted(set(models_l) | set(models_v))
+    if args.only:
+        present = set(models)
+        models = [m for m in args.only if m in present]
     # Ownership partitions benchmarks, so no (task, metric) appears in both
     # harnesses; cells merge defensively if one ever does.
     merged: dict[tuple[str, str], dict] = {}
@@ -601,21 +633,31 @@ def main():
             merged[key] = dict(row)
     table = [merged[key] for key in sorted(merged)]
     labels = short_labels(models)
-    cells_rows = [{"task": r["task"], "metric": r["metric"], "framework": r["framework"], "cells": r["cells"]} for r in table]
+    for pair in args.label:
+        key, _, disp = pair.partition("=")
+        if key in labels:
+            labels[key] = disp
+    keep = set(models)
+    cells_rows = [
+        {"task": r["task"], "metric": r["metric"], "framework": r["framework"],
+         "cells": {m: v for m, v in r["cells"].items() if m in keep}}
+        for r in table
+    ]
+    cells_rows = [r for r in cells_rows if r["cells"]]
     # Pre-select the best-covered checkpoints so the page opens with a
     # meaningful comparison instead of every sparse column at once.
     coverage = {m: sum(1 for r in cells_rows if m in r["cells"]) for m in models}
-    default_selected = sorted(models, key=lambda m: -coverage[m])[:5]
+    default_selected = models if args.only else sorted(models, key=lambda m: -coverage[m])[:5]
     data = {
         "models": models,
         "labels": labels,
         "table": cells_rows,
         "defaultSelected": default_selected,
     }
-    n_vk = sum(1 for r in table if r["framework"] == "VLMEvalKit")
-    sources = f"lmms-eval ({len(table) - n_vk} rows)" + (f" · VLMEvalKit ({n_vk} rows)" if n_vk else "")
+    n_vk = sum(1 for r in cells_rows if r["framework"] == "VLMEvalKit")
+    sources = f"lmms-eval ({len(cells_rows) - n_vk} rows)" + (f" · VLMEvalKit ({n_vk} rows)" if n_vk else "")
     meta = (
-        f"<b>{len(models)}</b> checkpoints · <b>{len(table)}</b> metric rows · "
+        f"<b>{len(models)}</b> checkpoints · <b>{len(cells_rows)}</b> metric rows · "
         f"{sources} · generated {datetime.datetime.now():%Y-%m-%d %H:%M}"
     )
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
