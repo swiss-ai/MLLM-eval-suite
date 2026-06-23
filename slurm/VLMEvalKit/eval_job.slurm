@@ -81,6 +81,8 @@ while [[ $# -gt 0 ]]; do
     --lmu-data) LMU_DATA="$2"; shift 2 ;;
     --runtime-cache) RUNTIME_CACHE="$2"; shift 2 ;;
     --num-processes) NUM_PROCESSES="$2"; shift 2 ;;
+    --tensor-parallel-size) APERTUS_TENSOR_PARALLEL_SIZE="$2"; shift 2 ;;
+    --gpu-memory-utilization) APERTUS_GPU_MEMORY_UTILIZATION="$2"; shift 2 ;;
     --batch-size) BATCH_SIZE="$2"; shift 2 ;;
     --main-process-port) MAIN_PROCESS_PORT="$2"; shift 2 ;;
     --seed) SEED="$2"; shift 2 ;;
@@ -172,6 +174,8 @@ export APERTUS_TEMPERATURE="${APERTUS_TEMPERATURE:-}"
 export APERTUS_TOP_P="${APERTUS_TOP_P:-}"
 export APERTUS_REPETITION_PENALTY="${APERTUS_REPETITION_PENALTY:-}"
 export APERTUS_MAX_NEW_TOKENS="${APERTUS_MAX_NEW_TOKENS:-}"
+export APERTUS_TENSOR_PARALLEL_SIZE="${APERTUS_TENSOR_PARALLEL_SIZE:-}"
+export APERTUS_GPU_MEMORY_UTILIZATION="${APERTUS_GPU_MEMORY_UTILIZATION:-}"
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
@@ -202,8 +206,9 @@ PY
   fi
 fi
 
-if [[ "${NUM_GPUS}" -lt "${NUM_PROCESSES}" ]]; then
-  echo "Need at least ${NUM_PROCESSES} visible GPUs, found ${NUM_GPUS}." >&2
+NEED_GPUS=$(( NUM_PROCESSES * ${APERTUS_TENSOR_PARALLEL_SIZE:-1} ))
+if [[ "${NUM_GPUS}" -lt "${NEED_GPUS}" ]]; then
+  echo "Need at least ${NEED_GPUS} visible GPUs (${NUM_PROCESSES} workers x TP=${APERTUS_TENSOR_PARALLEL_SIZE:-1}), found ${NUM_GPUS}." >&2
   exit 1
 fi
 

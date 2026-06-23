@@ -37,7 +37,7 @@ SUITE="smoke"
 MODE="all"
 SUBMIT_MODE="batch"
 NODES="${NODES:-1}"
-NUM_PROCESSES="${NUM_PROCESSES:-4}"
+SIZE="${SIZE:-8b}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
 SKIP_MM_PROFILING="${VLLM_APERTUS_SKIP_MM_PROFILING:-}"
 ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
@@ -65,6 +65,10 @@ Options:
   --nodes <int>                     Number of slurm nodes (multi-node DP). Default: 1.
                                     Total world size = nodes * num-processes.
   --num-processes <int>             DP workers per node (= GPUs per node). Default: 4.
+  --size <8b|70b>                   Parallelism profile: 8b (TP=1, 4 DP workers) | 70b
+                                    (TP=4, 1 worker, model sharded across 4 GPUs). Default: 8b.
+  --tensor-parallel-size <int>      Override vLLM tensor_parallel_size (advanced; --size sets it).
+  --gpu-memory-utilization <float>  Override vLLM gpu_memory_utilization (advanced; --size sets it).
   --batch-size <int>                Batch size value passed through/logged for the framework. Default: 512.
   --skip-mm-profiling
                                     Keep Apertus vLLM skip_mm_profiling enabled.
@@ -118,6 +122,12 @@ while [[ $# -gt 0 ]]; do
       NODES="$2"; shift 2 ;;
     --num-processes)
       NUM_PROCESSES="$2"; shift 2 ;;
+    --size)
+      SIZE="$2"; shift 2 ;;
+    --tensor-parallel-size)
+      TENSOR_PARALLEL_SIZE="$2"; shift 2 ;;
+    --gpu-memory-utilization)
+      GPU_MEMORY_UTILIZATION="$2"; shift 2 ;;
     --batch-size)
       BATCH_SIZE="$2"; shift 2 ;;
     --skip-mm-profiling)
@@ -155,6 +165,18 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Parallelism profile by model size, identical to the lmms-eval launcher: 8b
+# fits one GH200 (4 DP workers, TP=1); 70b shards one model across all 4 GPUs
+# (TP=4, one worker). Explicit env/flag overrides any single knob.
+case "${SIZE}" in
+  8b)  _NUM_PROCESSES=4; _TENSOR_PARALLEL_SIZE=1; _GPU_MEMORY_UTILIZATION=0.6 ;;
+  70b) _NUM_PROCESSES=1; _TENSOR_PARALLEL_SIZE=4; _GPU_MEMORY_UTILIZATION=0.85 ;;
+  *)   echo "--size must be 8b|70b (got: ${SIZE})" >&2; exit 1 ;;
+esac
+NUM_PROCESSES="${NUM_PROCESSES:-$_NUM_PROCESSES}"
+TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-$_TENSOR_PARALLEL_SIZE}"
+GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-$_GPU_MEMORY_UTILIZATION}"
 
 case "${MODE}" in
   all|infer|eval) ;;
@@ -257,6 +279,8 @@ while IFS= read -r DATASET; do
       --lmu-data "${LMU_DATA}"
       --runtime-cache "${RUNTIME_CACHE}"
       --num-processes "${NUM_PROCESSES}"
+      --tensor-parallel-size "${TENSOR_PARALLEL_SIZE}"
+      --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}"
       --batch-size "${BATCH_SIZE}"
       --main-process-port "${MAIN_PROCESS_PORT}"
     )
