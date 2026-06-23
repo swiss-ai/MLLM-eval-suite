@@ -4,24 +4,30 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  launchers/eval.sh --eval-framework lmms-eval|VLMEvalKit [common args] [framework args...]
+  launchers/eval.sh [--eval-framework all|lmms-eval|VLMEvalKit] [common args] [framework args...]
+
+  Default framework is `all`: one checkpoint is run through BOTH harnesses in a
+  single invocation (lmms-eval for its benchmarks, VLMEvalKit for the spatial /
+  multi-image set), and the dashboard merges them by checkpoint identity.
 
 Common args:
-  --eval-framework <name>   lmms-eval or VLMEvalKit
-  --model <value>           Model path(s) for lmms-eval, model name(s) for VLMEvalKit
+  --eval-framework <name>   all (default), lmms-eval, or VLMEvalKit
+  --model <value>           Checkpoint PATH (recommended). In `all` mode the path
+                            is given to lmms-eval directly and to VLMEvalKit as a
+                            run name + APERTUS_MODEL_PATH so both columns merge.
   --tasks <value>           Comma list, @file, or direct suite/task file path
-  --suite <name>            Framework suite name
+  --suite <name>            Framework suite name (resolved per harness)
   --mode <value>            Framework run mode
   --submit-mode <value>     Submission mode for framework launchers
   --run-id <name>           Shared result directory name for this invocation
+  --dry-run                 Print the per-harness commands without executing
 
 Use -- to separate framework-specific args if desired.
 
 Examples:
+  bash launchers/eval.sh --model /path/to/ckpt --suite full          # both harnesses
   bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --suite smoke
-  bash launchers/eval.sh --eval-framework lmms-eval /path/to/model --suite smoke
   bash launchers/eval.sh --eval-framework VLMEvalKit --suite smoke --model Apertus-1p5-8B
-  bash launchers/eval.sh --eval-framework VLMEvalKit --model Apertus-1p5-8B -- --nodes 2
   bash launchers/eval.sh --eval-framework VLMEvalKit --model Apertus-1p5-8B --submit-mode interactive
 USAGE
 }
@@ -39,6 +45,7 @@ SUITE_ARG=""
 MODE_ARG=""
 SUBMIT_MODE_ARG=""
 RUN_ID_ARG=""
+DRY_ALL=0
 PASSTHROUGH=()
 
 is_true() {
@@ -109,6 +116,11 @@ while [[ $# -gt 0 ]]; do
       RUN_ID_ARG="${2:-}"
       shift 2
       ;;
+    --dry-run)
+      DRY_ALL=1
+      PASSTHROUGH+=(--dry-run)
+      shift
+      ;;
     --)
       shift
       PASSTHROUGH+=("$@")
@@ -126,9 +138,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${EVAL_FRAMEWORK}" ]]; then
-  echo "Missing required --eval-framework." >&2
-  usage >&2
-  exit 2
+  EVAL_FRAMEWORK="all"
 fi
 
 prefetch_emu35_vision_tokenizer
@@ -178,9 +188,42 @@ case "${EVAL_FRAMEWORK}" in
     ARGS+=("${PASSTHROUGH[@]}")
     exec "${ORCH_REPO_ROOT}/launchers/VLMEvalKit/eval.sh" "${ARGS[@]}"
     ;;
+  all|both)
+    run_harness() {
+      local label="$1"; shift
+      echo "[all] -> ${label}: $*"
+      if [[ "${DRY_ALL}" -eq 0 ]]; then "$@"; fi
+    }
+
+    # lmms-eval takes the checkpoint PATH as its positional model argument.
+    LMMS_ARGS=(bash "${ORCH_REPO_ROOT}/launchers/lmms-eval/eval.sh")
+    [[ -n "${MODEL_ARG}" ]] && LMMS_ARGS+=("${MODEL_ARG}")
+    [[ -n "${TASKS_ARG}" ]] && LMMS_ARGS+=(--tasks "${TASKS_ARG}")
+    [[ -n "${SUITE_ARG}" ]] && LMMS_ARGS+=(--suite "${SUITE_ARG}")
+    [[ -n "${MODE_ARG}" ]] && LMMS_ARGS+=(--mode "${MODE_ARG}")
+    [[ -n "${SUBMIT_MODE_ARG}" ]] && LMMS_ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
+    LMMS_ARGS+=("${PASSTHROUGH[@]}")
+    run_harness "lmms-eval" "${LMMS_ARGS[@]}"
+
+    # VLMEvalKit takes a run NAME; forward a checkpoint path via APERTUS_MODEL_PATH
+    # so the run identity matches lmms-eval and the dashboard merges the columns.
+    VK_MODEL="${MODEL_ARG}"
+    if [[ -e "${MODEL_ARG}" ]]; then
+      export APERTUS_MODEL_PATH="${MODEL_ARG}"
+      VK_MODEL="$(basename "${MODEL_ARG%/}")"
+    fi
+    VK_ARGS=(bash "${ORCH_REPO_ROOT}/launchers/VLMEvalKit/eval.sh")
+    [[ -n "${VK_MODEL}" ]] && VK_ARGS+=(--model "${VK_MODEL}")
+    [[ -n "${TASKS_ARG}" ]] && VK_ARGS+=(--tasks "${TASKS_ARG}")
+    [[ -n "${SUITE_ARG}" ]] && VK_ARGS+=(--suite "${SUITE_ARG}")
+    [[ -n "${MODE_ARG}" ]] && VK_ARGS+=(--mode "${MODE_ARG}")
+    [[ -n "${SUBMIT_MODE_ARG}" ]] && VK_ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
+    VK_ARGS+=("${PASSTHROUGH[@]}")
+    run_harness "VLMEvalKit" "${VK_ARGS[@]}"
+    ;;
   *)
     echo "Unsupported eval framework: ${EVAL_FRAMEWORK}" >&2
-    echo "Supported values: lmms-eval, VLMEvalKit" >&2
+    echo "Supported values: all, lmms-eval, VLMEvalKit" >&2
     exit 2
     ;;
 esac
