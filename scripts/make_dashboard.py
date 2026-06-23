@@ -237,7 +237,8 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
     if model_filters:
         model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
     if not model_dirs:
-        raise SystemExit(f"no model dirs under {runs_root}")
+        print(f"no model dirs under {runs_root}; skipping")
+        return [], []
 
     rows: dict[tuple[str, str], dict[str, dict]] = {}
     for mdir in model_dirs:
@@ -256,10 +257,10 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
             if not include_spatial and framework_for(task) == "VLMEvalKit":
                 continue
             for row_task, metric, value in iter_headline_metrics(task, metrics):
-                # Judge-scored metrics need an external grader model; runs
-                # executed with API_TYPE=dummy record placeholder values
-                # (mathvision_reason, mathvista cot/solution/format).
-                if "llm_as_judge" in metric.lower():
+                # mathvista is judge-canonical now, so keep ONLY its judge metric
+                # (drop the stale pre-switch extraction relic); every other task's
+                # judge metric is dummy-prone, so drop that. (XOR.)
+                if task.lower().startswith("mathvista") != ("llm_as_judge" in metric.lower()):
                     continue
                 norm = normalize_score(metric, value)
                 if norm is None:
@@ -605,7 +606,8 @@ renderAll();
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--runs-root", required=True, type=Path)
+    p.add_argument("--runs-root", required=True, type=Path, nargs="+",
+                   help="one or more runs trees; each immediate child dir is a run identity, unioned across roots")
     p.add_argument("--models", nargs="*", help="filter model dirs by substring")
     p.add_argument("--only", nargs="*", help="curate to these exact canonical checkpoint keys (drops all others)")
     p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
@@ -614,7 +616,15 @@ def main():
     p.add_argument("-o", "--output", type=Path, default=Path("dashboard.html"))
     args = p.parse_args()
 
-    models_l, table_l = collect(args.runs_root.resolve(), args.models, args.include_spatial)
+    models_l: list[str] = []
+    table_l: list[dict] = []
+    for root in args.runs_root:
+        if not root.is_dir():
+            print(f"runs-root not found, skipping: {root}")
+            continue
+        m, t = collect(root.resolve(), args.models, args.include_spatial)
+        models_l = sorted(set(models_l) | set(m))
+        table_l += t
     models_v, table_v = ([], [])
     if args.vlmeval_root:
         models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)

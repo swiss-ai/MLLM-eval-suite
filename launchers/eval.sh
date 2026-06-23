@@ -45,6 +45,7 @@ SUITE_ARG=""
 MODE_ARG=""
 SUBMIT_MODE_ARG=""
 RUN_ID_ARG=""
+THINKING=0
 DRY_ALL=0
 PASSTHROUGH=()
 
@@ -121,6 +122,10 @@ while [[ $# -gt 0 ]]; do
       PASSTHROUGH+=(--dry-run)
       shift
       ;;
+    --thinking)
+      THINKING=1
+      shift
+      ;;
     --)
       shift
       PASSTHROUGH+=("$@")
@@ -165,6 +170,9 @@ case "${EVAL_FRAMEWORK}" in
     if [[ -n "${SUBMIT_MODE_ARG}" ]]; then
       ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
     fi
+    if [[ "${THINKING}" -eq 1 ]]; then
+      ARGS+=(--enable-thinking --gen-kwargs "max_new_tokens=32768,temperature=0.6,top_p=0.95" --label-suffix "-thinking-32k")
+    fi
     ARGS+=("${PASSTHROUGH[@]}")
     exec "${ORCH_REPO_ROOT}/launchers/lmms-eval/eval.sh" "${ARGS[@]}"
     ;;
@@ -185,6 +193,12 @@ case "${EVAL_FRAMEWORK}" in
     if [[ -n "${SUBMIT_MODE_ARG}" ]]; then
       ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
     fi
+    if [[ "${THINKING}" -eq 1 ]]; then
+      export APERTUS_ENABLE_THINKING=1 APERTUS_TEMPERATURE=0.6 APERTUS_TOP_P=0.95 APERTUS_MAX_NEW_TOKENS=32768
+      for i in "${!ARGS[@]}"; do
+        if [[ "${ARGS[$i]}" == "--model" ]]; then ARGS[$((i+1))]="${ARGS[$((i+1))]}-thinking-32k"; break; fi
+      done
+    fi
     ARGS+=("${PASSTHROUGH[@]}")
     exec "${ORCH_REPO_ROOT}/launchers/VLMEvalKit/eval.sh" "${ARGS[@]}"
     ;;
@@ -202,6 +216,9 @@ case "${EVAL_FRAMEWORK}" in
     [[ -n "${SUITE_ARG}" ]] && LMMS_ARGS+=(--suite "${SUITE_ARG}")
     [[ -n "${MODE_ARG}" ]] && LMMS_ARGS+=(--mode "${MODE_ARG}")
     [[ -n "${SUBMIT_MODE_ARG}" ]] && LMMS_ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
+    if [[ "${THINKING}" -eq 1 ]]; then
+      LMMS_ARGS+=(--enable-thinking --gen-kwargs "max_new_tokens=32768,temperature=0.6,top_p=0.95" --label-suffix "-thinking-32k")
+    fi
     LMMS_ARGS+=("${PASSTHROUGH[@]}")
     run_harness "lmms-eval" "${LMMS_ARGS[@]}"
 
@@ -211,6 +228,10 @@ case "${EVAL_FRAMEWORK}" in
     if [[ -e "${MODEL_ARG}" ]]; then
       export APERTUS_MODEL_PATH="${MODEL_ARG}"
       VK_MODEL="$(basename "${MODEL_ARG%/}")"
+    fi
+    if [[ "${THINKING}" -eq 1 ]]; then
+      export APERTUS_ENABLE_THINKING=1 APERTUS_TEMPERATURE=0.6 APERTUS_TOP_P=0.95 APERTUS_MAX_NEW_TOKENS=32768
+      VK_MODEL="${VK_MODEL}-thinking-32k"
     fi
     VK_ARGS=(bash "${ORCH_REPO_ROOT}/launchers/VLMEvalKit/eval.sh")
     [[ -n "${VK_MODEL}" ]] && VK_ARGS+=(--model "${VK_MODEL}")

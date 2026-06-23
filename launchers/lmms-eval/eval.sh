@@ -77,6 +77,9 @@ TASKS_RAW=""
 SUITE=""
 MODE="fill"
 SUBMIT_MODE="batch"
+ENABLE_THINKING=""
+GEN_KWARGS_OVERRIDE=""
+LABEL_SUFFIX=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -85,6 +88,9 @@ while [[ $# -gt 0 ]]; do
     --suite)    SUITE="$2"; shift 2 ;;
     --mode)     MODE="$2"; shift 2 ;;
     --submit-mode) SUBMIT_MODE="$2"; shift 2 ;;
+    --enable-thinking) ENABLE_THINKING=1; shift ;;
+    --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
+    --label-suffix) LABEL_SUFFIX="$2"; shift 2 ;;
     --*)        echo "unknown flag: $1" >&2; usage; exit 1 ;;
     *)
       # First positional = model(s)
@@ -177,6 +183,7 @@ fi
 # tasks at lower budgets show 30-50% mid-response truncation. MCQ hits EOS well
 # before this, so no cost for short-answer tasks.
 GEN_KWARGS="${GEN_KWARGS:-max_new_tokens=8192,temperature=0}"
+if [[ -n "$GEN_KWARGS_OVERRIDE" ]]; then GEN_KWARGS="$GEN_KWARGS_OVERRIDE"; fi
 # 4 vLLM workers per node = 1 per GH200 GPU (4 GPUs). Per-task SQLite handles
 # 4 concurrent writers via WAL with sub-ms lock overhead.
 NUM_PROCESSES="${NUM_PROCESSES:-4}"
@@ -238,7 +245,14 @@ while IFS= read -r TASK; do
     # Derive a stable model label: parent dir name if path ends in /HF, else basename.
     MODEL_LABEL="$(basename "$MODEL_PATH")"
     [[ "$MODEL_LABEL" == "HF" ]] && MODEL_LABEL="$(basename "$(dirname "$MODEL_PATH")")"
+    MODEL_LABEL="${MODEL_LABEL}${LABEL_SUFFIX}"
     WANDB_GROUP="${WANDB_GROUP_PREFIX}${MODEL_LABEL}"
+
+    # The dashboard's run identity is the dir one level under runs-root, so nest
+    # <MODEL_LABEL>/<RUN_ID>: the suffix becomes the canonical key and two models
+    # in one call never share a dir.
+    MODEL_OUTPUT_PATH="${OUTPUT_BASE}/${MODEL_LABEL}/${RUN_ID}"
+    mkdir -p "$MODEL_OUTPUT_PATH"
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
       JOB_OUTPUT="${LOG_DIR}/eval_${MODE}_${TASK}_${MODEL_LABEL}_interactive.out"
@@ -257,7 +271,7 @@ while IFS= read -r TASK; do
       --tokenizer-path "$TOKENIZER_PATH"
       --chat-template "$CHAT_TEMPLATE"
       --tasks "$TASK"
-      --output-path "$OUTPUT_PATH"
+      --output-path "$MODEL_OUTPUT_PATH"
       --log-dir "$LOG_DIR"
       --hf-home "$HF_HOME_PATH"
       --nltk-data "$NLTK_DATA_PATH"
@@ -277,6 +291,10 @@ while IFS= read -r TASK; do
       --wandb-log-samples "$WANDB_LOG_SAMPLES"
       --wandb-api-key "${WANDB_API_KEY:-}"
     )
+
+    if [[ -n "$ENABLE_THINKING" ]]; then
+      JOB_ARGS+=(--extra-model-args "enable_thinking=True" --wandb-run-name "$MODEL_LABEL")
+    fi
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
       echo "    submit: interactive bash ${SLURM_TEMPLATE}"
