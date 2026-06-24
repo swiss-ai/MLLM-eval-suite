@@ -32,6 +32,7 @@ done
 # curated checkpoint set (exact canonical keys): SFT 4200 + RL stage2, both
 # direct and thinking, plus the sDPO alignment checkpoint.
 ONLY=(
+  "sft-capfilter-constant-it8816"
   "sft-256k-4200"
   "sft-256k-4200 [thinking-32k]"
   "rl_1p5-8b-stage2_notools_mixthink_1606_480it"
@@ -40,6 +41,7 @@ ONLY=(
   "sdpo-mix-less-refuse-feedback [thinking-32k]"
 )
 LABELS=(
+  "sft-capfilter-constant-it8816=it8816-const"
   "sft-256k-4200=SFT-4200"
   "sft-256k-4200 [thinking-32k]=SFT-4200 (think)"
   "rl_1p5-8b-stage2_notools_mixthink_1606_480it=RL-mixthink"
