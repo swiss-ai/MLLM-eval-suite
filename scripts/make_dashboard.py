@@ -414,7 +414,7 @@ input[type=search]:focus, select:focus { border-bottom-color: var(--red); }
 
 /* matrix */
 .matrix-wrap { overflow: auto; max-height: 76vh; border: 1px solid var(--hair); background: var(--paper); }
-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+table { border-collapse: separate; border-spacing: 0; min-width: 100%; width: max-content; }
 thead th {
   position: sticky; top: 0; z-index: 3; background: var(--paper-2);
   font-family: ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 600;
@@ -429,7 +429,8 @@ tbody th.task { position: sticky; left: 0; background: var(--paper); text-align:
 tbody tr:hover td, tbody tr:hover th.task { background: var(--paper-2); }
 .task .t { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .task .m { font-size: 11px; color: var(--muted); }
-td.cell { text-align: right; white-space: nowrap; }
+td.cell { text-align: right; white-space: nowrap; min-width: 92px; }
+thead th:not(.task-h) { min-width: 92px; }
 sup.tr { color: #c87f0a; font-size: 0.62em; margin-left: 1px; font-weight: 600; cursor: help; }
 .cell.best { color: var(--red); font-weight: 600; }
 .delta { font-size: 11px; margin-left: 7px; font-weight: 400; }
