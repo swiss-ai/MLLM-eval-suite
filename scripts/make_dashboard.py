@@ -152,8 +152,9 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
     multi-row-by-category layouts; metric names are normalized (a trailing
     ``(%)`` is stripped) so e.g. ``accuracy (%)`` still matches.
     """
-    delim = "\t" if "\t" in path.read_text().splitlines()[0] else ","
-    rows = [r for r in csv.reader(path.open(), delimiter=delim) if r]
+    lines = path.read_text().splitlines()
+    delim = "\t" if "\t" in lines[0] else ","
+    rows = [r for r in csv.reader(lines, delimiter=delim) if r]
     if len(rows) < 2:
         return None
     header = [_vk_norm(h) for h in rows[0]]
