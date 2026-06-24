@@ -126,6 +126,8 @@ cd "${REPO_DIR}"
 
 VLLM_REPO="${VLLM_REPO:-/workspace/vllm}"
 export PATH="/opt/venv/bin:${PATH}"
+# DP workers race on the shared torch.compile cache during CUDA-graph capture; compile independently.
+export VLLM_DISABLE_COMPILE_CACHE=1
 if [[ -d "${VLLM_REPO}" ]]; then
   export PYTHONPATH="${REPO_DIR}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
 else

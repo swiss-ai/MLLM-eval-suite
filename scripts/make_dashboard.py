@@ -56,9 +56,10 @@ def framework_for(task: str) -> str:
 
 
 # Benchmarks dropped from every harness: cmmmu (removed), the mmlu_flan
-# generative-medical subjects (exact-match scorer is format-fragile), and
-# ok_vqa / simplevqa (low-signal, not widely reported).
-DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa")
+# generative-medical subjects (exact-match scorer is format-fragile),
+# ok_vqa / simplevqa (low-signal, not widely reported), and refspatial (a true
+# zero-shot floor — Apertus never trained on it; points parse but always ~0).
+DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial")
 
 _FAMILY = re.compile(r"^(?:apertus[-_]?1[.p]5[-_]?8b|ap1p5[-_]?8b)[-_]?", re.I)
 # Eval-mode / sampling suffixes — different runs of the SAME checkpoint, kept
