@@ -48,6 +48,20 @@ LABELS=(
   "sdpo-mix-less-refuse-feedback [thinking-32k]=sDPO (think)"
 )
 
+# Per-task truncation rates for thinking runs (the ⌁ subscripts), recomputed
+# only when a run's samples are newer than its cache (the samples are huge).
+TRUNC_TOOL="${TRUNC_TOOL:-/iopsstor/scratch/cscs/xyixuan/apertus/lmms-eval/examples/apertus-vllm/scripts/truncation_report.py}"
+mkdir -p "$SUITE/cache/truncation"
+for md in "$RUNS_ROOT"/*-thinking-32k; do
+  [[ -d "$md" ]] || continue
+  rr=$(for d in "$md"/2026*/; do [[ -d "$d" ]] && echo "$(find "$d" -name '*_samples_*.jsonl' 2>/dev/null | wc -l) $d"; done | sort -rn | head -1 | awk '{print $2}')
+  [[ -z "$rr" ]] && continue
+  cache="$SUITE/cache/truncation/$(basename "$md").json"
+  if [[ ! -f "$cache" || -n "$(find "$rr" -name '*_samples_*.jsonl' -newer "$cache" 2>/dev/null | head -1)" ]]; then
+    "$PY" "$TRUNC_TOOL" --run-root "$rr" --max-new-tokens 32768 --json > "$cache" 2>/dev/null || true
+  fi
+done
+
 mkdir -p "$(dirname "$OUT")"
 "$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --only "${ONLY[@]}" --label "${LABELS[@]}" -o "$OUT"
 # internal checkpoint results: keep out of search indexes

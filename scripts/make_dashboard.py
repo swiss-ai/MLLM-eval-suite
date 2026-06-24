@@ -61,6 +61,25 @@ def framework_for(task: str) -> str:
 # zero-shot floor — Apertus never trained on it; points parse but always ~0).
 DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial")
 
+_TRUNC_CACHE: dict | None = None
+
+
+def _truncation_for(model_dir_name: str) -> dict:
+    """Per-task truncation rates for a thinking run, precomputed by
+    truncation_report.py --json into cache/truncation/ so we don't re-scan the
+    (huge) samples files on every dashboard regen."""
+    global _TRUNC_CACHE
+    if _TRUNC_CACHE is None:
+        _TRUNC_CACHE = {}
+        tdir = Path(__file__).resolve().parent.parent / "cache" / "truncation"
+        if tdir.is_dir():
+            for f in tdir.glob("*.json"):
+                try:
+                    _TRUNC_CACHE[f.stem] = json.loads(f.read_text()).get("rates", {})
+                except (OSError, ValueError):
+                    pass
+    return _TRUNC_CACHE.get(model_dir_name, {})
+
 _FAMILY = re.compile(r"^(?:apertus[-_]?1[.p]5[-_]?8b|ap1p5[-_]?8b)[-_]?", re.I)
 # Eval-mode / sampling suffixes — different runs of the SAME checkpoint, kept
 # distinct so a CoT run never merges with its direct-mode sibling.
@@ -248,6 +267,7 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
     rows: dict[tuple[str, str], dict[str, dict]] = {}
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
+        trunc = _truncation_for(mdir.name)
         for task, path in newest_per_task(mdir).items():
             if task.lower().startswith(DROPPED_TASK_PREFIXES):
                 continue
@@ -271,6 +291,8 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
                 if norm is None:
                     continue
                 cell = {"v": round(norm * 100, 2), "raw": value, "run": run_id}
+                if task in trunc:
+                    cell["t"] = round(trunc[task] * 100, 1)
                 rows.setdefault((row_task, metric), {})[canon] = cell
 
     models = sorted({canonical_model_key(d.name) for d in model_dirs})
@@ -408,6 +430,7 @@ tbody tr:hover td, tbody tr:hover th.task { background: var(--paper-2); }
 .task .t { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .task .m { font-size: 11px; color: var(--muted); }
 td.cell { text-align: right; white-space: nowrap; }
+sup.tr { color: #c87f0a; font-size: 0.62em; margin-left: 1px; font-weight: 600; cursor: help; }
 .cell.best { color: var(--red); font-weight: 600; }
 .delta { font-size: 11px; margin-left: 7px; font-weight: 400; }
 .delta.up { color: var(--green); } .delta.down { color: var(--red); }
@@ -559,8 +582,10 @@ function renderMatrix() {
           delta = `<span class="delta ${d >= 0 ? "up" : "down"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`;
         }
       }
+      const trtip = c.t != null ? `\\ntruncated: ${c.t}% hit the 32k cap` : "";
+      const tr = c.t != null ? `<sup class="tr" title="${c.t}% of outputs hit the 32k token cap (non-terminating)">⌁${Math.round(c.t)}</sup>` : "";
       h += `<td class="cell mono ${c.v === best && present.length > 1 ? "best" : ""}" ` +
-           `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}">${fmt(c.v)}${delta}</td>`;
+           `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}${trtip}">${fmt(c.v)}${delta}${tr}</td>`;
     }
     h += "</tr>";
   }
