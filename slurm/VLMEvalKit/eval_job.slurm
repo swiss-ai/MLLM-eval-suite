@@ -285,22 +285,14 @@ PY
 # node, each runs torchrun which fans out NUM_PROCESSES local ranks. The
 # rendezvous endpoint is the first node from SLURM_JOB_NODELIST.
 NNODES="${SLURM_NNODES:-1}"
+
+# Build the python invocation (optional torchrun DP prefix + run.py + args),
+# shared by the single- and multi-node paths below.
+PY_CMD=("${PYTHON_BIN}")
 if [[ "${NNODES}" -gt 1 ]]; then
   MASTER_NODE="$(scontrol show hostnames "${SLURM_JOB_NODELIST}" | head -n1)"
   echo "MULTI_NODE=true NNODES=${NNODES} MASTER_NODE=${MASTER_NODE}"
-  # --chdir is critical: the apertus-vllm .toml sets workdir=/workspace/VLMEvalKit,
-  # so each srun-launched worker container starts there by default. Without
-  # --chdir, `import vlmeval` resolves to the stale baked-in /workspace copy
-  # instead of the live /iopsstor checkout, and new model names (e.g. -CoT-T6)
-  # show up as KeyError in supported_VLM. Single-node doesn't hit this because
-  # the head-node container's batch script does `cd ${REPO_DIR}` before launch.
-  RUN_CMD=(
-    srun
-    --chdir="${REPO_DIR}"
-    --ntasks="${NNODES}"
-    --ntasks-per-node=1
-    --kill-on-bad-exit=1
-    "${PYTHON_BIN}"
+  PY_CMD+=(
     -m torch.distributed.run
     --nnodes "${NNODES}"
     --nproc-per-node "${NUM_PROCESSES}"
@@ -308,18 +300,14 @@ if [[ "${NNODES}" -gt 1 ]]; then
     --rdzv-backend c10d
     --rdzv-endpoint "${MASTER_NODE}:${MAIN_PROCESS_PORT}"
   )
-else
-  RUN_CMD=("${PYTHON_BIN}")
-  if [[ "${NUM_PROCESSES}" -gt 1 ]]; then
-    RUN_CMD+=(
-      -m torch.distributed.run
-      --nproc-per-node "${NUM_PROCESSES}"
-      --master-port "${MAIN_PROCESS_PORT}"
-    )
-  fi
+elif [[ "${NUM_PROCESSES}" -gt 1 ]]; then
+  PY_CMD+=(
+    -m torch.distributed.run
+    --nproc-per-node "${NUM_PROCESSES}"
+    --master-port "${MAIN_PROCESS_PORT}"
+  )
 fi
-
-RUN_CMD+=(
+PY_CMD+=(
   run.py
   --data "${DATASET}"
   --model "${MODEL}"
@@ -327,6 +315,25 @@ RUN_CMD+=(
   --work-dir "${WORK_DIR}"
   --response-cache "${RESPONSE_CACHE}"
 )
+
+if [[ "${NNODES}" -gt 1 ]]; then
+  # srun launches one worker container per node. The EDF .toml sets
+  # workdir=/workspace, which overrides `srun --chdir`, so each worker starts at
+  # /workspace and a bare `run.py` (or a leaked CWD) resolves to nothing / the
+  # stale baked-in copy. cd into REPO_DIR *inside* each container — exactly what
+  # the head-node batch script does at `cd ${REPO_DIR}` above — so both `run.py`
+  # and `import vlmeval` resolve to the live /iopsstor checkout.
+  RUN_CMD=(
+    srun
+    --ntasks="${NNODES}"
+    --ntasks-per-node=1
+    --kill-on-bad-exit=1
+    bash -c 'cd "$1"; shift; exec "$@"' _ "${REPO_DIR}"
+    "${PY_CMD[@]}"
+  )
+else
+  RUN_CMD=("${PY_CMD[@]}")
+fi
 
 echo "========== VLMEvalKit launch =========="
 echo "REPO_DIR=${REPO_DIR}"
