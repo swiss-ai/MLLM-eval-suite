@@ -56,11 +56,11 @@ TRUNC_TOOL="${TRUNC_TOOL:-/iopsstor/scratch/cscs/xyixuan/apertus/lmms-eval/examp
 mkdir -p "$SUITE/cache/truncation"
 for md in "$RUNS_ROOT"/*-thinking-32k; do
   [[ -d "$md" ]] || continue
-  rr=$(for d in "$md"/2026*/; do [[ -d "$d" ]] && echo "$(find "$d" -name '*_samples_*.jsonl' 2>/dev/null | wc -l) $d"; done | sort -rn | head -1 | awk '{print $2}')
-  [[ -z "$rr" ]] && continue
   cache="$SUITE/cache/truncation/$(basename "$md").json"
-  if [[ ! -f "$cache" || -n "$(find "$rr" -name '*_samples_*.jsonl' -newer "$cache" 2>/dev/null | head -1)" ]]; then
-    "$PY" "$TRUNC_TOOL" --run-root "$rr" --max-new-tokens 32768 --json > "$cache" 2>/dev/null || true
+  # point at the whole model dir (all run-roots) so re-fired tasks are covered,
+  # not just the original sweep's run-root.
+  if [[ ! -f "$cache" || -n "$(find "$md" -name '*_samples_*.jsonl' -newer "$cache" 2>/dev/null | head -1)" ]]; then
+    "$PY" "$TRUNC_TOOL" --run-root "$md" --max-new-tokens 32768 --json > "$cache" 2>/dev/null || true
   fi
 done
 
