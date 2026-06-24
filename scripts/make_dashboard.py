@@ -194,6 +194,8 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
         for vk_name, task in VK_OWNED_TASKS.items():
+            if task.lower().startswith(DROPPED_TASK_PREFIXES):
+                continue
             bench_dir = mdir / vk_name
             if not bench_dir.is_dir():
                 continue
