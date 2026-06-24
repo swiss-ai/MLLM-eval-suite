@@ -17,9 +17,16 @@ OUT="${OUT:-$SUITE/docs/index.html}"
 # VLMEvalKit runs (results/VLMEvalKit/<run-id>/<model>); make_dashboard follows
 # the symlinks.
 rm -rf "$BRIDGE"; mkdir -p "$BRIDGE"
-for d in "$VLMEVAL_OUTPUTS"/*/; do [[ -d "$d" ]] && ln -sfn "$d" "$BRIDGE/$(basename "$d")"; done
+# Link per-benchmark, not per-model, so a checkpoint evaluated across several
+# run-ids (e.g. a full-spatial run + a single-benchmark re-fire) merges instead
+# of the last run-id overwriting the others. Later run-ids win per benchmark.
+link_model() {
+  local md="$1" model; model="$(basename "$md")"; mkdir -p "$BRIDGE/$model"
+  for bench in "$md"/*/; do [[ -d "$bench" ]] && ln -sfn "$bench" "$BRIDGE/$model/$(basename "$bench")"; done
+}
+for d in "$VLMEVAL_OUTPUTS"/*/; do [[ -d "$d" ]] && link_model "$d"; done
 [[ -d "$SUITE_VLMEVAL" ]] && for rid in "$SUITE_VLMEVAL"/*/; do
-  for md in "$rid"*/; do [[ -d "$md" ]] && ln -sfn "$md" "$BRIDGE/$(basename "$md")"; done
+  for md in "$rid"*/; do [[ -d "$md" ]] && link_model "$md"; done
 done
 
 # curated checkpoint set (exact canonical keys): SFT 4200 + RL stage2, both
@@ -30,6 +37,7 @@ ONLY=(
   "rl_1p5-8b-stage2_notools_mixthink_1606_480it"
   "rl_1p5-8b-stage2_notools_mixthink_1606_480it [thinking-32k]"
   "sdpo-mix-less-refuse-feedback"
+  "sdpo-mix-less-refuse-feedback [thinking-32k]"
 )
 LABELS=(
   "sft-256k-4200=SFT-4200"
@@ -37,6 +45,7 @@ LABELS=(
   "rl_1p5-8b-stage2_notools_mixthink_1606_480it=RL-mixthink"
   "rl_1p5-8b-stage2_notools_mixthink_1606_480it [thinking-32k]=RL-mixthink (think)"
   "sdpo-mix-less-refuse-feedback=sDPO"
+  "sdpo-mix-less-refuse-feedback [thinking-32k]=sDPO (think)"
 )
 
 mkdir -p "$(dirname "$OUT")"
