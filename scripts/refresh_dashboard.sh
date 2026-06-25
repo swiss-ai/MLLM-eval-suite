@@ -16,6 +16,10 @@ OUT="${OUT:-$SUITE/docs/index.html}"
 # one --vlmeval-root unioning the shared VLMEval_Outputs with the suite's own
 # VLMEvalKit runs (results/VLMEvalKit/<run-id>/<model>); make_dashboard follows
 # the symlinks.
+# Derive acc.csv for VLMEvalKit judge benchmarks whose headline score lives only
+# in the run log (this fork doesn't persist a result file for judge tasks).
+"$PY" "$HERE/derive_vlmeval_acc.py" 2>/dev/null || true
+
 rm -rf "$BRIDGE"; mkdir -p "$BRIDGE"
 # Link per-benchmark, not per-model, so a checkpoint evaluated across several
 # run-ids (e.g. a full-spatial run + a single-benchmark re-fire) merges instead

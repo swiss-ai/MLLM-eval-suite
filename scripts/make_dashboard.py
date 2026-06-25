@@ -59,7 +59,7 @@ def framework_for(task: str) -> str:
 # generative-medical subjects (exact-match scorer is format-fragile),
 # ok_vqa / simplevqa (low-signal, not widely reported), and refspatial (a true
 # zero-shot floor — Apertus never trained on it; points parse but always ~0).
-DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial")
+DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial", "mathvista_testmini")
 
 _TRUNC_CACHE: dict | None = None
 
@@ -106,6 +106,11 @@ def canonical_model_key(name: str) -> str:
     (online vs mixed vs base) never merge.
     """
     s = name.lower()
+    # VLMEval runs launched by checkpoint path carry a slugified absolute path
+    # (capstor_store_..._<ckpt>); reduce to the final checkpoint name so they
+    # canonicalize like the clean run-name launches.
+    if s.startswith("capstor_store_"):
+        s = re.split(r"(?:hf_checkpoints|hf-checkpoints|rleval|final_8b)_", s)[-1]
     mode = None
     if (t := _THINKING_RE.search(s)):
         s, mode = s[: t.start()], "thinking" + (t.group(1) or "")
@@ -149,6 +154,7 @@ VK_OWNED_TASKS = {
     "VSI-Bench-Debiased": "vsibench", "RefSpatial_wo_unseen": "refspatial",
     "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
     "ScreenSpot_v2": "screenspot_v2", "ScreenSpot_Pro": "screenspot_pro", "OSWorld_G": "osworld",
+    "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
 }
 _VK_HEADLINE = ("overall", "overall_accuracy", "acc", "accuracy")
 _VK_AGG_LABELS = ("all", "overall", "none")

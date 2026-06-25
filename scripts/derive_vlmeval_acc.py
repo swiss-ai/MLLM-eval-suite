@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Derive *_acc.csv for VLMEvalKit judge benchmarks from the job logs.
+
+This VLMEvalKit fork computes the judge score but does not persist a result
+file to the work-dir — only a run log. The eval job's summary table in the
+.out log carries the headline value, so we parse it and emit the minimal
+acc.csv that make_dashboard.parse_vk_acc reads. Runs whose judge_fail_rate is
+high (a broken judge, e.g. MMVet's wrapper pre-flight) are skipped — those have
+no real score, so we never fabricate one.
+"""
+import glob
+import re
+from pathlib import Path
+
+SUITE = Path("/iopsstor/scratch/cscs/xyixuan/apertus/MLLM-eval-suite")
+LOGS = SUITE / "logs/VLMEvalKit"
+RESULTS = SUITE / "results/VLMEvalKit"
+JUDGE_BENCH = {
+    "MathVista_MINI", "HallusionBench", "MathVerse_MINI", "MMVet",
+    "CharXiv_descriptive_val", "CharXiv_reasoning_val", "MIA-Bench",
+}
+MAX_JUDGE_FAIL = 20.0  # percent; above this the judge was broken -> no real score
+
+# benchmark  infer% (n/N)  judge% (n/N)  metric  value  ...
+ROW = re.compile(r"^(\S+)\s+([\d.]+)%\s+\([\d/]+\)\s+([\d.]+)%\s+\([\d/]+\)\s+\S+\s+([\d.]+)")
+
+
+def main() -> None:
+    written = skipped = 0
+    for log in glob.glob(str(LOGS / "*/vlmeval-*.out")):
+        run_id = Path(log).parent.name
+        try:
+            text = Path(log).read_text(errors="ignore")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            m = ROW.match(line.strip())
+            if not m:
+                continue
+            bench, _infer, judge_fail, value = m.groups()
+            if bench not in JUDGE_BENCH:
+                continue
+            if float(judge_fail) > MAX_JUDGE_FAIL:
+                skipped += 1
+                continue
+            for wd in glob.glob(str(RESULTS / run_id / "*" / bench)):
+                if glob.glob(f"{wd}/**/*acc*.csv", recursive=True):
+                    continue
+                (Path(wd) / "derived_acc.csv").write_text(f"metric,value\noverall,{value}\n")
+                written += 1
+    print(f"derived {written} acc.csv, skipped {skipped} (broken judge)")
+
+
+if __name__ == "__main__":
+    main()
