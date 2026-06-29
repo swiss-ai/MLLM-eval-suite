@@ -1,5 +1,5 @@
 # Shared TOML Configs
 
-Store shared configuration fragments or documented conventions used by both evaluation frameworks.
+Store shared configuration fragments or documented conventions used by multiple evaluation frameworks.
 
-- `apertus-vllm-vision-eval-prod.toml`: combined Apertus vLLM vision evaluation runtime config copied from the VLMEvalKit submodule for launcher use.
+- `apertus-vllm-vision-eval-prod.toml`: shared Apertus vLLM runtime config used by VLMEvalKit, Evaluator, and lm-evaluation-harness Slurm wrappers.

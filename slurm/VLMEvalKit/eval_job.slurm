@@ -34,6 +34,7 @@ IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
 MAIN_PROCESS_PORT=29541
 SEED=1234
 PYTHON_BIN="/opt/venv/bin/python"
+EXTRA_FRAMEWORK_ARGS=()
 
 usage() {
   cat <<'EOF'
@@ -61,6 +62,7 @@ Options:
   --main-process-port <int>      torch.distributed master port.
   --seed <int>                   PYTHONHASHSEED and VLLM_SEED.
   --python <path>                Python executable. Default: /opt/venv/bin/python.
+  --extra-framework-config <arg> Extra VLMEvalKit run.py argv token. Repeat for each token.
   --help                         Show this help.
 EOF
 }
@@ -87,6 +89,7 @@ while [[ $# -gt 0 ]]; do
     --main-process-port) MAIN_PROCESS_PORT="$2"; shift 2 ;;
     --seed) SEED="$2"; shift 2 ;;
     --python) PYTHON_BIN="$2"; shift 2 ;;
+    --extra-framework-config|--extra-framework-arg) EXTRA_FRAMEWORK_ARGS+=("$2"); shift 2 ;;
     --help) usage; exit 0 ;;
     *)
       echo "Unknown option: $1" >&2
@@ -317,6 +320,7 @@ PY_CMD+=(
   --work-dir "${WORK_DIR}"
   --response-cache "${RESPONSE_CACHE}"
 )
+PY_CMD+=("${EXTRA_FRAMEWORK_ARGS[@]}")
 
 if [[ "${NNODES}" -gt 1 ]]; then
   # srun launches one worker container per node. The EDF .toml sets

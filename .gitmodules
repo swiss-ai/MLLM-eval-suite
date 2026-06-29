@@ -6,3 +6,11 @@
 	path = third_party/VLMEvalKit
 	url = https://github.com/swiss-ai/VLMEvalKit.git
 	branch = apertus-1p5-eval
+[submodule "third_party/Evaluator"]
+	path = third_party/Evaluator
+	url = https://github.com/swiss-ai/Evaluator.git
+	branch = apertus-1p5-eval
+[submodule "third_party/lm-evaluation-harness"]
+	path = third_party/lm-evaluation-harness
+	url = https://github.com/swiss-ai/lm-evaluation-harness.git
+	branch = apertus-1p5-eval

@@ -1,0 +1,13 @@
+# Direct lm-evaluation-harness text suite.
+# Includes likelihood-style benchmarks that need vLLM/local-completions,
+# not chat-completions.
+mmlu
+mmlu_pro
+gpqa
+arc_easy
+arc_challenge
+hellaswag
+winogrande
+truthfulqa_mc2
+piqa
+gsm8k

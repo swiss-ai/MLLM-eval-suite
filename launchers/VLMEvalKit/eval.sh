@@ -45,6 +45,7 @@ IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
 SBATCH_TIME="${SBATCH_TIME:-04:00:00}"
 MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-29541}"
 DRY_RUN=0
+EXTRA_FRAMEWORK_ARGS=()
 
 usage() {
   sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -84,6 +85,7 @@ Options:
   --log-dir <path>                  Slurm stdout/stderr directory.
   --time <hh:mm:ss>                 Slurm time limit. Default: 04:00:00.
   --main-process-port <int>         torch.distributed master port.
+  --extra-framework-config <arg>    Extra VLMEvalKit run.py argv token. Repeat for each token.
   --dry-run                         Print the submission command without executing it.
   -h, --help                        Show this help.
 EOF
@@ -154,6 +156,8 @@ while [[ $# -gt 0 ]]; do
       SBATCH_TIME="$2"; shift 2 ;;
     --main-process-port)
       MAIN_PROCESS_PORT="$2"; shift 2 ;;
+    --extra-framework-config|--extra-framework-arg)
+      EXTRA_FRAMEWORK_ARGS+=("$2"); shift 2 ;;
     --dry-run)
       DRY_RUN=1; shift ;;
     -h|--help)
@@ -284,6 +288,9 @@ while IFS= read -r DATASET; do
       --batch-size "${BATCH_SIZE}"
       --main-process-port "${MAIN_PROCESS_PORT}"
     )
+    for ARG in "${EXTRA_FRAMEWORK_ARGS[@]}"; do
+      JOB_ARGS+=(--extra-framework-config "${ARG}")
+    done
 
     if [[ "${SUBMIT_MODE}" == "interactive" ]]; then
       CMD=(bash "${SLURM_TEMPLATE}" "${JOB_ARGS[@]}")

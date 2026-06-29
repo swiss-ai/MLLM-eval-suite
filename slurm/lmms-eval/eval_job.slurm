@@ -87,6 +87,7 @@ WANDB_RESUME="${WANDB_RESUME:-allow}"
 WANDB_LOG_SAMPLES="${WANDB_LOG_SAMPLES:-false}"
 WANDB_ARGS="${WANDB_ARGS:-}"
 WANDB_API_KEY="${WANDB_API_KEY:-}"
+EXTRA_FRAMEWORK_ARGS=()
 
 VLLM_REPO="${VLLM_REPO:-${CONTAINER_REPO_ROOT}/vllm}"
 LMMS_EVAL_REPO="${LMMS_EVAL_REPO:-${CONTAINER_REPO_ROOT}/lmms-eval}"
@@ -143,6 +144,7 @@ Options:
   --wandb-log-samples <true|false>       Also upload eval samples to W&B. Default: false.
   --wandb-args <kv_csv>                  Extra lmms-eval --wandb_args (comma-separated key=value).
   --wandb-api-key <key>                  W&B API key. If omitted, uses WANDB_API_KEY env.
+  --extra-framework-config <arg>         Extra lmms-eval argv token. Repeat for each token.
   --debug-mode                           Enable debug mode (sets VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG=1).
   --help                                 Show this message.
 EOF
@@ -192,6 +194,7 @@ while [[ $# -gt 0 ]]; do
     --wandb-log-samples) WANDB_LOG_SAMPLES="$2"; shift 2 ;;
     --wandb-args) WANDB_ARGS="$2"; shift 2 ;;
     --wandb-api-key) WANDB_API_KEY="$2"; shift 2 ;;
+    --extra-framework-config|--extra-framework-arg) EXTRA_FRAMEWORK_ARGS+=("$2"); shift 2 ;;
     --debug-mode) export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG=1; shift ;;
     --help) usage; exit 0 ;;
     *)
@@ -478,6 +481,7 @@ if is_true "${ENABLE_WANDB}" && [[ -n "${FINAL_WANDB_ARGS}" ]]; then
     CMD+=(--wandb_log_samples)
   fi
 fi
+CMD+=("${EXTRA_FRAMEWORK_ARGS[@]}")
 
 /opt/venv/bin/python -c "import nltk; nltk.download('wordnet')"
 

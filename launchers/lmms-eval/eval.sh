@@ -16,6 +16,8 @@
 # --submit-mode  batch|interactive. Batch submits one sbatch per task/model pair.
 #                Interactive runs the job script directly with bash so it uses
 #                the current shell's node allocation.
+# --extra-framework-config  Extra lmms-eval argv token. Repeat for each token.
+# --dry-run  Print submissions without executing them.
 #
 # Examples:
 #   bash eval.sh /path/to/ckpt                          # full suite, fill mode
@@ -80,6 +82,8 @@ SUBMIT_MODE="batch"
 ENABLE_THINKING=""
 GEN_KWARGS_OVERRIDE=""
 LABEL_SUFFIX=""
+EXTRA_FRAMEWORK_ARGS=()
+DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -91,6 +95,8 @@ while [[ $# -gt 0 ]]; do
     --enable-thinking) ENABLE_THINKING=1; shift ;;
     --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
     --label-suffix) LABEL_SUFFIX="$2"; shift 2 ;;
+    --extra-framework-config|--extra-framework-arg) EXTRA_FRAMEWORK_ARGS+=("$2"); shift 2 ;;
+    --dry-run) DRY_RUN=1; shift ;;
     --*)        echo "unknown flag: $1" >&2; usage; exit 1 ;;
     *)
       # First positional = model(s)
@@ -295,17 +301,28 @@ while IFS= read -r TASK; do
     if [[ -n "$ENABLE_THINKING" ]]; then
       JOB_ARGS+=(--extra-model-args "enable_thinking=True" --wandb-run-name "$MODEL_LABEL")
     fi
+    for ARG in "${EXTRA_FRAMEWORK_ARGS[@]}"; do
+      JOB_ARGS+=(--extra-framework-config "${ARG}")
+    done
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
+      CMD=(bash "$SLURM_TEMPLATE" "${JOB_ARGS[@]}")
       echo "    submit: interactive bash ${SLURM_TEMPLATE}"
-      bash "$SLURM_TEMPLATE" "${JOB_ARGS[@]}" >"$JOB_OUTPUT" 2>"$JOB_ERROR"
+      if [[ "${DRY_RUN}" -eq 1 ]]; then
+        printf ' %q' "${CMD[@]}"
+        printf ' >%q 2>%q\n' "$JOB_OUTPUT" "$JOB_ERROR"
+      else
+        "${CMD[@]}" >"$JOB_OUTPUT" 2>"$JOB_ERROR"
+      fi
     else
+      CMD=(sbatch --output "$JOB_OUTPUT" --error "$JOB_ERROR" "$SLURM_TEMPLATE" "${JOB_ARGS[@]}")
       echo "    submit: sbatch ${SLURM_TEMPLATE}"
-      sbatch \
-        --output "$JOB_OUTPUT" \
-        --error  "$JOB_ERROR" \
-        "$SLURM_TEMPLATE" \
-        "${JOB_ARGS[@]}"
+      if [[ "${DRY_RUN}" -eq 1 ]]; then
+        printf ' %q' "${CMD[@]}"
+        printf '\n'
+      else
+        "${CMD[@]}"
+      fi
     fi
   done <<< "$MODELS"
 done <<< "$TASKS"
