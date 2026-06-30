@@ -157,7 +157,6 @@ VK_OWNED_TASKS = {
     "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
     "LogicVista": "logicvista",
     "MMVet": "mmvet", "MIA-Bench": "mia_bench",
-    "CharXiv_descriptive_val": "charxiv_descriptive_val", "CharXiv_reasoning_val": "charxiv_reasoning_val",
 }
 _VK_HEADLINE = ("overall", "overall_accuracy", "acc", "accuracy")
 _VK_AGG_LABELS = ("all", "overall", "none")
