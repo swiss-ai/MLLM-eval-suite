@@ -18,11 +18,12 @@ RESULTS = SUITE / "results/VLMEvalKit"
 JUDGE_BENCH = {
     "MathVista_MINI", "HallusionBench", "MathVerse_MINI", "MMVet",
     "CharXiv_descriptive_val", "CharXiv_reasoning_val", "MIA-Bench",
+    "LogicVista",
 }
 MAX_JUDGE_FAIL = 20.0  # percent; above this the judge was broken -> no real score
 
 # benchmark  infer% (n/N)  judge% (n/N)  metric  value  ...
-ROW = re.compile(r"^(\S+)\s+([\d.]+)%\s+\([\d/]+\)\s+([\d.]+)%\s+\([\d/]+\)\s+\S+\s+([\d.]+)")
+ROW = re.compile(r"^(\S+)\s+([\d.]+)%\s+\([\d/]+\)\s+([\d.]+)%\s+\([\d/]+\)\s+.+?\s+([\d.]+)(?=\s|$)")
 
 
 def main() -> None:

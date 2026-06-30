@@ -53,6 +53,18 @@ PASSTHROUGH=()
 THINK_GEN_KWARGS="max_new_tokens=32768,temperature=0.6,top_p=0.95"
 THINK_SUFFIX="-thinking-32k"
 set_thinking_env() { export APERTUS_ENABLE_THINKING=1 APERTUS_TEMPERATURE=0.6 APERTUS_TOP_P=0.95 APERTUS_MAX_NEW_TOKENS=32768; }
+# Resolve VK_MODEL (the run NAME) and export APERTUS_MODEL_PATH (the checkpoint path) from a --model value.
+derive_vk_identity() {
+  VK_MODEL="${1}"
+  if [[ -e "${1}" ]]; then
+    export APERTUS_MODEL_PATH="${1}"
+    VK_MODEL="$(basename "${1%/}")"
+  fi
+  if [[ "${THINKING}" -eq 1 ]]; then
+    set_thinking_env
+    [[ -n "${VK_MODEL}" ]] && VK_MODEL="${VK_MODEL}${THINK_SUFFIX}"
+  fi
+}
 
 is_true() {
   local value
@@ -182,28 +194,13 @@ case "${EVAL_FRAMEWORK}" in
     exec "${ORCH_REPO_ROOT}/launchers/lmms-eval/eval.sh" "${ARGS[@]}"
     ;;
   VLMEvalKit|vlmevalkit)
+    derive_vk_identity "${MODEL_ARG}"
     ARGS=()
-    if [[ -n "${MODEL_ARG}" ]]; then
-      ARGS+=(--model "${MODEL_ARG}")
-    fi
-    if [[ -n "${TASKS_ARG}" ]]; then
-      ARGS+=(--tasks "${TASKS_ARG}")
-    fi
-    if [[ -n "${SUITE_ARG}" ]]; then
-      ARGS+=(--suite "${SUITE_ARG}")
-    fi
-    if [[ -n "${MODE_ARG}" ]]; then
-      ARGS+=(--mode "${MODE_ARG}")
-    fi
-    if [[ -n "${SUBMIT_MODE_ARG}" ]]; then
-      ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
-    fi
-    if [[ "${THINKING}" -eq 1 ]]; then
-      set_thinking_env
-      for i in "${!ARGS[@]}"; do
-        if [[ "${ARGS[$i]}" == "--model" ]]; then ARGS[$((i+1))]="${ARGS[$((i+1))]}${THINK_SUFFIX}"; break; fi
-      done
-    fi
+    [[ -n "${VK_MODEL}" ]] && ARGS+=(--model "${VK_MODEL}")
+    [[ -n "${TASKS_ARG}" ]] && ARGS+=(--tasks "${TASKS_ARG}")
+    [[ -n "${SUITE_ARG}" ]] && ARGS+=(--suite "${SUITE_ARG}")
+    [[ -n "${MODE_ARG}" ]] && ARGS+=(--mode "${MODE_ARG}")
+    [[ -n "${SUBMIT_MODE_ARG}" ]] && ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
     ARGS+=("${PASSTHROUGH[@]}")
     exec "${ORCH_REPO_ROOT}/launchers/VLMEvalKit/eval.sh" "${ARGS[@]}"
     ;;
@@ -227,17 +224,9 @@ case "${EVAL_FRAMEWORK}" in
     LMMS_ARGS+=("${PASSTHROUGH[@]}")
     run_harness "lmms-eval" "${LMMS_ARGS[@]}"
 
-    # VLMEvalKit takes a run NAME; forward a checkpoint path via APERTUS_MODEL_PATH
+    # VLMEvalKit takes a run NAME; forward the checkpoint path via APERTUS_MODEL_PATH
     # so the run identity matches lmms-eval and the dashboard merges the columns.
-    VK_MODEL="${MODEL_ARG}"
-    if [[ -e "${MODEL_ARG}" ]]; then
-      export APERTUS_MODEL_PATH="${MODEL_ARG}"
-      VK_MODEL="$(basename "${MODEL_ARG%/}")"
-    fi
-    if [[ "${THINKING}" -eq 1 ]]; then
-      set_thinking_env
-      VK_MODEL="${VK_MODEL}${THINK_SUFFIX}"
-    fi
+    derive_vk_identity "${MODEL_ARG}"
     VK_ARGS=(bash "${ORCH_REPO_ROOT}/launchers/VLMEvalKit/eval.sh")
     [[ -n "${VK_MODEL}" ]] && VK_ARGS+=(--model "${VK_MODEL}")
     [[ -n "${TASKS_ARG}" ]] && VK_ARGS+=(--tasks "${TASKS_ARG}")

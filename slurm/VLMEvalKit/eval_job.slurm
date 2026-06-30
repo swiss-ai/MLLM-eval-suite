@@ -166,10 +166,18 @@ export VLLM_SEED="${VLLM_SEED:-${SEED}}"
 
 # Path-driven Apertus identity for the config.py registry entry: APERTUS_RUN_NAME
 # is the supported_VLM key (matches --model); APERTUS_MODEL_PATH is the checkpoint
-# (empty = the wrapper's built-in default). Override the optional knobs via env
+# (defaults to --model when it is a path, else the wrapper default). Override knobs via env
 # (e.g. APERTUS_ENABLE_THINKING=1 APERTUS_TEMPERATURE=0.6) or edit the defaults
 # here; thinking needs APERTUS_TEMPERATURE > 0 and APERTUS_MAX_NEW_TOKENS ~16384.
 export APERTUS_RUN_NAME="${MODEL}"
+if [[ -z "${APERTUS_MODEL_PATH:-}" && "${MODEL}" == /* ]]; then
+  if [[ -d "${MODEL}" ]]; then
+    APERTUS_MODEL_PATH="${MODEL}"
+  else
+    echo "ERROR: --model '${MODEL}' is path-shaped but not a directory; refusing to silently load the default checkpoint." >&2
+    exit 1
+  fi
+fi
 export APERTUS_MODEL_PATH="${APERTUS_MODEL_PATH:-}"
 export APERTUS_ENABLE_THINKING="${APERTUS_ENABLE_THINKING:-}"
 export APERTUS_TEMPERATURE="${APERTUS_TEMPERATURE:-}"
