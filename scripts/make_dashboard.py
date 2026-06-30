@@ -59,7 +59,7 @@ def framework_for(task: str) -> str:
 # generative-medical subjects (exact-match scorer is format-fragile),
 # ok_vqa / simplevqa (low-signal, not widely reported), and refspatial (a true
 # zero-shot floor — Apertus never trained on it; points parse but always ~0).
-DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial", "mathvista_testmini")
+DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial", "mathvista_testmini", "logicvista_reasoning")
 
 _TRUNC_CACHE: dict | None = None
 
@@ -155,6 +155,9 @@ VK_OWNED_TASKS = {
     "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
     "ScreenSpot_v2": "screenspot_v2", "ScreenSpot_Pro": "screenspot_pro", "OSWorld_G": "osworld",
     "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
+    "LogicVista": "logicvista",
+    "MMVet": "mmvet", "MIA-Bench": "mia_bench",
+    "CharXiv_descriptive_val": "charxiv_descriptive_val", "CharXiv_reasoning_val": "charxiv_reasoning_val",
 }
 _VK_HEADLINE = ("overall", "overall_accuracy", "acc", "accuracy")
 _VK_AGG_LABELS = ("all", "overall", "none")
