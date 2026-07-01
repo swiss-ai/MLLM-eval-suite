@@ -32,9 +32,11 @@ def pick_headline(task: str, metrics: dict) -> tuple[str, float] | None:
 
 
 def newest_per_task(model_dir: Path) -> dict[str, Path]:
-    """For each task in this model dir, return path to newest *_results.json."""
+    """For each task in this model dir, return path to newest result JSON."""
     by_task: dict[str, Path] = {}
-    for path in model_dir.rglob("*_results.json"):
+    result_paths = set(model_dir.rglob("*_results.json"))
+    result_paths.update(model_dir.rglob("results_*.json"))
+    for path in result_paths:
         try:
             data = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError):

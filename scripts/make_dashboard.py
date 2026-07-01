@@ -55,6 +55,9 @@ def framework_for(task: str) -> str:
     return "VLMEvalKit" if task.lower().startswith(VLMEVALKIT_PREFIXES) else "lmms-eval"
 
 
+LM_EVAL_FRAMEWORK = "lm-evaluation-harness"
+
+
 # Benchmarks dropped from every harness: cmmmu (removed), the mmlu_flan
 # generative-medical subjects (exact-match scorer is format-fragile),
 # ok_vqa / simplevqa (low-signal, not widely reported), and refspatial (a true
@@ -303,6 +306,66 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
     return models, table
 
 
+def _looks_like_result_tree(path: Path) -> bool:
+    return any(path.rglob("*_results.json")) or any(path.rglob("results_*.json"))
+
+
+def _lm_eval_model_dirs(root: Path) -> list[Path]:
+    """Return model-level dirs for both <model>/<run> and <run>/<model> layouts."""
+    dirs: dict[str, Path] = {}
+    for child in sorted(d for d in root.iterdir() if d.is_dir()):
+        found_nested = False
+        for grandchild in sorted(d for d in child.iterdir() if d.is_dir()):
+            if _looks_like_result_tree(grandchild):
+                found_nested = True
+                dirs[str(grandchild.resolve())] = grandchild
+        if not found_nested and _looks_like_result_tree(child):
+            dirs[str(child.resolve())] = child
+    return list(dirs.values())
+
+
+def collect_lm_eval_harness(root: Path, model_filters: list[str] | None):
+    model_dirs = _lm_eval_model_dirs(root)
+    if model_filters:
+        model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
+    if not model_dirs:
+        print(f"no lm-evaluation-harness model dirs under {root}; skipping")
+        return [], []
+
+    rows: dict[tuple[str, str], dict[str, dict]] = {}
+    models: set[str] = set()
+    for mdir in model_dirs:
+        canon = canonical_model_key(mdir.name)
+        for task, path in newest_per_task(mdir).items():
+            if task.lower().startswith(DROPPED_TASK_PREFIXES):
+                continue
+            try:
+                data = json.loads(path.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            metrics = data.get("results", {}).get(task, {})
+            run_id = path.relative_to(mdir).parts[0] if path.is_relative_to(mdir) else ""
+            for row_task, metric, value in iter_headline_metrics(task, metrics):
+                norm = normalize_score(metric, value)
+                if norm is None:
+                    continue
+                models.add(canon)
+                cell = {"v": round(norm * 100, 2), "raw": value, "run": run_id, "_mtime": path.stat().st_mtime}
+                row_cells = rows.setdefault((row_task, metric), {})
+                if canon not in row_cells or cell["_mtime"] > row_cells[canon].get("_mtime", 0):
+                    row_cells[canon] = cell
+
+    for cells in rows.values():
+        for cell in cells.values():
+            cell.pop("_mtime", None)
+
+    table = [
+        {"task": task, "metric": metric.replace(",none", ""), "framework": LM_EVAL_FRAMEWORK, "cells": cells}
+        for (task, metric), cells in sorted(rows.items())
+    ]
+    return sorted(models), table
+
+
 HTML_TEMPLATE = """<!doctype html>
 <html lang="en">
 <head>
@@ -403,6 +466,7 @@ input[type=search]:focus, select:focus { border-bottom-color: var(--red); }
 .hbadge { display: inline-block; font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; letter-spacing: .03em; font-weight: 600; padding: 1px 5px; border-radius: 2px; vertical-align: middle; margin-left: 7px; }
 .hbadge.lmms { color: #2c5f7a; background: #dceaf1; }
 .hbadge.vlme { color: #7a3d1e; background: #f1e2d6; }
+.hbadge.lmeh { color: #4d5f1f; background: #e5e8c9; }
 .panel h3 .hbadge { margin-left: 6px; }
 .brow { display: grid; grid-template-columns: 1fr 44px; align-items: center; gap: 8px; margin: 3px 0; }
 .btrack { position: relative; height: 13px; background: var(--paper-2); }
@@ -465,9 +529,9 @@ footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 <div class="controls">
   <span class="viewtab"><button id="tab-charts">Charts</button><button id="tab-matrix" class="on">Matrix</button></span>
   <span><label>filter&nbsp;</label><input id="q" type="search" placeholder="benchmark substring…" spellcheck="false"></span>
-  <span><label>harness&nbsp;</label><select id="hfilter"><option value="">all</option><option value="lmms-eval">lmms-eval</option><option value="VLMEvalKit">VLMEvalKit</option></select></span>
+  <span><label>harness&nbsp;</label><select id="hfilter"><option value="">all</option><option value="lmms-eval">lmms-eval</option><option value="VLMEvalKit">VLMEvalKit</option><option value="lm-evaluation-harness">lm-evaluation-harness</option></select></span>
   <span id="basewrap" class="hidden"><label>baseline&nbsp;</label><select id="base"><option value="">none</option></select></span>
-  <span class="hint" style="margin-left:auto"><span class="hbadge lmms">lmms-eval</span> <span class="hbadge vlme">VLMEvalKit</span></span>
+  <span class="hint" style="margin-left:auto"><span class="hbadge lmms">lmms-eval</span> <span class="hbadge vlme">VLMEvalKit</span> <span class="hbadge lmeh">lm-evaluation-harness</span></span>
 </div>
 
 <div class="charts hidden" id="charts"></div>
@@ -494,7 +558,9 @@ let state = {
 const fmt = v => v.toFixed(1);
 const hbadge = fw => fw === "VLMEvalKit"
   ? '<span class="hbadge vlme">VLMEvalKit</span>'
-  : '<span class="hbadge lmms">lmms-eval</span>';
+  : fw === "lm-evaluation-harness"
+    ? '<span class="hbadge lmeh">lm-evaluation-harness</span>'
+    : '<span class="hbadge lmms">lmms-eval</span>';
 const selModels = () => D.models.filter(m => state.sel.has(m));
 const visRows = () => {
   const q = state.q.toLowerCase();
@@ -643,6 +709,7 @@ def main():
     p.add_argument("--only", nargs="*", help="curate to these exact canonical checkpoint keys (drops all others)")
     p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
+    p.add_argument("--lm-eval-root", type=Path, help="direct lm-evaluation-harness results tree, merged by checkpoint identity")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
     p.add_argument("-o", "--output", type=Path, default=Path("dashboard.html"))
     args = p.parse_args()
@@ -659,14 +726,17 @@ def main():
     models_v, table_v = ([], [])
     if args.vlmeval_root:
         models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
-    models = sorted(set(models_l) | set(models_v))
+    models_h, table_h = ([], [])
+    if args.lm_eval_root:
+        models_h, table_h = collect_lm_eval_harness(args.lm_eval_root.resolve(), args.models)
+    models = sorted(set(models_l) | set(models_v) | set(models_h))
     if args.only:
         present = set(models)
         models = [m for m in args.only if m in present]
     # Ownership partitions benchmarks, so no (task, metric) appears in both
     # harnesses; cells merge defensively if one ever does.
     merged: dict[tuple[str, str], dict] = {}
-    for row in table_l + table_v:
+    for row in table_l + table_v + table_h:
         key = (row["task"], row["metric"])
         if key in merged:
             merged[key]["cells"].update(row["cells"])
@@ -696,7 +766,13 @@ def main():
         "defaultSelected": default_selected,
     }
     n_vk = sum(1 for r in cells_rows if r["framework"] == "VLMEvalKit")
-    sources = f"lmms-eval ({len(cells_rows) - n_vk} rows)" + (f" · VLMEvalKit ({n_vk} rows)" if n_vk else "")
+    n_lmeh = sum(1 for r in cells_rows if r["framework"] == LM_EVAL_FRAMEWORK)
+    n_lmms = len(cells_rows) - n_vk - n_lmeh
+    sources = f"lmms-eval ({n_lmms} rows)"
+    if n_vk:
+        sources += f" · VLMEvalKit ({n_vk} rows)"
+    if n_lmeh:
+        sources += f" · {LM_EVAL_FRAMEWORK} ({n_lmeh} rows)"
     meta = (
         f"<b>{len(models)}</b> checkpoints · <b>{len(cells_rows)}</b> metric rows · "
         f"{sources} · generated {datetime.datetime.now():%Y-%m-%d %H:%M}"

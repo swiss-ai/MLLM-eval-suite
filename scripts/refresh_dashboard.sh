@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Regenerate the dual-harness eval dashboard for GitHub Pages. Both eval kits
-# land on one page: lmms-eval results from RUNS_ROOT plus VLMEvalKit results
-# merged in by checkpoint identity through a symlink bridge.
+# Regenerate the eval dashboard for GitHub Pages. The eval kits land on one
+# page: lmms-eval results from RUNS_ROOT/SUITE_LMMS, VLMEvalKit results through
+# a symlink bridge, and direct lm-evaluation-harness results from LM_EVAL_ROOT.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE="$(cd "$HERE/.." && pwd)"
 PY="${PY:-python3}"
 RUNS_ROOT="${RUNS_ROOT:-/capstor/store/cscs/swissai/infra01/users/xyixuan/apertus-1p5-eval/runs}"
 SUITE_LMMS="${SUITE_LMMS:-$SUITE/results/lmms-eval}"
+LM_EVAL_ROOT="${LM_EVAL_ROOT:-$SUITE/results/lm-evaluation-harness}"
 VLMEVAL_OUTPUTS="${VLMEVAL_OUTPUTS:-/capstor/store/cscs/swissai/infra01/vision-datasets/benchmark/VLMEval_Outputs}"
 SUITE_VLMEVAL="${SUITE_VLMEVAL:-$SUITE/results/VLMEvalKit}"
 BRIDGE="${BRIDGE:-$SUITE/cache/vlmeval_bridge}"
@@ -32,6 +33,7 @@ done
 # curated checkpoint set (exact canonical keys): SFT 4200 + RL stage2, both
 # direct and thinking, plus the sDPO alignment checkpoint.
 ONLY=(
+  "sft-capfilter-linear-it8816"
   "sft-capfilter-constant-it8816"
   "sft-256k-4200"
   "sft-256k-4200 [thinking-32k]"
@@ -41,6 +43,7 @@ ONLY=(
   "sdpo-mix-less-refuse-feedback [thinking-32k]"
 )
 LABELS=(
+  "sft-capfilter-linear-it8816=it8816-linear"
   "sft-capfilter-constant-it8816=it8816-const"
   "sft-256k-4200=SFT-4200"
   "sft-256k-4200 [thinking-32k]=SFT-4200 (think)"
@@ -65,7 +68,7 @@ for md in "$RUNS_ROOT"/*-thinking-32k; do
 done
 
 mkdir -p "$(dirname "$OUT")"
-"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --only "${ONLY[@]}" --label "${LABELS[@]}" -o "$OUT"
+"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --lm-eval-root "$LM_EVAL_ROOT" --only "${ONLY[@]}" --label "${LABELS[@]}" -o "$OUT"
 # internal checkpoint results: keep out of search indexes
 "$PY" - "$OUT" <<'PYEOF'
 import re,sys
