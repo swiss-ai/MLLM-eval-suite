@@ -1,0 +1,24 @@
+# Native benchmarks registered in this NeMo Evaluator checkout.
+#
+# Text/QA/MCQ/math/safety:
+gsm8k
+math500
+mgsm
+drop
+triviaqa
+mmlu
+mmlu_pro
+gpqa
+simpleqa
+healthbench
+xstest
+
+# Code/sandbox:
+humaneval
+
+# Agentic/sandbox-heavy:
+nmp_harbor
+pinchbench
+terminal-bench-hard
+terminal-bench-hard-aa-split
+terminal-bench-v1

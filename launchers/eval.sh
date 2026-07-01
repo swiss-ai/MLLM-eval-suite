@@ -23,6 +23,10 @@ Common args:
   --extra-framework-config <arg>
                             Extra framework-native argv token. Repeat for each
                             token to pass through without using -- separators.
+  --config-json <json>       Evaluator JSON overrides; forwarded to
+                            launchers/Evaluator/eval.sh.
+  --config-file <path>       Evaluator JSON override file; forwarded to
+                            launchers/Evaluator/eval.sh.
   --dry-run                 Print the per-harness commands without executing
 
 Use repeatable --extra-framework-config <arg> for framework-native argv tokens
@@ -51,6 +55,8 @@ SUITE_ARG=""
 MODE_ARG=""
 SUBMIT_MODE_ARG=""
 RUN_ID_ARG=""
+CONFIG_JSON_ARG=""
+CONFIG_FILE_ARG=""
 THINKING=0
 DRY_ALL=0
 PASSTHROUGH=()
@@ -128,6 +134,14 @@ while [[ $# -gt 0 ]]; do
       RUN_ID_ARG="${2:-}"
       shift 2
       ;;
+    --config-json)
+      CONFIG_JSON_ARG="${2:-}"
+      shift 2
+      ;;
+    --config-file|--config-json-file)
+      CONFIG_FILE_ARG="${2:-}"
+      shift 2
+      ;;
     --extra-framework-config|--extra-framework-arg)
       PASSTHROUGH+=(--extra-framework-config "${2:-}")
       shift 2
@@ -184,6 +198,12 @@ case "${EVAL_FRAMEWORK}" in
     fi
     if [[ -n "${SUBMIT_MODE_ARG}" ]]; then
       ARGS+=(--submit-mode "${SUBMIT_MODE_ARG}")
+    fi
+    if [[ -n "${CONFIG_JSON_ARG}" ]]; then
+      ARGS+=(--config-json "${CONFIG_JSON_ARG}")
+    fi
+    if [[ -n "${CONFIG_FILE_ARG}" ]]; then
+      ARGS+=(--config-file "${CONFIG_FILE_ARG}")
     fi
     ARGS+=("${PASSTHROUGH[@]}")
     exec "${ORCH_REPO_ROOT}/launchers/Evaluator/eval.sh" "${ARGS[@]}"

@@ -1,0 +1,73 @@
+# Template for NeMo Evaluator NMP Harbor tasks.
+# Defaults to a Harbor solver. Override NEL_HARBOR_AGENT and NEL_BENCHMARK_SANDBOX.
+
+services:
+  apertus:
+    type: ${NEL_SERVICE_TYPE:-vllm}
+    model: ${NEL_APERTUS_MODEL}
+    served_model_name: ${NEL_APERTUS_SERVED_MODEL_NAME:-Apertus-1p5-8B}
+    protocol: ${NEL_APERTUS_PROTOCOL:-chat_completions}
+    port: ${NEL_APERTUS_PORT:-8000}
+    tensor_parallel_size: ${NEL_APERTUS_TP:-1}
+    startup_timeout: ${NEL_APERTUS_STARTUP_TIMEOUT:-1800}
+    generation:
+      temperature: ${NEL_APERTUS_TEMPERATURE:-0}
+      top_p: ${NEL_APERTUS_TOP_P:-1}
+      max_tokens: ${NEL_APERTUS_MAX_TOKENS:-1024}
+      seed: ${NEL_APERTUS_SEED:-1234}
+    extra_env:
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      TOKENIZERS_PARALLELISM: "false"
+      VLLM_APERTUS_MODELS_CACHE: ${NEL_APERTUS_MODELS_CACHE}
+      LMMS_EVAL_MODELS_CACHE: ${NEL_APERTUS_MODELS_CACHE}
+    extra_args:
+      - --served-model-name
+      - '${NEL_APERTUS_SERVED_MODEL_NAME:-Apertus-1p5-8B}'
+      - --tokenizer
+      - '${NEL_APERTUS_TOKENIZER}'
+      - --chat-template
+      - '${NEL_APERTUS_CHAT_TEMPLATE}'
+      - --max-model-len
+      - '${NEL_APERTUS_MAX_MODEL_LEN:-131072}'
+      - --max-num-batched-tokens
+      - '${NEL_APERTUS_MAX_NUM_BATCHED_TOKENS:-49152}'
+      - --gpu-memory-utilization
+      - '${NEL_APERTUS_GPU_MEMORY_UTILIZATION:-0.6}'
+      - --hf-overrides
+      - '${NEL_APERTUS_HF_OVERRIDES}'
+      - --skip-mm-profiling
+
+benchmarks:
+  - name: nmp_harbor
+    max_problems: ${NEL_BENCHMARK_MAX_PROBLEMS:-5}
+    repeats: ${NEL_BENCHMARK_REPEATS:-1}
+    max_concurrent: ${NEL_BENCHMARK_MAX_CONCURRENT:-4}
+    timeout: ${NEL_BENCHMARK_TIMEOUT:-1800}
+    skip_failed: ${NEL_BENCHMARK_SKIP_FAILED:-false}
+    max_system_retries: ${NEL_BENCHMARK_MAX_SYSTEM_RETRIES:-3}
+    shuffle_seed: ${NEL_BENCHMARK_SHUFFLE_SEED:-42}
+    solver:
+      type: harbor
+      service: ${NEL_SOLVER_SERVICE:-apertus}
+      agent: ${NEL_HARBOR_AGENT:-terminus-2}
+      agent_kwargs: ${NEL_HARBOR_AGENT_KWARGS:-{}}
+      container_env: ${NEL_HARBOR_CONTAINER_ENV:-{}}
+      run_timeout: ${NEL_HARBOR_RUN_TIMEOUT:-1800}
+      cmd_timeout: ${NEL_HARBOR_CMD_TIMEOUT:-600}
+      timeout_strategy: ${NEL_HARBOR_TIMEOUT_STRATEGY:-override}
+      max_agent_timeout: ${NEL_HARBOR_MAX_AGENT_TIMEOUT:-1800}
+      skill: ${NEL_HARBOR_SKILL:-}
+      skill_dir: ${NEL_HARBOR_SKILL_DIR:-}
+    scoring:
+      include_defaults: ${NEL_SCORING_INCLUDE_DEFAULTS:-true}
+      metrics: ${NEL_SCORING_METRICS:-[]}
+      primary: ${NEL_SCORING_PRIMARY:-}
+    sandbox: ${NEL_BENCHMARK_SANDBOX:-{type: docker, timeout: 1800.0, concurrency: 4}}
+    params: ${NEL_BENCHMARK_PARAMS:-{}}
+
+output:
+  dir: ${NEL_OUTPUT_DIR}
+  timestamped: ${NEL_OUTPUT_TIMESTAMPED:-false}
+  progress_interval: ${NEL_PROGRESS_INTERVAL:-60}
+  export: ${NEL_OUTPUT_EXPORT:-[]}

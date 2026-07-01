@@ -112,7 +112,7 @@ bash launchers/eval.sh --eval-framework Evaluator --suite smoke
 bash launchers/eval.sh --eval-framework Evaluator --suite text-builtin --model /path/to/apertus
 ```
 
-Evaluator uses `configs/Evaluator/apertus_text_vllm_template.yaml` as a template. The launcher copies that template into each task output directory as `config.template.yaml`, writes the resolved `NEL_*` values into `config.env`, and the Slurm entrypoint sources that env file before calling `nel eval run`. This means the run directory records the exact model, tokenizer, solver, generation, vLLM, cache, and output settings used for that task.
+Evaluator uses per-benchmark templates from `configs/Evaluator/templates/` when available, falling back to `configs/Evaluator/apertus_text_vllm_template.yaml`. The launcher copies the selected template into each task output directory as `config.template.yaml`, writes the resolved `NEL_*` values into `config.env`, and the Slurm entrypoint sources that env file before calling `nel eval run`. This means the run directory records the exact model, tokenizer, solver, generation, vLLM, cache, benchmark, scoring, sandbox, and output settings used for that task.
 
 Most template values can be changed directly from the top-level entrypoint:
 
@@ -136,6 +136,8 @@ bash launchers/eval.sh --eval-framework Evaluator --suite smoke \
 ```
 
 Use `--config-template /path/to/template.yaml` when you want to keep the same launcher flow but replace the entire NeMo Evaluator template.
+
+Use `--template-dir /path/to/templates` when you want benchmark-specific templates but do not want to modify the repository defaults. Template file names should match the resolved task slug, for example `gsm8k.yaml`, `mmlu_pro.yaml`, or `terminal-bench-v1.yaml`.
 
 Run direct lm-evaluation-harness text benchmarks through the combined launcher. This is the recommended path for classic loglikelihood and multiple-choice tasks such as MMLU, ARC, HellaSwag, Winogrande, PIQA, and TruthfulQA MC:
 
@@ -199,6 +201,7 @@ Suite files live under `task_suites/` and can be passed directly to the launcher
 - `task_suites/VLMEvalKit/`: suite files copied from the VLMEvalKit Apertus vLLM scripts.
 - `task_suites/Evaluator/smoke.txt`: native Evaluator text smoke suite (`gsm8k`).
 - `task_suites/Evaluator/text_builtin.txt`: native text-oriented Evaluator benchmarks: `gsm8k`, `math500`, `mgsm`, `drop`, `triviaqa`, `mmlu`, `mmlu_pro`, `gpqa`, `simpleqa`, `healthbench`, `xstest`.
+- `task_suites/Evaluator/all_builtin.txt`: every native benchmark registered in this Evaluator checkout, including `humaneval`, `nmp_harbor`, `pinchbench`, and `terminal-bench-*`. The non-text entries require their sandbox/agent prerequisites.
 - `task_suites/lm-evaluation-harness/smoke.txt`: direct lm-evaluation-harness smoke suite (`hellaswag`).
 - `task_suites/lm-evaluation-harness/text.txt`: common direct lm-evaluation-harness text/loglikelihood suite.
 

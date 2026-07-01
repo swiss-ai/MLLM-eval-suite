@@ -1,0 +1,100 @@
+# Generic NeMo Evaluator Apertus managed-vLLM template.
+#
+# This is the fallback template. For built-in benchmarks, the launcher first
+# looks for configs/Evaluator/templates/<benchmark>.yaml and uses this file only
+# when no benchmark-specific template exists or when --config-template points
+# here explicitly.
+#
+# All first-class launcher values are exposed as ${NEL_*} variables. Additional
+# native NeMo Evaluator fields can still be overridden with:
+#   --extra-framework-config -O --extra-framework-config benchmarks.0.timeout=3600
+
+services:
+  apertus:
+    type: ${NEL_SERVICE_TYPE:-vllm}
+    model: ${NEL_APERTUS_MODEL}
+    served_model_name: ${NEL_APERTUS_SERVED_MODEL_NAME:-Apertus-1p5-8B}
+    protocol: ${NEL_APERTUS_PROTOCOL:-chat_completions}
+    port: ${NEL_APERTUS_PORT:-8000}
+    tensor_parallel_size: ${NEL_APERTUS_TP:-1}
+    pipeline_parallel_size: ${NEL_APERTUS_PP:-1}
+    data_parallel_size: ${NEL_APERTUS_DP:-1}
+    num_nodes: ${NEL_APERTUS_NUM_NODES:-1}
+    startup_timeout: ${NEL_APERTUS_STARTUP_TIMEOUT:-1800}
+    health_path: ${NEL_APERTUS_HEALTH_PATH:-/health}
+    reasoning_pattern: ${NEL_APERTUS_REASONING_PATTERN:-}
+    max_input_tokens: ${NEL_APERTUS_MAX_INPUT_TOKENS:-0}
+    max_output_tokens: ${NEL_APERTUS_MAX_OUTPUT_TOKENS:-0}
+    generation:
+      temperature: ${NEL_APERTUS_TEMPERATURE:-0}
+      top_p: ${NEL_APERTUS_TOP_P:-1}
+      max_tokens: ${NEL_APERTUS_MAX_TOKENS:-256}
+      seed: ${NEL_APERTUS_SEED:-1234}
+      stop: []
+      frequency_penalty: ${NEL_APERTUS_FREQUENCY_PENALTY:-0}
+      presence_penalty: ${NEL_APERTUS_PRESENCE_PENALTY:-0}
+    extra_env:
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      VLLM_WORKER_MULTIPROC_METHOD: spawn
+      TOKENIZERS_PARALLELISM: "false"
+      VLLM_APERTUS_MODELS_CACHE: ${NEL_APERTUS_MODELS_CACHE}
+      LMMS_EVAL_MODELS_CACHE: ${NEL_APERTUS_MODELS_CACHE}
+    extra_args:
+      - --served-model-name
+      - '${NEL_APERTUS_SERVED_MODEL_NAME:-Apertus-1p5-8B}'
+      - --tokenizer
+      - '${NEL_APERTUS_TOKENIZER}'
+      - --chat-template
+      - '${NEL_APERTUS_CHAT_TEMPLATE}'
+      - --max-model-len
+      - '${NEL_APERTUS_MAX_MODEL_LEN:-131072}'
+      - --max-num-batched-tokens
+      - '${NEL_APERTUS_MAX_NUM_BATCHED_TOKENS:-49152}'
+      - --gpu-memory-utilization
+      - '${NEL_APERTUS_GPU_MEMORY_UTILIZATION:-0.6}'
+      - --hf-overrides
+      - '${NEL_APERTUS_HF_OVERRIDES}'
+      - --skip-mm-profiling
+    setup_commands: ${NEL_APERTUS_SETUP_COMMANDS:-[]}
+    container_mounts: ${NEL_APERTUS_CONTAINER_MOUNTS:-[]}
+    depends_on: ${NEL_APERTUS_DEPENDS_ON:-[]}
+
+benchmarks:
+  - name: ${NEL_BENCHMARK_NAME}
+    max_problems: ${NEL_BENCHMARK_MAX_PROBLEMS:-5}
+    repeats: ${NEL_BENCHMARK_REPEATS:-1}
+    max_concurrent: ${NEL_BENCHMARK_MAX_CONCURRENT:-4}
+    fewshot: ${NEL_BENCHMARK_FEWSHOT:-0}
+    context_window: ${NEL_BENCHMARK_CONTEXT_WINDOW:-131072}
+    timeout: ${NEL_BENCHMARK_TIMEOUT:-1800}
+    skip_failed: ${NEL_BENCHMARK_SKIP_FAILED:-false}
+    max_system_retries: ${NEL_BENCHMARK_MAX_SYSTEM_RETRIES:-3}
+    instruction_template: ${NEL_BENCHMARK_INSTRUCTION_TEMPLATE:-}
+    verifier: ${NEL_BENCHMARK_VERIFIER:-}
+    shuffle_seed: ${NEL_BENCHMARK_SHUFFLE_SEED:-42}
+    solver:
+      type: ${NEL_SOLVER_TYPE:-simple}
+      service: ${NEL_SOLVER_SERVICE:-apertus}
+      system_prompt: ${NEL_SOLVER_SYSTEM_PROMPT:-}
+      image_detail: ${NEL_SOLVER_IMAGE_DETAIL:-auto}
+      generation:
+        temperature: ${NEL_SOLVER_TEMPERATURE:-0}
+        top_p: ${NEL_SOLVER_TOP_P:-1}
+        max_tokens: ${NEL_SOLVER_MAX_TOKENS:-256}
+        seed: ${NEL_SOLVER_SEED:-1234}
+        stop: []
+        frequency_penalty: ${NEL_SOLVER_FREQUENCY_PENALTY:-0}
+        presence_penalty: ${NEL_SOLVER_PRESENCE_PENALTY:-0}
+    scoring:
+      include_defaults: ${NEL_SCORING_INCLUDE_DEFAULTS:-true}
+      metrics: ${NEL_SCORING_METRICS:-[]}
+      primary: ${NEL_SCORING_PRIMARY:-}
+    sandbox: ${NEL_BENCHMARK_SANDBOX:-{type: none}}
+    params: ${NEL_BENCHMARK_PARAMS:-{}}
+
+output:
+  dir: ${NEL_OUTPUT_DIR}
+  timestamped: ${NEL_OUTPUT_TIMESTAMPED:-false}
+  progress_interval: ${NEL_PROGRESS_INTERVAL:-60}
+  export: ${NEL_OUTPUT_EXPORT:-[]}
+  export_config: ${NEL_OUTPUT_EXPORT_CONFIG:-{}}

@@ -1,0 +1,2 @@
+# Native Evaluator text smoke suite.
+gsm8k
