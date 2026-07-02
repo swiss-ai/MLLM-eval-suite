@@ -1,13 +1,26 @@
-# Benchmarks whose evaluate() phase hard-requires an LLM judge (OpenAI API by
-# default). Inference still runs without the API; the eval stage will fail and
-# can be re-run via `--mode eval` once OPENAI_API_KEY is set in the container.
+# gpt-judged benchmarks — VLMEvalKit is the single source of truth for these.
+# Judge = OpenAI via the repo .env (OPENAI_API_KEY). Inference runs without it;
+# re-run only the scoring with `--mode eval` if the key is added later.
 #
 # Comments and blank lines are stripped by resolve_list in eval.sh.
 
-# Math (free-form numeric / expression answers — GPT-4o-mini extracts and compares)
+# Math (free-form answers — GPT extracts & compares)
 MathVista_MINI
-MathVision
-MathVision_MINI
+MathVerse_MINI
 
-# Open-ended VQA (GPT-4o judges semantic correctness)
-SimpleVQA
+# Chart reasoning (GPT-4o judges)
+CharXiv_descriptive_val
+CharXiv_reasoning_val
+
+# Open-ended VQA + hallucination (GPT judges)
+MMVet
+HallusionBench
+
+# Instruction-following (GPT scores instruction adherence)
+MIA-Bench
+
+# Multimodal logical reasoning (GPT extracts the answer)
+LogicVista
+
+# Multimodal safety — jailbreak/refusal (GPT grades harmfulness)
+MMSafetyBench

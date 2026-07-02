@@ -171,12 +171,8 @@ export VLLM_SEED="${VLLM_SEED:-${SEED}}"
 # here; thinking needs APERTUS_TEMPERATURE > 0 and APERTUS_MAX_NEW_TOKENS ~16384.
 export APERTUS_RUN_NAME="${MODEL}"
 if [[ -z "${APERTUS_MODEL_PATH:-}" && "${MODEL}" == /* ]]; then
-  if [[ -d "${MODEL}" ]]; then
-    APERTUS_MODEL_PATH="${MODEL}"
-  else
-    echo "ERROR: --model '${MODEL}' is path-shaped but not a directory; refusing to silently load the default checkpoint." >&2
-    exit 1
-  fi
+  [[ -d "${MODEL}" ]] || { echo "ERROR: --model '${MODEL}' is path-shaped but not a directory; refusing to silently load the default checkpoint." >&2; exit 1; }
+  APERTUS_MODEL_PATH="${MODEL}"
 fi
 export APERTUS_MODEL_PATH="${APERTUS_MODEL_PATH:-}"
 export APERTUS_ENABLE_THINKING="${APERTUS_ENABLE_THINKING:-}"

@@ -15,10 +15,12 @@ from pathlib import Path
 SUITE = Path("/iopsstor/scratch/cscs/xyixuan/apertus/MLLM-eval-suite")
 LOGS = SUITE / "logs/VLMEvalKit"
 RESULTS = SUITE / "results/VLMEvalKit"
+# Single source of truth: the VLMEvalKit judge suite. Adding a judge benchmark
+# to llm_judge.txt is enough; the deriver picks it up here.
 JUDGE_BENCH = {
-    "MathVista_MINI", "HallusionBench", "MathVerse_MINI", "MMVet",
-    "CharXiv_descriptive_val", "CharXiv_reasoning_val", "MIA-Bench",
-    "LogicVista",
+    ln.strip()
+    for ln in (SUITE / "task_suites/VLMEvalKit/llm_judge.txt").read_text().splitlines()
+    if ln.strip() and not ln.lstrip().startswith("#")
 }
 MAX_JUDGE_FAIL = 20.0  # percent; above this the judge was broken -> no real score
 

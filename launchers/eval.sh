@@ -59,6 +59,7 @@ derive_vk_identity() {
   if [[ -e "${1}" ]]; then
     export APERTUS_MODEL_PATH="${1}"
     VK_MODEL="$(basename "${1%/}")"
+    [[ "${VK_MODEL}" == "HF" ]] && VK_MODEL="$(basename "$(dirname "${1%/}")")"
   fi
   if [[ "${THINKING}" -eq 1 ]]; then
     set_thinking_env
