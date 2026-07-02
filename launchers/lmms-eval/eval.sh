@@ -16,6 +16,8 @@
 # --submit-mode  batch|interactive. Batch submits one sbatch per task/model pair.
 #                Interactive runs the job script directly with bash so it uses
 #                the current shell's node allocation.
+# --extra-model-args  Extra lmms-eval --model_args suffix, comma-separated.
+# --debug-mode  Enable Apertus image token cache debug logging.
 # --extra-framework-config  Extra lmms-eval argv token. Repeat for each token.
 # --dry-run  Print submissions without executing them.
 #
@@ -82,7 +84,9 @@ SUBMIT_MODE="batch"
 ENABLE_THINKING=""
 GEN_KWARGS_OVERRIDE=""
 LABEL_SUFFIX=""
+EXTRA_MODEL_ARGS=""
 EXTRA_FRAMEWORK_ARGS=()
+DEBUG_MODE=0
 DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
@@ -95,7 +99,16 @@ while [[ $# -gt 0 ]]; do
     --enable-thinking) ENABLE_THINKING=1; shift ;;
     --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
     --label-suffix) LABEL_SUFFIX="$2"; shift 2 ;;
-    --extra-framework-config|--extra-framework-arg) EXTRA_FRAMEWORK_ARGS+=("$2"); shift 2 ;;
+    --extra-model-args) EXTRA_MODEL_ARGS="$2"; shift 2 ;;
+    --debug-mode) DEBUG_MODE=1; shift ;;
+    --extra-framework-config|--extra-framework-arg)
+      if [[ "$2" == "--debug-mode" ]]; then
+        DEBUG_MODE=1
+      else
+        EXTRA_FRAMEWORK_ARGS+=("$2")
+      fi
+      shift 2
+      ;;
     --dry-run) DRY_RUN=1; shift ;;
     --*)        echo "unknown flag: $1" >&2; usage; exit 1 ;;
     *)
@@ -264,8 +277,8 @@ while IFS= read -r TASK; do
       JOB_OUTPUT="${LOG_DIR}/eval_${MODE}_${TASK}_${MODEL_LABEL}_interactive.out"
       JOB_ERROR="${LOG_DIR}/eval_${MODE}_${TASK}_${MODEL_LABEL}_interactive.err"
     else
-      JOB_OUTPUT="${LOG_DIR}/eval_${MODE}_%j.out"
-      JOB_ERROR="${LOG_DIR}/eval_${MODE}_%j.err"
+      JOB_OUTPUT="${LOG_DIR}/eval_${MODE}_${TASK}_%j.out"
+      JOB_ERROR="${LOG_DIR}/eval_${MODE}_${TASK}_%j.err"
     fi
 
     echo "--- submit: task=$TASK  model=$MODEL_LABEL ---"
@@ -299,7 +312,16 @@ while IFS= read -r TASK; do
     )
 
     if [[ -n "$ENABLE_THINKING" ]]; then
-      JOB_ARGS+=(--extra-model-args "enable_thinking=True" --wandb-run-name "$MODEL_LABEL")
+      THINKING_MODEL_ARGS="enable_thinking=True"
+      if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
+        THINKING_MODEL_ARGS="${THINKING_MODEL_ARGS},${EXTRA_MODEL_ARGS}"
+      fi
+      JOB_ARGS+=(--extra-model-args "$THINKING_MODEL_ARGS" --wandb-run-name "$MODEL_LABEL")
+    elif [[ -n "$EXTRA_MODEL_ARGS" ]]; then
+      JOB_ARGS+=(--extra-model-args "$EXTRA_MODEL_ARGS")
+    fi
+    if [[ "${DEBUG_MODE}" -eq 1 ]]; then
+      JOB_ARGS+=(--debug-mode)
     fi
     for ARG in "${EXTRA_FRAMEWORK_ARGS[@]}"; do
       JOB_ARGS+=(--extra-framework-config "${ARG}")
