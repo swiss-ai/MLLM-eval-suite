@@ -2,7 +2,7 @@
 # eval.sh — Apertus VLM eval CLI (per-task SQLite cache, single user entry point).
 #
 # Usage:
-#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval] [--mode fill|readonly] [--submit-mode batch|interactive] [--help]
+#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval|geospatial-full|geospatial-smoke] [--mode fill|readonly] [--submit-mode batch|interactive] [--help]
 #
 # <model> forms:
 #   /path/to/ckpt                       single path
@@ -10,7 +10,8 @@
 #   @file.txt                           one path per line (comments # and blanks OK)
 #
 # --tasks   comma-separated, @file.txt, or direct path to a suite file.
-# --suite   named curation: full (default), smoke, audio-full, audio-smoke, audio-llm-eval.
+# --suite   named curation: full (default), smoke, audio-full, audio-smoke, audio-llm-eval,
+#           geospatial-full, geospatial-smoke.
 # --mode    fill|readonly. Both modes use the shared cache directly with preload
 #           on and writes enabled.
 # --submit-mode  batch|interactive. Batch submits one sbatch per task/model pair.
@@ -62,6 +63,8 @@ SUITE_FULL="${SUITE_FULL:-${SUITE_DIR}/visual_full.txt}"
 SUITE_AUDIO_SMOKE="${SUITE_AUDIO_SMOKE:-${SUITE_DIR}/audio_smoke.txt}"
 SUITE_AUDIO_FULL="${SUITE_AUDIO_FULL:-${SUITE_DIR}/audio_full.txt}"
 SUITE_AUDIO_LLM_EVAL="${SUITE_AUDIO_LLM_EVAL:-${SUITE_DIR}/audio_llm_eval.txt}"
+SUITE_GEOSPATIAL_FULL="${SUITE_GEOSPATIAL_FULL:-${SUITE_DIR}/geospatial_full.txt}"
+SUITE_GEOSPATIAL_SMOKE="${SUITE_GEOSPATIAL_SMOKE:-${SUITE_DIR}/geospatial_smoke.txt}"
 
 # ------------------------------------------------------------------
 # CLI parsing
@@ -139,7 +142,9 @@ else
     audio-full) TASKS=$(resolve_list "$SUITE_AUDIO_FULL") ;;
     audio-smoke) TASKS=$(resolve_list "$SUITE_AUDIO_SMOKE") ;;
     audio-llm-eval) TASKS=$(resolve_list "$SUITE_AUDIO_LLM_EVAL") ;;
-    *) echo "--suite must be full|smoke|audio-full|audio-smoke|audio-llm-eval (got: $SUITE)" >&2; exit 1 ;;
+    geospatial-full) TASKS=$(resolve_list "$SUITE_GEOSPATIAL_FULL") ;;
+    geospatial-smoke) TASKS=$(resolve_list "$SUITE_GEOSPATIAL_SMOKE") ;;
+    *) echo "--suite must be full|smoke|audio-full|audio-smoke|audio-llm-eval|geospatial-full|geospatial-smoke (got: $SUITE)" >&2; exit 1 ;;
   esac
 fi
 [[ -z "$TASKS" ]] && { echo "no tasks resolved" >&2; exit 1; }

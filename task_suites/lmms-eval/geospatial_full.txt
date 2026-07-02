@@ -1,0 +1,1 @@
+rsrcc_test,rsrcc_val,vrsbench_vqa,vrsbench_cap,vrsbench_ref,bigearth_binary,bigearth_mcq,bigearth_bbox,bigearth_cap,geobench_single,geobench_temporal,geobench_cap,geobench_ref,frieda
