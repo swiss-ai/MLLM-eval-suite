@@ -19,7 +19,7 @@ def is_main_metric(metric: str) -> bool:
 # Task-specific headline metrics. Order matters: more specific task names must
 # precede broader substring matches such as seedbench and 3dsrbench.
 TASK_METRIC_PRIORITY: list[tuple[str, tuple[str, ...]]] = [
-    # Remote-sensing geospatial tasks (swiss-ai/lmms-eval#13 + follow-ups).
+    # Remote-sensing geospatial tasks.
     ("rsrcc", ("accuracy",)),
     ("vrsbench_vqa", ("vqa_accuracy",)),
     ("vrsbench_cap", ("cap_CIDEr",)),
@@ -186,6 +186,8 @@ def iter_headline_metrics(task: str, metrics: dict[str, Any]) -> list[tuple[str,
 
 def normalize_score(metric: str, value: float) -> float | None:
     lowered = metric.lower()
+    if "cider" in lowered:
+        return value
     if "mme_total" in lowered:
         return value / 2800.0
     if "mme_perception" in lowered:

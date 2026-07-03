@@ -228,10 +228,18 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
             bench_dir = mdir / vk_name
             if not bench_dir.is_dir():
                 continue
-            accs = sorted(glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True))
-            accs = [a for a in accs if vk_name in Path(a).name]
-            if not accs and task == "mm_safetybench":
-                accs = sorted(glob.glob(f"{bench_dir}/**/{vk_name}_score.csv", recursive=True))
+            shadows = [k for k in VK_OWNED_TASKS if k != vk_name and k.startswith(vk_name)]
+
+            def owned(name: str) -> bool:
+                if name == "derived_acc.csv":
+                    return True
+                return vk_name in name and not any(s in name for s in shadows)
+
+            accs = sorted(a for a in glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True)
+                          if owned(Path(a).name))
+            if not accs:
+                accs = sorted(a for a in glob.glob(f"{bench_dir}/**/*_score.csv", recursive=True)
+                              if owned(Path(a).name))
             if not accs:
                 skipped.append(f"{mdir.name}/{vk_name}")
                 continue
