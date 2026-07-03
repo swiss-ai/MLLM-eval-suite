@@ -19,6 +19,16 @@ def is_main_metric(metric: str) -> bool:
 # Task-specific headline metrics. Order matters: more specific task names must
 # precede broader substring matches such as seedbench and 3dsrbench.
 TASK_METRIC_PRIORITY: list[tuple[str, tuple[str, ...]]] = [
+    # Remote-sensing geospatial tasks (swiss-ai/lmms-eval#13 + follow-ups).
+    ("rsrcc", ("accuracy",)),
+    ("vrsbench_vqa", ("vqa_accuracy",)),
+    ("vrsbench_cap", ("cap_CIDEr",)),
+    ("vrsbench_ref", ("ref_acc50",)),
+    ("geobench_single", ("per_task", "single_accuracy")),
+    ("geobench_temporal", ("temporal_per_task", "temporal_accuracy")),
+    ("geobench_cap", ("cap_CIDEr",)),
+    ("geobench_ref", ("ref_acc50",)),
+    ("frieda", ("f1", "exact_match")),
     # EASI spatial-intelligence metrics.
     ("3dsrbench_circular", ("circular_accuracy", "vanilla_accuracy")),
     ("3dsrbench", ("circular_accuracy", "vanilla_accuracy")),

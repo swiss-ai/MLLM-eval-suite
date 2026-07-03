@@ -157,6 +157,7 @@ VK_OWNED_TASKS = {
     "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
     "LogicVista": "logicvista",
     "MMVet": "mmvet", "MIA-Bench": "mia_bench", "MMSafetyBench": "mm_safetybench",
+    "CharXiv_descriptive_val": "charxiv_descriptive", "CharXiv_reasoning_val": "charxiv_reasoning",
 }
 _VK_HEADLINE = ("overall", "overall_accuracy", "acc", "accuracy")
 _VK_AGG_LABELS = ("all", "overall", "none")
@@ -165,6 +166,7 @@ _VK_AGG_LABELS = ("all", "overall", "none")
 # accuracy ~2x inflates it relative to the EASI leaderboard.
 VK_HEADLINE_BY_TASK = {
     "site_bench": ("overall_caa", "overall_accuracy", "accuracy"),
+    "mm_safetybench": ("safety_rate",),
 }
 
 
@@ -227,6 +229,9 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
             if not bench_dir.is_dir():
                 continue
             accs = sorted(glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True))
+            accs = [a for a in accs if vk_name in Path(a).name]
+            if not accs and task == "mm_safetybench":
+                accs = sorted(glob.glob(f"{bench_dir}/**/{vk_name}_score.csv", recursive=True))
             if not accs:
                 skipped.append(f"{mdir.name}/{vk_name}")
                 continue
