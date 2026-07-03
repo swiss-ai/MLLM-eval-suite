@@ -1,0 +1,24 @@
+# VLMEvalKit-owned spatial / grounding benchmarks (the set the dashboard pulls
+# from VLMEvalKit, minus the lmms-eval general overlap). SparBench (needs 8-node
+# DP), ViewSpatialBench + VSI-Bench (128K context overflow at 32 imgs) are run
+# separately, not here.
+#
+# Comments and blank lines are stripped by resolve_list in eval.sh.
+
+BLINK
+MUIRBench
+EmbSpatialBench
+MMSIBench_wo_circular
+3DSRBench
+CV-Bench-2D
+CV-Bench-3D
+ERQA
+MindCubeBench_tiny_raw_qa
+OmniSpatialBench_manual_cot
+SiteBenchImage
+RefSpatial_wo_unseen
+RoboSpatialHome
+ScreenSpot
+ScreenSpot_v2
+ScreenSpot_Pro
+OSWorld_G

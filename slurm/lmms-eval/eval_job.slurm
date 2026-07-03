@@ -211,13 +211,12 @@ is_true() {
   esac
 }
 
-# Ensure OCR-safe default generation cap.
-# If max_new_tokens is absent, append/set it to 32768.
-# If caller already set max_new_tokens, keep caller value.
+# Default generation cap: 16384 for non-thinking runs (Artificial Analysis
+# standard). Thinking recipes pass their own 32k cap explicitly.
 if [[ -z "${GEN_KWARGS}" ]]; then
-  GEN_KWARGS="max_new_tokens=32768"
+  GEN_KWARGS="max_new_tokens=16384"
 elif [[ ! "${GEN_KWARGS}" =~ (^|,)max_new_tokens= ]]; then
-  GEN_KWARGS="${GEN_KWARGS},max_new_tokens=32768"
+  GEN_KWARGS="${GEN_KWARGS},max_new_tokens=16384"
 fi
 
 ########################################

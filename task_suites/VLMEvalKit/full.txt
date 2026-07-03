@@ -39,7 +39,7 @@ OmniDocBench
 
 # Spatial
 EmbSpatialBench
-OmniSpatialBench_default
+OmniSpatialBench_manual_cot
 SparBench
 ViewSpatialBench
 CV-Bench-2D

@@ -184,10 +184,9 @@ CHAT_TEMPLATE="${CHAT_TEMPLATE:-}"
 if [[ -z "${CHAT_TEMPLATE}" && "${TOKENIZER_PATH}" == "${DEFAULT_TOKENIZER_PATH}" ]]; then
   CHAT_TEMPLATE="${TOKENIZER_PATH}/chat_template.jinja"
 fi
-# 8192 covers ~85% of reasoning-task generations without truncation. Math/reasoning
-# tasks at lower budgets show 30-50% mid-response truncation. MCQ hits EOS well
-# before this, so no cost for short-answer tasks.
-GEN_KWARGS="${GEN_KWARGS:-max_new_tokens=8192,temperature=0}"
+# 16384 is the Artificial Analysis standard cap for non-thinking evals; MCQ hits
+# EOS well before this, so no cost for short-answer tasks.
+GEN_KWARGS="${GEN_KWARGS:-max_new_tokens=16384,temperature=0}"
 if [[ -n "$GEN_KWARGS_OVERRIDE" ]]; then GEN_KWARGS="$GEN_KWARGS_OVERRIDE"; fi
 # 4 vLLM workers per node = 1 per GH200 GPU (4 GPUs). Per-task SQLite handles
 # 4 concurrent writers via WAL with sub-ms lock overhead.
