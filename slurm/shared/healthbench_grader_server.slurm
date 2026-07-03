@@ -34,7 +34,7 @@ echo "$(hostname):8080" > "${ENDPOINT_FILE}.pending"
   ${GRADER_EXTRA_ARGS:-} &
 SERVER_PID=$!
 
-for _ in $(seq 1 120); do
+for _ in $(seq 1 540); do
   if curl -sf "http://localhost:8080/v1/models" >/dev/null 2>&1; then
     mv "${ENDPOINT_FILE}.pending" "${ENDPOINT_FILE}"
     echo "grader ready at $(hostname):8080"
