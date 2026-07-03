@@ -40,10 +40,10 @@ def main() -> None:
             m = ROW.match(line.strip())
             if not m:
                 continue
-            bench, _infer, judge_fail, value = m.groups()
+            bench, infer_fail, judge_fail, value = m.groups()
             if bench not in JUDGE_BENCH:
                 continue
-            if float(judge_fail) > MAX_JUDGE_FAIL:
+            if float(judge_fail) > MAX_JUDGE_FAIL or float(infer_fail) > 5.0 or float(value) <= 0:
                 skipped += 1
                 continue
             for wd in glob.glob(str(RESULTS / run_id / "*" / bench)):

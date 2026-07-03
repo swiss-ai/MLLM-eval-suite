@@ -21,16 +21,18 @@ OUT="${OUT:-$SUITE/docs/index.html}"
 "$PY" "$HERE/derive_vlmeval_acc.py" 2>/dev/null || true
 
 rm -rf "$BRIDGE"; mkdir -p "$BRIDGE"
-# Link per-benchmark, not per-model, so a checkpoint evaluated across several
-# run-ids (e.g. a full-spatial run + a single-benchmark re-fire) merges instead
-# of the last run-id overwriting the others. Later run-ids win per benchmark.
+# Link per-benchmark with a run-id suffix so every run's copy stays visible;
+# make_dashboard unions the <bench>__<run> links and picks artifacts by mtime,
+# so a re-judge in an old run-id is never shadowed by a newer stale run.
 link_model() {
-  local md="$1" model; model="$(basename "$md")"; mkdir -p "$BRIDGE/$model"
-  for bench in "$md"/*/; do [[ -d "$bench" ]] && ln -sfn "$bench" "$BRIDGE/$model/$(basename "$bench")"; done
+  local md="$1" tag="$2" model; model="$(basename "$md")"; mkdir -p "$BRIDGE/$model"
+  for bench in "$md"/*/; do
+    [[ -d "$bench" ]] && ln -sfn "$bench" "$BRIDGE/$model/$(basename "$bench")__${tag}"
+  done
 }
-for d in "$VLMEVAL_OUTPUTS"/*/; do [[ -d "$d" ]] && link_model "$d"; done
+for d in "$VLMEVAL_OUTPUTS"/*/; do [[ -d "$d" ]] && link_model "$d" outputs; done
 [[ -d "$SUITE_VLMEVAL" ]] && for rid in "$SUITE_VLMEVAL"/*/; do
-  for md in "$rid"*/; do [[ -d "$md" ]] && link_model "$md"; done
+  for md in "$rid"*/; do [[ -d "$md" ]] && link_model "$md" "$(basename "$rid")"; done
 done
 
 # curated checkpoint set (exact canonical keys): SFT 4200 + RL stage2, both

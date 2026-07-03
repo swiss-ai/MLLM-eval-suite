@@ -215,7 +215,8 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
 def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
     model_dirs = sorted(d for d in vk_root.iterdir() if d.is_dir())
     if model_filters:
-        model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
+        model_dirs = [d for d in model_dirs
+                      if any(s in d.name or s in canonical_model_key(d.name) for s in model_filters)]
 
     rows: dict[tuple[str, str], dict[str, dict]] = {}
     models: set[str] = set()
@@ -225,29 +226,37 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
         for vk_name, task in VK_OWNED_TASKS.items():
             if task.lower().startswith(DROPPED_TASK_PREFIXES):
                 continue
-            bench_dir = mdir / vk_name
-            if not bench_dir.is_dir():
+            bench_dirs = [d for d in ([mdir / vk_name] + sorted(mdir.glob(f"{vk_name}__*")))
+                          if d.is_dir()]
+            if not bench_dirs:
                 continue
             shadows = [k for k in VK_OWNED_TASKS if k != vk_name and k.startswith(vk_name)]
 
             def owned(name: str) -> bool:
-                if name == "derived_acc.csv":
-                    return True
                 return vk_name in name and not any(s in name for s in shadows)
 
-            accs = sorted(a for a in glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True)
-                          if owned(Path(a).name))
-            if not accs:
-                accs = sorted(a for a in glob.glob(f"{bench_dir}/**/*_score.csv", recursive=True)
-                              if owned(Path(a).name))
-            if not accs:
-                skipped.append(f"{mdir.name}/{vk_name}")
-                continue
-            acc = Path(accs[-1])
-            try:
-                value = parse_vk_acc(acc, VK_HEADLINE_BY_TASK.get(task, _VK_HEADLINE))
-            except (OSError, ValueError, IndexError):
-                value = None
+            def by_mtime(paths):
+                return sorted(paths, key=lambda p: Path(p).stat().st_mtime)
+
+            all_accs, all_scores = [], []
+            for bench_dir in bench_dirs:
+                all_accs += glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True)
+                all_scores += glob.glob(f"{bench_dir}/**/*_score.csv", recursive=True)
+            real = by_mtime(a for a in all_accs if owned(Path(a).name))
+            scores = by_mtime(a for a in all_scores if owned(Path(a).name))
+            derived = by_mtime(a for a in all_accs if Path(a).name == "derived_acc.csv")
+
+            # Newest real judge acc wins; score.csv next; broken-era derived files
+            # only when nothing better parses.
+            acc, value = None, None
+            for candidate in real[::-1] + scores[::-1] + derived[::-1]:
+                try:
+                    value = parse_vk_acc(Path(candidate), VK_HEADLINE_BY_TASK.get(task, _VK_HEADLINE))
+                except (OSError, ValueError, IndexError):
+                    value = None
+                if value is not None:
+                    acc = Path(candidate)
+                    break
             if value is None:
                 skipped.append(f"{mdir.name}/{vk_name}")
                 continue
