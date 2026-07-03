@@ -19,6 +19,7 @@ def is_main_metric(metric: str) -> bool:
 # Task-specific headline metrics. Order matters: more specific task names must
 # precede broader substring matches such as seedbench and 3dsrbench.
 TASK_METRIC_PRIORITY: list[tuple[str, tuple[str, ...]]] = [
+    ("babyvision", ("babyvision_overall_accuracy",)),
     # Remote-sensing geospatial tasks.
     ("rsrcc", ("accuracy",)),
     ("vrsbench_vqa", ("vqa_accuracy",)),
