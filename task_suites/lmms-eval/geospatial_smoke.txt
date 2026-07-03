@@ -1,1 +1,1 @@
-rsrcc_test,geobench_single,vrsbench_vqa,frieda
+rsrcc_test,geobench_single,vrsbench_vqa,bigearth_binary,frieda

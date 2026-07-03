@@ -244,12 +244,12 @@ export LMMS_EVAL_MODELS_CACHE="${LMMS_EVAL_MODELS_CACHE_PATH}"
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export TOKENIZERS_PARALLELISM=false
-# Remote-sensing task image trees (geospatial suite). Staged under cache/rs_datasets;
-# BigEarthNet (BIGEARTH_LMDB_DIR/BIGEARTH_S2_DIR) stays unset until its S2 tree is staged.
+# Remote-sensing task image trees (geospatial suite), staged under cache/rs_datasets.
 RS_DATASETS_ROOT="${RS_DATASETS_ROOT:-${ORCH_REPO_ROOT}/cache/rs_datasets}"
 export VRSBENCH_DIR="${VRSBENCH_DIR:-${RS_DATASETS_ROOT}/vrsbench}"
 export GEOBENCH_DIR="${GEOBENCH_DIR:-${RS_DATASETS_ROOT}/geobench}"
 export FRIEDA_DIR="${FRIEDA_DIR:-${RS_DATASETS_ROOT}/frieda}"
+export BIGEARTH_S2_DIR="${BIGEARTH_S2_DIR:-${RS_DATASETS_ROOT}/bigearth/BigEarthNet-S2}"
 if is_true "${ENABLE_WANDB}"; then
   if [[ -z "${WANDB_API_KEY}" && -t 0 ]]; then
     read -r -s -p "Enter WANDB_API_KEY: " WANDB_API_KEY
