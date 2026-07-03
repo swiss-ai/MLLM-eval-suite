@@ -59,7 +59,12 @@ def framework_for(task: str) -> str:
 # generative-medical subjects (exact-match scorer is format-fragile),
 # ok_vqa / simplevqa (low-signal, not widely reported), and refspatial (a true
 # zero-shot floor — Apertus never trained on it; points parse but always ~0).
-DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial", "mathvista_testmini", "logicvista_reasoning")
+DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial", "mathvista_testmini", "logicvista_reasoning",
+                         # n-gram captioning metrics (CIDEr/BLEU) measure prompt-style overlap, not
+                         # caption quality, on free-form RS output; results stay on disk.
+                         # Run/schedule policy lives in task_suites/*; entries here only
+                         # suppress artifacts already on disk.
+                         "vrsbench_cap", "geobench_cap", "bigearth_cap")
 
 _TRUNC_CACHE: dict | None = None
 
@@ -150,6 +155,7 @@ VK_OWNED_TASKS = {
     "MMSIBench_wo_circular": "mmsi_bench", "3DSRBench": "3dsrbench",
     "CV-Bench-2D": "cv_bench_2d", "CV-Bench-3D": "cv_bench_3d", "ERQA": "erqa",
     "MindCubeBench_tiny_raw_qa": "mindcube", "OmniSpatialBench_default": "omnispatial",
+    "OmniSpatialBench_manual_cot": "omnispatial_manual_cot",
     "SparBench": "sparbench", "SiteBenchImage": "site_bench", "ViewSpatialBench": "viewspatial",
     "VSI-Bench-Debiased": "vsibench", "RefSpatial_wo_unseen": "refspatial",
     "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
@@ -333,6 +339,54 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
     return models, table
 
 
+# Benchmark taxonomy for the matrix band grouping. Bands follow the category
+# conventions of recent VLM reports (Qwen3-VL, InternVL3.5): pure-text evals get
+# their own top-level band instead of mixing into multimodal domains. One
+# declarative structure — dict order is display order, modality defaults to
+# "vision", tasks match by exact name or prefix.
+TAXONOMY = {
+    "General VQA & Perception": {"exact": [
+        "vqav2_val", "gqa", "realworldqa", "mmerealworld", "mme", "mme_cognition", "mme_perception",
+        "mmbench_en_dev", "mmstar", "seedbench", "mmvet", "vstar_bench",
+    ]},
+    "Robustness & Bias": {"exact": ["mmvp", "mmvp_pair", "vlms_are_biased", "vlmsareblind"]},
+    "Spatial & Embodied": {"exact": [
+        "cv_bench_2d", "cv_bench_3d", "embspatial", "erqa", "mindcube", "mmsi_bench",
+        "robospatial", "site_bench", "sparbench", "viewspatial",
+    ], "prefix": ["omnispatial", "3dsrbench"]},
+    "Multi-Image": {"exact": ["muirbench", "blink"]},
+    "Counting & Grounding": {"exact": ["countbench", "pixmo_count"], "prefix": ["refcoco"]},
+    "Docs, Charts & OCR": {"exact": [
+        "docvqa_val", "infovqa_val", "chartqa", "charxiv_descriptive", "charxiv_reasoning",
+        "ocrbench", "ocrbench_v2", "omnidocbench", "textvqa_val", "seedbench_2_plus", "iconqa_val",
+    ]},
+    "Math & Logic": {"exact": ["mathvista_mini", "mathverse", "logicvista", "visulogic", "visualpuzzles_direct", "babyvision"],
+                     "prefix": ["mathvision"]},
+    "STEM & Knowledge": {"exact": ["mmmu_val", "mmmu_pro_standard", "mmmu_pro_vision", "scienceqa", "ai2d"]},
+    "Medical — VQA": {"exact": ["pmc_vqa", "path_vqa", "path_mmu_test", "slake", "vqa_rad", "medxpertqa_mm"]},
+    "Remote Sensing": {"exact": ["frieda"], "prefix": ["bigearth", "geobench", "vrsbench", "rsrcc"]},
+    "Alignment": {"exact": ["mm_safetybench", "mia_bench", "pope", "hallusionbench"]},
+    "Medical": {"modality": "text",
+                "exact": ["medqa", "medmcqa", "pubmedqa", "mmlu_medical", "medxpertqa_text"],
+                "prefix": ["healthbench"]},
+}
+
+CATEGORY_ORDER = list(TAXONOMY)
+CATEGORY_MODALITY = {cat: spec.get("modality", "vision") for cat, spec in TAXONOMY.items()}
+_TASK_TO_CAT = {t: cat for cat, spec in TAXONOMY.items() for t in spec.get("exact", ())}
+_CAT_PREFIX = [(p, cat) for cat, spec in TAXONOMY.items() for p in spec.get("prefix", ())]
+
+
+def category_for(task: str) -> str | None:
+    lowered = task.lower()
+    if lowered in _TASK_TO_CAT:
+        return _TASK_TO_CAT[lowered]
+    for prefix, cat in _CAT_PREFIX:
+        if lowered.startswith(prefix):
+            return cat
+    return None
+
+
 HTML_TEMPLATE = """<!doctype html>
 <html lang="en">
 <head>
@@ -423,53 +477,55 @@ input[type=search]:focus, select:focus { border-bottom-color: var(--red); }
   background: none; border: 0; padding: 6px 16px; cursor: pointer; color: var(--muted);
 }
 .viewtab button.on { background: var(--ink); color: var(--paper); }
+.nodata { color: var(--muted); font-size: 12px; padding: 18px 14px; }
 
-/* charts: one panel per benchmark */
-.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
-.panel { border: 1px solid var(--hair); background: var(--paper); padding: 12px 14px 12px; }
-.panel h3 { margin: 0; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; font-weight: 600; }
-.panel .pm { font-size: 11px; color: var(--muted); margin: 1px 0 10px; }
 /* harness badge — which eval framework produced this benchmark (EASI-style) */
 .hbadge { display: inline-block; font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; letter-spacing: .03em; font-weight: 600; padding: 1px 5px; border-radius: 2px; vertical-align: middle; margin-left: 7px; }
 .hbadge.lmms { color: #2c5f7a; background: #dceaf1; }
 .hbadge.vlme { color: #7a3d1e; background: #f1e2d6; }
-.panel h3 .hbadge { margin-left: 6px; }
-.brow { display: grid; grid-template-columns: 1fr 44px; align-items: center; gap: 8px; margin: 3px 0; }
-.btrack { position: relative; height: 13px; background: var(--paper-2); }
-.bfill { position: absolute; inset: 0 auto 0 0; background: var(--c); opacity: .85; }
-.brow .bv { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; text-align: right; }
-.brow.best .bv { color: var(--red); font-weight: 600; }
-.brow.best .bfill { opacity: 1; }
-.panel .nodata { color: var(--muted); font-size: 12px; }
 
 /* matrix */
 .matrix-wrap { overflow: auto; max-height: 76vh; border: 1px solid var(--hair); background: var(--paper); }
 table { border-collapse: separate; border-spacing: 0; min-width: 100%; width: max-content; }
 thead th {
-  position: sticky; top: 0; z-index: 3; background: var(--paper-2);
+  position: sticky; top: 0; z-index: 5; background: var(--paper-2);
   font-family: ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 600;
   text-align: right; padding: 9px 13px; border-bottom: 1px solid var(--ink);
   cursor: pointer; white-space: nowrap; user-select: none;
 }
-thead th.task-h { text-align: left; left: 0; z-index: 4; }
+thead th.task-h { text-align: left; left: 0; z-index: 6; }
 thead th .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 6px; vertical-align: baseline; }
 thead th .dir { color: var(--red); }
 tbody td, tbody th { padding: 6px 13px; border-bottom: 1px solid var(--hair); font-size: 13px; }
+tbody tr.catrow th, tbody tr.catrow td {
+  background: var(--paper-2); border-bottom: 1px solid var(--ink); padding: 12px 13px 5px;
+  position: sticky; top: var(--thead-h, 34px); z-index: 3;
+}
+tbody tr.catrow th {
+  left: 0; z-index: 4; text-align: left;
+  font: 600 10.5px ui-monospace, Menlo, monospace; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted);
+}
+tbody tr.catrow td.cmean {
+  text-align: right; white-space: nowrap;
+  font-size: 11.5px; color: var(--muted);
+}
+tbody tr.catrow td.cmean.best { color: var(--red); font-weight: 600; }
 tbody th.task { position: sticky; left: 0; background: var(--paper); text-align: left; font-weight: 400; z-index: 2; max-width: 330px; }
 tbody tr:hover td, tbody tr:hover th.task { background: var(--paper-2); }
 .task .t { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .task .m { font-size: 11px; color: var(--muted); }
-td.cell { text-align: right; white-space: nowrap; min-width: 92px; }
+td.cell { text-align: right; white-space: nowrap; min-width: 92px; position: relative; }
 thead th:not(.task-h) { min-width: 92px; }
-sup.tr { color: #c87f0a; font-size: 0.62em; margin-left: 1px; font-weight: 600; cursor: help; }
+sup.tr { color: #c87f0a; font-size: 0.62em; font-weight: 600; cursor: help; position: absolute; top: 3px; right: 3px; }
 .cell.best { color: var(--red); font-weight: 600; }
-.delta { font-size: 11px; margin-left: 7px; font-weight: 400; }
+.delta-slot { display: inline-block; min-width: 6ch; text-align: left; margin-left: 7px; }
+.delta { font-size: 11px; font-weight: 400; }
 .delta.up { color: var(--green); } .delta.down { color: var(--red); }
 .missing { color: var(--hair); text-align: center; }
 
 footer { margin-top: 26px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--hair); padding-top: 12px; }
 footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
-.hidden { display: none; }
 </style>
 </head>
 <body>
@@ -484,6 +540,7 @@ footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
   <div class="picker-head">
     <span class="lbl">Models — <span id="selcount"></span></span>
     <button id="selall">all</button><button id="selnone">none</button>
+    <span class="viewtab" style="margin-left:14px"><button id="avg-micro" class="on">Micro</button><button id="avg-macro">Macro</button></span>
     <span class="lbl" style="margin-left:auto">click to toggle</span>
   </div>
   <div class="chips" id="chips"></div>
@@ -493,18 +550,18 @@ footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 <div class="cards-note" id="cards-note"></div>
 
 <div class="controls">
-  <span class="viewtab"><button id="tab-charts">Charts</button><button id="tab-matrix" class="on">Matrix</button></span>
+  <span class="viewtab"><button id="tab-vision" class="on">Vision</button><button id="tab-audio">Audio</button><button id="tab-text">Text</button></span>
   <span><label>filter&nbsp;</label><input id="q" type="search" placeholder="benchmark substring…" spellcheck="false"></span>
+  <span><label>category&nbsp;</label><select id="cfilter"><option value="">all</option></select></span>
   <span><label>harness&nbsp;</label><select id="hfilter"><option value="">all</option><option value="lmms-eval">lmms-eval</option><option value="VLMEvalKit">VLMEvalKit</option></select></span>
-  <span id="basewrap" class="hidden"><label>baseline&nbsp;</label><select id="base"><option value="">none</option></select></span>
+  <span><label>baseline&nbsp;</label><select id="base"><option value="">none</option></select></span>
   <span class="hint" style="margin-left:auto"><span class="hbadge lmms">lmms-eval</span> <span class="hbadge vlme">VLMEvalKit</span></span>
 </div>
 
-<div class="charts hidden" id="charts"></div>
 <div class="matrix-wrap" id="matrix-view"><table id="matrix"></table></div>
 
 <footer>
-  Bars share one absolute 0–100 scale · newest result per task across each model's runs ·
+  Scores share one absolute 0–100 scale · newest result per task across each model's runs ·
   canonical headline metrics via <code>metric_selection.py</code> · hover for raw value and source run ·
   generated by <a href="https://github.com/swiss-ai/MLLM-eval-suite/blob/yxu/bump-lmms-eval/scripts/make_dashboard.py" target="_blank" rel="noopener"><code>make_dashboard.py</code></a>
 </footer>
@@ -518,10 +575,11 @@ const coverage = {}; D.models.forEach(m => coverage[m] = D.table.filter(r => r.c
 
 let state = {
   sel: new Set(D.defaultSelected),
-  view: "matrix", q: "", sort: null, dir: -1, base: "", harness: "",
+  mod: "vision", avg: "micro", q: "", cat: "", sort: null, dir: -1, base: "", harness: "",
 };
 
 const fmt = v => v.toFixed(1);
+const avg = vs => vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
 const hbadge = fw => fw === "VLMEvalKit"
   ? '<span class="hbadge vlme">VLMEvalKit</span>'
   : '<span class="hbadge lmms">lmms-eval</span>';
@@ -529,7 +587,9 @@ const selModels = () => D.models.filter(m => state.sel.has(m));
 const visRows = () => {
   const q = state.q.toLowerCase();
   return D.table.filter(r =>
+    (D.modality[r.cat] || "vision") === state.mod &&
     (!q || r.task.toLowerCase().includes(q) || r.metric.toLowerCase().includes(q)) &&
+    (!state.cat || r.cat === state.cat) &&
     (!state.harness || r.framework === state.harness) &&
     selModels().some(m => r.cells[m]));
 };
@@ -548,10 +608,16 @@ function renderChips() {
 
 function renderCards() {
   const sel = selModels();
-  const common = D.table.filter(r => sel.length && sel.every(m => r.cells[m]));
+  const inMod = D.table.filter(r => (D.modality[r.cat] || "vision") === state.mod);
+  const common = inMod.filter(r => sel.length && sel.every(m => r.cells[m]));
+  const nCats = new Set(common.map(r => r.cat)).size;
   const means = sel.map(m => {
-    const vs = common.map(r => r.cells[m].v);
-    return { m, mean: vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null };
+    if (state.avg === "macro") {
+      const byCat = {};
+      for (const r of common) (byCat[r.cat] ??= []).push(r.cells[m].v);
+      return { m, mean: avg(Object.values(byCat).map(avg)) };
+    }
+    return { m, mean: avg(common.map(r => r.cells[m].v)) };
   });
   const top = Math.max(...means.map(x => x.mean ?? -Infinity));
   document.getElementById("cards").innerHTML = means.map(x =>
@@ -560,24 +626,10 @@ function renderCards() {
     `<div class="big mono">${x.mean == null ? "—" : fmt(x.mean)}<small> / 100</small></div>` +
     `<div class="cov">${coverage[x.m]} tasks covered</div></div>`).join("");
   document.getElementById("cards-note").textContent = sel.length
-    ? `macro mean over the ${common.length} benchmarks covered by all ${sel.length} selected models`
+    ? (state.avg === "macro"
+        ? `macro mean: equal weight per category, over ${nCats} ${state.mod} categories (${common.length} benchmarks covered by all ${sel.length} selected models)`
+        : `micro mean: equal weight per benchmark, over the ${common.length} ${state.mod} benchmarks covered by all ${sel.length} selected models`)
     : "select models above";
-}
-
-function renderCharts() {
-  const sel = selModels();
-  document.getElementById("charts").innerHTML = visRows().map(r => {
-    const present = sel.filter(m => r.cells[m]);
-    const best = Math.max(...present.map(m => r.cells[m].v));
-    const bars = present.map(m => {
-      const c = r.cells[m];
-      return `<div class="brow ${c.v === best && present.length > 1 ? "best" : ""}" ` +
-        `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}">` +
-        `<span class="btrack"><span class="bfill" style="--c:${color[m]};width:${Math.max(1, c.v)}%"></span></span>` +
-        `<span class="bv">${fmt(c.v)}</span></div>`;
-    }).join("");
-    return `<div class="panel"><h3>${r.task}${hbadge(r.framework)}</h3><div class="pm">${r.metric}</div>${bars || "<div class='nodata'>no data</div>"}</div>`;
-  }).join("") || "<div class='nodata' style='color:var(--muted)'>nothing matches</div>";
 }
 
 function renderMatrix() {
@@ -598,29 +650,48 @@ function renderMatrix() {
     h += `<th data-k="${m}" title="${m}" style="--c:${color[m]}"><span class="dot"></span>${D.labels[m]}${dir}</th>`;
   }
   h += "</tr></thead><tbody>";
+  const baseOn = state.base && state.sel.has(state.base);
+  const deltaFor = (v, b) => {
+    if (!baseOn || b == null || v == null) return "";
+    const d = v - b;
+    return `<span class="delta ${d >= 0 ? "up" : "down"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`;
+  };
+  const slotFor = (m, v, bv) => baseOn ? `<span class="delta-slot">${state.base === m ? "" : deltaFor(v, bv)}</span>` : "";
+  let lastCat = null;
   for (const r of rows) {
+    if (!state.sort && r.cat !== lastCat) {
+      lastCat = r.cat;
+      const commonCat = rows.filter(x => x.cat === r.cat && sel.every(m => x.cells[m]));
+      const cm = {};
+      for (const m of sel) cm[m] = avg(commonCat.map(x => x.cells[m].v));
+      const bestM = Math.max(...sel.map(m => cm[m] ?? -Infinity));
+      h += `<tr class="catrow"><th>${r.cat}</th>` + sel.map(m => {
+        const v = cm[m];
+        if (v == null) return "<td class='cmean'>·</td>";
+        const slot = slotFor(m, v, cm[state.base]);
+        return `<td class="cmean mono ${v === bestM && sel.length > 1 ? "best" : ""}" ` +
+               `title="mean over the ${commonCat.length} ${r.cat} benchmarks covered by all selected models">${fmt(v)}${slot}</td>`;
+      }).join("") + "</tr>";
+    }
     const present = sel.filter(m => r.cells[m]);
     const best = Math.max(...present.map(m => r.cells[m].v));
     h += `<tr><th class="task"><div class="t">${r.task}${hbadge(r.framework)}</div><div class="m">${r.metric}</div></th>`;
     for (const m of sel) {
       const c = r.cells[m];
       if (!c) { h += "<td class='missing'>·</td>"; continue; }
-      let delta = "";
-      if (state.base && state.base !== m && state.sel.has(state.base)) {
-        const b = r.cells[state.base];
-        if (b) {
-          const d = c.v - b.v;
-          delta = `<span class="delta ${d >= 0 ? "up" : "down"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`;
-        }
-      }
+      const slot = slotFor(m, c.v, r.cells[state.base]?.v);
       const trtip = c.t != null ? `\\ntruncated: ${c.t}% hit the 32k cap` : "";
       const tr = c.t != null ? `<sup class="tr" title="${c.t}% of outputs hit the 32k token cap (non-terminating)">⌁${Math.round(c.t)}</sup>` : "";
       h += `<td class="cell mono ${c.v === best && present.length > 1 ? "best" : ""}" ` +
-           `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}${trtip}">${fmt(c.v)}${delta}${tr}</td>`;
+           `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}${trtip}">${fmt(c.v)}${slot}${tr}</td>`;
     }
     h += "</tr>";
   }
-  document.getElementById("matrix").innerHTML = h + "</tbody>";
+  document.getElementById("matrix").innerHTML = rows.length
+    ? h + "</tbody>"
+    : `<tbody><tr><td class="nodata">no ${state.mod} benchmarks yet</td></tr></tbody>`;
+  const thd = document.querySelector("#matrix thead");
+  if (thd) document.getElementById("matrix-view").style.setProperty("--thead-h", thd.offsetHeight + "px");
   document.querySelectorAll("thead th").forEach(th => th.onclick = () => {
     const k = th.dataset.k;
     if (!k) { state.sort = null; renderMatrix(); return; }
@@ -638,25 +709,31 @@ function renderBaseSelect() {
 
 function renderAll() {
   renderChips(); renderCards(); renderBaseSelect();
-  state.view === "charts" ? renderCharts() : renderMatrix();
+  renderMatrix();
 }
 
+function renderTabs() {
+  for (const t of ["vision", "audio", "text"])
+    document.getElementById("tab-" + t).classList.toggle("on", state.mod === t);
+  const cats = D.categories.filter(c => (D.modality[c] || "vision") === state.mod);
+  document.getElementById("cfilter").innerHTML =
+    "<option value=''>all</option>" + cats.map(c => `<option ${state.cat === c ? "selected" : ""}>${c}</option>`).join("");
+}
+for (const t of ["vision", "audio", "text"])
+  document.getElementById("tab-" + t).onclick = () => { state.mod = t; state.cat = ""; renderTabs(); renderAll(); };
+renderTabs();
+for (const a of ["micro", "macro"])
+  document.getElementById("avg-" + a).onclick = () => {
+    state.avg = a;
+    for (const x of ["micro", "macro"]) document.getElementById("avg-" + x).classList.toggle("on", x === a);
+    renderCards();
+  };
 document.getElementById("selall").onclick = () => { state.sel = new Set(D.models); renderAll(); };
 document.getElementById("selnone").onclick = () => { state.sel.clear(); renderAll(); };
 document.getElementById("q").oninput = e => { state.q = e.target.value; renderAll(); };
+document.getElementById("cfilter").onchange = e => { state.cat = e.target.value; renderAll(); };
 document.getElementById("hfilter").onchange = e => { state.harness = e.target.value; renderAll(); };
 document.getElementById("base").onchange = e => { state.base = e.target.value; renderMatrix(); };
-document.getElementById("tab-charts").onclick = () => setView("charts");
-document.getElementById("tab-matrix").onclick = () => setView("matrix");
-function setView(v) {
-  state.view = v;
-  document.getElementById("tab-charts").classList.toggle("on", v === "charts");
-  document.getElementById("tab-matrix").classList.toggle("on", v === "matrix");
-  document.getElementById("charts").classList.toggle("hidden", v !== "charts");
-  document.getElementById("matrix-view").classList.toggle("hidden", v !== "matrix");
-  document.getElementById("basewrap").classList.toggle("hidden", v !== "matrix");
-  renderAll();
-}
 
 renderAll();
 </script>
@@ -711,10 +788,16 @@ def main():
     keep = set(models)
     cells_rows = [
         {"task": r["task"], "metric": r["metric"], "framework": r["framework"],
+         "cat": category_for(r["task"]) or "Uncategorized",
          "cells": {m: v for m, v in r["cells"].items() if m in keep}}
         for r in table
     ]
     cells_rows = [r for r in cells_rows if r["cells"]]
+    stray = sorted({r["task"] for r in cells_rows if r["cat"] == "Uncategorized"})
+    if stray:
+        print(f"WARNING: {len(stray)} tasks lack a category (shown in a trailing band): {', '.join(stray)}")
+    categories = CATEGORY_ORDER + (["Uncategorized"] if stray else [])
+    cells_rows.sort(key=lambda r: (categories.index(r["cat"]), r["task"].lower()))
     # Pre-select the best-covered checkpoints so the page opens with a
     # meaningful comparison instead of every sparse column at once.
     coverage = {m: sum(1 for r in cells_rows if m in r["cells"]) for m in models}
@@ -723,6 +806,8 @@ def main():
         "models": models,
         "labels": labels,
         "table": cells_rows,
+        "categories": categories,
+        "modality": {c: m for c, m in CATEGORY_MODALITY.items() if m != "vision"},
         "defaultSelected": default_selected,
     }
     n_vk = sum(1 for r in cells_rows if r["framework"] == "VLMEvalKit")

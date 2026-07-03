@@ -20,6 +20,7 @@ def is_main_metric(metric: str) -> bool:
 # precede broader substring matches such as seedbench and 3dsrbench.
 TASK_METRIC_PRIORITY: list[tuple[str, tuple[str, ...]]] = [
     ("babyvision", ("babyvision_overall_accuracy",)),
+    ("healthbench", ("healthbench_score",)),
     # Remote-sensing geospatial tasks.
     ("rsrcc", ("accuracy",)),
     ("vrsbench_vqa", ("vqa_accuracy",)),

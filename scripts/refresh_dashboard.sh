@@ -37,21 +37,7 @@ done
 
 # curated checkpoint set (exact canonical keys): SFT 4200 + RL stage2, both
 # direct and thinking, plus the sDPO alignment checkpoint.
-ONLY=(
-  "sft-capfilter-constant-it8816"
-  "sft-256k-4200"
-  "sft-256k-4200 [thinking-32k]"
-  "rl_1p5-8b-stage2_notools_mixthink_1606_480it"
-  "rl_1p5-8b-stage2_notools_mixthink_1606_480it [thinking-32k]"
-  "sdpo-mix-less-refuse-feedback"
-  "sdpo-mix-less-refuse-feedback [thinking-32k]"
-  "ap1p5-70b-sft-262k-1800"
-  "ap1p5-70b-sft-262k-2100"
-  "ap1p5-70b-sft-262k-2400"
-  "ap1p5-70b-sft-262k-2700"
-  "ap1p5-70b-sft-262k-3000"
-)
-LABELS=(
+CURATED=(
   "sft-capfilter-constant-it8816=it8816-const"
   "sft-256k-4200=SFT-4200"
   "sft-256k-4200 [thinking-32k]=SFT-4200 (think)"
@@ -59,12 +45,11 @@ LABELS=(
   "rl_1p5-8b-stage2_notools_mixthink_1606_480it [thinking-32k]=RL-mixthink (think)"
   "sdpo-mix-less-refuse-feedback=sDPO"
   "sdpo-mix-less-refuse-feedback [thinking-32k]=sDPO (think)"
-  "ap1p5-70b-sft-262k-1800=70B-1800"
   "ap1p5-70b-sft-262k-2100=70B-2100"
-  "ap1p5-70b-sft-262k-2400=70B-2400"
   "ap1p5-70b-sft-262k-2700=70B-2700"
-  "ap1p5-70b-sft-262k-3000=70B-3000"
 )
+ONLY=("${CURATED[@]%%=*}")
+LABELS=("${CURATED[@]}")
 
 # Per-task truncation rates for thinking runs (the ⌁ subscripts), recomputed
 # only when a run's samples are newer than its cache (the samples are huge).
