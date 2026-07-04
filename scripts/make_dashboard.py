@@ -661,16 +661,18 @@ function renderMatrix() {
   for (const r of rows) {
     if (!state.sort && r.cat !== lastCat) {
       lastCat = r.cat;
-      const commonCat = rows.filter(x => x.cat === r.cat && sel.every(m => x.cells[m]));
+      const catRows = rows.filter(x => x.cat === r.cat);
+      const covered = sel.filter(m => catRows.some(x => x.cells[m]));
+      const commonCat = catRows.filter(x => covered.every(m => x.cells[m]));
       const cm = {};
-      for (const m of sel) cm[m] = avg(commonCat.map(x => x.cells[m].v));
+      for (const m of sel) cm[m] = covered.includes(m) ? avg(commonCat.map(x => x.cells[m].v)) : null;
       const bestM = Math.max(...sel.map(m => cm[m] ?? -Infinity));
       h += `<tr class="catrow"><th>${r.cat}</th>` + sel.map(m => {
         const v = cm[m];
         if (v == null) return "<td class='cmean'>·</td>";
         const slot = slotFor(m, v, cm[state.base]);
         return `<td class="cmean mono ${v === bestM && sel.length > 1 ? "best" : ""}" ` +
-               `title="mean over the ${commonCat.length} ${r.cat} benchmarks covered by all selected models">${fmt(v)}${slot}</td>`;
+               `title="mean over the ${commonCat.length} ${r.cat} benchmarks common to the ${covered.length} models with coverage">${fmt(v)}${slot}</td>`;
       }).join("") + "</tr>";
     }
     const present = sel.filter(m => r.cells[m]);
