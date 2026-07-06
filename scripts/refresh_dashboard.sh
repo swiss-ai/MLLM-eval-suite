@@ -47,6 +47,13 @@ CURATED=(
   "sdpo-mix-less-refuse-feedback [thinking-32k]=sDPO (think)"
   "ap1p5-70b-sft-262k-2100=70B-2100"
   "ap1p5-70b-sft-262k-2700=70B-2700"
+  "Apertus-1.5-8B-SFT-RL-DPO-SDPO-Low-Less-Refuse-Feedback=Apertus-1.5-8B-SFT-RL-DPO-SDPO-Low-Less-Refuse-Feedback"
+  "Apertus-1.5-8B-SFT-RL-DPO-SDPO-Mix-Less-Refuse-Feedback=Apertus-1.5-8B-SFT-RL-DPO-SDPO-Mix-Less-Refuse-Feedback"
+  "Apertus-1.5-70B-SFT-RL-DPO-SDPO=Apertus-1.5-70B-SFT-RL-DPO-SDPO"
+  "Qwen2.5 Omni 7B=Qwen2.5 Omni 7B"
+  "Qwen2 Audio 7B Instruct=Qwen2 Audio 7B"
+  "Kimi Audio 7B Instruct=Kimi Audio 7B"
+  "Apertus 8B 1.5 pretrain long context=Apertus 8B 1.5 pretrain long context"
 )
 ONLY=("${CURATED[@]%%=*}")
 LABELS=("${CURATED[@]}")
