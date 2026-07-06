@@ -256,7 +256,9 @@ while IFS= read -r TASK; do
     # The dashboard's run identity is the dir one level under runs-root, so nest
     # <MODEL_LABEL>/<RUN_ID>: the suffix becomes the canonical key and two models
     # in one call never share a dir.
-    MODEL_OUTPUT_PATH="${OUTPUT_BASE}/${MODEL_LABEL}/${RUN_ID}"
+    # Per-task subdir: lmms-eval names results.json by wall-clock timestamp, so two
+    # single-task jobs finishing in the same second clobber each other in a shared dir.
+    MODEL_OUTPUT_PATH="${OUTPUT_BASE}/${MODEL_LABEL}/${RUN_ID}/${TASK}"
     mkdir -p "$MODEL_OUTPUT_PATH"
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
