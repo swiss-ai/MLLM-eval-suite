@@ -39,6 +39,7 @@ if [[ -z "${ORCH_REPO_ROOT:-}" ]]; then
 fi
 REPO_ROOT="${ORCH_REPO_ROOT}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/lmms-eval/eval_job.slurm}"
+source "${ORCH_REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
 LMMS_CACHE_ROOT="${LMMS_CACHE_ROOT:-${REPO_ROOT}/cache/lmms-eval}"
 CACHE_BASE="${CACHE_BASE:-${LMMS_CACHE_ROOT}/image_token_cache}"
 LOG_BASE="${LOG_DIR:-${REPO_ROOT}/logs/lmms-eval}"
@@ -194,14 +195,14 @@ NUM_PROCESSES="${NUM_PROCESSES:-4}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
 
 # WandB config
-ENABLE_WANDB="${ENABLE_WANDB:-true}"
+ENABLE_WANDB="${ENABLE_WANDB:-false}"
 WANDB_ENTITY="${WANDB_ENTITY:-alvor}"
 WANDB_PROJECT="${WANDB_PROJECT:-apertus-1p5-eval}"
 WANDB_GROUP_PREFIX="${WANDB_GROUP_PREFIX:-}"
 WANDB_LOG_SAMPLES="${WANDB_LOG_SAMPLES:-false}"
 
-if [[ "$ENABLE_WANDB" == "true" && -z "${WANDB_API_KEY:-}" ]]; then
-  echo "WARNING: ENABLE_WANDB=true but WANDB_API_KEY is empty (not in ~/.netrc). Jobs will fail fast."
+if [[ "$ENABLE_WANDB" == "true" ]]; then
+  echo "NOTE: the slurm template currently forces W&B off; --enable-wandb has no effect."
 fi
 
 # ------------------------------------------------------------------
@@ -306,6 +307,7 @@ while IFS= read -r TASK; do
     else
       echo "    submit: sbatch ${SLURM_TEMPLATE}"
       sbatch \
+        "${SBATCH_OVERRIDES[@]}" \
         --output "$JOB_OUTPUT" \
         --error  "$JOB_ERROR" \
         "$SLURM_TEMPLATE" \

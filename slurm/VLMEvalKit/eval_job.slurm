@@ -1,10 +1,11 @@
 #!/bin/bash
-#SBATCH --account=infra01
+# account / environment / reservation come from the launcher via
+# slurm/shared/sbatch_overrides.sh (EVAL_ACCOUNT / EVAL_ENVIRONMENT /
+# EVAL_RESERVATION). For direct submission: source that snippet and pass
+# "${SBATCH_OVERRIDES[@]}" to sbatch.
 #SBATCH --job-name=vlmeval-apertus
-#SBATCH --environment=/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/toml/shared/apertus-vllm-vision-eval-prod.toml
 #SBATCH --nodes=1
 #SBATCH --exclusive
-#SBATCH --reservation=SD-69241-apertus-1-5-0
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=285
 #SBATCH --time=04:00:00

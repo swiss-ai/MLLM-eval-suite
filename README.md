@@ -22,11 +22,9 @@ It does not merge, fork, or reimplement either evaluation framework. Instead, bo
 - `third_party/`: Git submodules for upstream evaluation frameworks.
 - `dockerfiles/`: Dockerfile definitions and build documentation.
 - `toml/`: Centralized TOML configuration files, split by framework plus shared settings.
-- `launchers/`: Shell entrypoints for local or scripted evaluation runs.
-- `launchers/backends/`: Backend adapters for vLLM, SGLang, and Hugging Face.
+- `launchers/`: Production launch entrypoints (`eval.sh` plus per-framework launchers).
 - `slurm/`: Slurm templates and shared Slurm environment snippets.
 - `task_suites/`: Suite files for lmms-eval and VLMEvalKit. Pass these paths directly to `--tasks`.
-- `task_lists/`: Legacy plain-text task lists for ad hoc or common subsets.
 - `cache/`: Local cache root. Image-token and framework data caches are split under `cache/lmms-eval/` and `cache/VLMEvalKit/`; shared runtime caches use common folders such as `cache/hf`, `cache/nltk_data`, `cache/xdg`, `cache/vllm`, and `cache/models`. Generated contents are ignored.
 - `results/`: Evaluation outputs, separated by framework. Generated contents are ignored.
 - `logs/`: Runtime logs, separated by framework. Generated contents are ignored.
@@ -51,19 +49,36 @@ The submodules are configured as branch-tracking submodules:
 - `third_party/lmms-eval`: [github.com/swiss-ai/lmms-eval](https://github.com/swiss-ai/lmms-eval), branch `apertus-1p5-eval`
 - `third_party/VLMEvalKit`: [github.com/swiss-ai/VLMEvalKit](https://github.com/swiss-ai/VLMEvalKit), branch `apertus-1p5-eval`
 
-## Example Usage
+## Quickstart (clone and run)
 
-Run lmms-eval through the unified launcher:
-
-```bash
-bash launchers/run_eval.sh --tool lmms-eval --backend vllm --config toml/lmms-eval/apertus-vllm-lmms-eval-prod.toml --tasks task_suites/lmms-eval/visual_smoke.txt --output results/lmms-eval/example_run
-```
-
-Run VLMEvalKit through the unified launcher:
+Evaluate your checkpoint with one command — no file edits required:
 
 ```bash
-bash launchers/run_eval.sh --tool VLMEvalKit --backend vllm --config toml/VLMEvalKit/example.toml --tasks task_suites/VLMEvalKit/smoke.txt --output results/VLMEvalKit/example_run
+git clone --recurse-submodules https://github.com/swiss-ai/MLLM-eval-suite
+cd MLLM-eval-suite
+bash launchers/eval.sh --model /path/to/your/checkpoint --suite smoke   # both harnesses
 ```
+
+Results land under `results/<framework>/<run-id>/`, logs under `logs/<framework>/<run-id>/`.
+
+Cluster-account knobs (defaults target the current Apertus reservation; override per user/site,
+single source of truth in `slurm/shared/sbatch_overrides.sh`):
+
+```bash
+EVAL_ACCOUNT=<account>            # slurm account            (default: infra01)
+EVAL_RESERVATION=<name>           # reservation; set EVAL_RESERVATION= (empty) to submit without one
+EVAL_ENVIRONMENT=<edf.toml>       # pyxis container config   (default: this repo's toml/shared/)
+```
+
+Judge-scored benchmarks (`task_suites/VLMEvalKit/llm_judge.txt`) need an OpenAI key: export
+`OPENAI_API_KEY` or put it in `third_party/VLMEvalKit/.env`. The launcher refuses to submit judge
+tasks without one (ALLOW_NO_JUDGE=1 overrides, scoring falls back to regex parsing).
+
+Note: `--mode` is framework-specific (lmms-eval: `fill|readonly`; VLMEvalKit: `all|infer|eval`)
+and is rejected with `--eval-framework all` — the defaults are correct for production runs.
+
+Adding new benchmarks, staging benchmark data, and dashboard regeneration go through the repo
+admin; as a user you only need the commands above.
 
 Submit lmms-eval production jobs through the combined production launcher:
 
@@ -97,22 +112,6 @@ Suite files live under `task_suites/` and can be passed directly to the launcher
 - `task_suites/lmms-eval/audio_full.txt`: full lmms-eval audio evaluation suite.
 - `task_suites/lmms-eval/audio_llm_eval.txt`: audio tasks intended for LLM-eval style runs.
 - `task_suites/VLMEvalKit/`: suite files copied from the VLMEvalKit Apertus vLLM scripts.
-
-## Recommended Run Metadata
-
-Every run should create a `run_meta.json` in its output directory with:
-
-- `tool`
-- `tool_commit`
-- `launcher_commit`
-- `model`
-- `backend`
-- `config`
-- `tasks`
-- `container_image`
-- `slurm_job_id`
-- `date`
-- `output_dir`
 
 ## Development Notes
 

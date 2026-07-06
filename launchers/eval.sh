@@ -206,6 +206,12 @@ case "${EVAL_FRAMEWORK}" in
     exec "${ORCH_REPO_ROOT}/launchers/VLMEvalKit/eval.sh" "${ARGS[@]}"
     ;;
   all|both)
+    if [[ -n "${MODE_ARG}" ]]; then
+      echo "--mode is framework-specific (lmms-eval: fill|readonly, VLMEvalKit: all|infer|eval)" >&2
+      echo "and cannot be forwarded to both harnesses; omit it (defaults work) or run the" >&2
+      echo "frameworks separately with --eval-framework." >&2
+      exit 2
+    fi
     run_harness() {
       local label="$1"; shift
       echo "[all] -> ${label}: $*"

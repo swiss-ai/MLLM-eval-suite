@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Submit Apertus VLMEvalKit jobs with the dedicated Apertus vLLM runtime.
 #
-# Examples:
-#   bash launchers/VLMEvalKit/eval.sh
-#   bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --model Apertus-1p5-8B
-#   bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --mode infer
-#   bash launchers/VLMEvalKit/eval.sh --data @datasets.txt --model @models.txt
-#   bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --model Apertus-1p5-8B --submit-mode interactive
+# Invoked by launchers/eval.sh (which sets ORCH_REPO_ROOT). Direct examples:
+#   ORCH_REPO_ROOT=$PWD bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --model Apertus-1p5-8B
+#   ORCH_REPO_ROOT=$PWD bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --mode infer
+#   ORCH_REPO_ROOT=$PWD bash launchers/VLMEvalKit/eval.sh --data @datasets.txt --model @models.txt
 
 set -euo pipefail
 
@@ -18,6 +16,7 @@ fi
 REPO_ROOT="${ORCH_REPO_ROOT}"
 REPO_DIR="${REPO_DIR:-${REPO_ROOT}/third_party/VLMEvalKit}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/VLMEvalKit/eval_job.slurm}"
+source "${REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
 
 RESPONSE_CACHE="${VLMEVAL_RESPONSE_CACHE:-${REPO_ROOT}/cache/VLMEvalKit}"
 IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-${RESPONSE_CACHE}/image_token_cache}"
@@ -213,6 +212,20 @@ fi
 
 MODELS="$(resolve_list "${MODELS_RAW}")"
 [[ -n "${DATASETS}" ]] || { echo "no datasets resolved" >&2; exit 1; }
+
+# Judge datasets score via an OpenAI-compatible judge; without a key VLMEvalKit
+# silently falls back to regex parsing and produces wrong-looking-real numbers.
+# Fail loud instead (ALLOW_NO_JUDGE=1 to override).
+JUDGE_SUITE="${REPO_ROOT}/task_suites/VLMEvalKit/llm_judge.txt"
+if [[ -f "${JUDGE_SUITE}" && "${ALLOW_NO_JUDGE:-0}" != "1" ]]; then
+  JUDGE_HITS="$(comm -12 <(echo "${DATASETS}" | sort -u) <(resolve_list "@${JUDGE_SUITE}" | sort -u) || true)"
+  if [[ -n "${JUDGE_HITS}" && -z "${OPENAI_API_KEY:-}" ]] && ! grep -qs '^OPENAI_API_KEY=' "${REPO_DIR}/.env"; then
+    echo "ERROR: judge dataset(s) [$(echo "${JUDGE_HITS}" | tr '\n' ' ')] need OPENAI_API_KEY" >&2
+    echo "       (env var or ${REPO_DIR}/.env). Set ALLOW_NO_JUDGE=1 to run anyway" >&2
+    echo "       with regex-fallback scoring." >&2
+    exit 1
+  fi
+fi
 [[ -n "${MODELS}" ]] || { echo "no models resolved" >&2; exit 1; }
 [[ -f "${SLURM_TEMPLATE}" ]] || { echo "slurm template not found: ${SLURM_TEMPLATE}" >&2; exit 1; }
 
@@ -290,6 +303,7 @@ while IFS= read -r DATASET; do
     else
       CMD=(
         sbatch
+        "${SBATCH_OVERRIDES[@]}"
         --job-name "${JOB_NAME}"
         --output "${JOB_OUTPUT}"
         --error "${JOB_ERROR}"
