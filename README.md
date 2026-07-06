@@ -13,7 +13,6 @@ It does not merge, fork, or reimplement either evaluation framework. Instead, bo
 - Centralize TOML configs for framework-specific and shared settings.
 - Manage Dockerfiles used to build or document evaluation environments.
 - Provide Slurm job templates for batch execution.
-- Abstract model serving backends for vLLM, SGLang, and Hugging Face.
 - Keep logs and results in structured, predictable locations.
 - Normalize and compare outputs across evaluation tools where possible.
 
@@ -104,14 +103,20 @@ The combined launcher prefetches `BAAI/Emu3.5-VisionTokenizer` into `cache/model
 
 ## Suites
 
-Suite files live under `task_suites/` and can be passed directly to the launchers with `--tasks`.
+Suite files under `task_suites/` are the source of truth for what each named `--suite` runs
+(one comma-separated task list per file; edit the file, no script changes needed).
 
-- `task_suites/lmms-eval/visual_smoke.txt`: `gqa,mmstar,pope`
-- `task_suites/lmms-eval/visual_full.txt`: full lmms-eval visual evaluation suite.
-- `task_suites/lmms-eval/audio_smoke.txt`: `fleurs`
-- `task_suites/lmms-eval/audio_full.txt`: full lmms-eval audio evaluation suite.
-- `task_suites/lmms-eval/audio_llm_eval.txt`: audio tasks intended for LLM-eval style runs.
-- `task_suites/VLMEvalKit/`: suite files copied from the VLMEvalKit Apertus vLLM scripts.
+- `task_suites/lmms-eval/`: `visual_smoke`, `visual_full`, `geospatial_smoke`, `geospatial_full`
+  (remote-sensing tasks; need staged imagery, see `RS_DATASETS_ROOT`), `audio_smoke`, `audio_full`,
+  `audio_llm_eval`.
+- `task_suites/VLMEvalKit/`: `smoke`, `full`, `spatial` (EASI spatial-intelligence set),
+  `llm_judge` (benchmarks scored by an OpenAI judge — key required, see Quickstart).
+
+## Dashboard
+
+Aggregated results are published as a self-contained page at
+[swiss-ai.github.io/MLLM-eval-suite](https://swiss-ai.github.io/MLLM-eval-suite/) (source:
+`docs/index.html`). Regeneration is an admin flow — see `scripts/README.md`.
 
 ## Development Notes
 

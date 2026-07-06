@@ -1,3 +1,5 @@
 # VLMEvalKit Suites
 
-These suite files are copied from `third_party/VLMEvalKit/scripts/apertus-vllm/suites` and can be passed directly to the launchers with `--tasks`.
+Pass these files to the launchers with `--tasks`, or by suite name with `--suite`. One dataset name
+per line. `llm_judge.txt` lists the benchmarks whose eval stage calls an OpenAI judge — the launcher
+refuses to submit them without `OPENAI_API_KEY` (env or `third_party/VLMEvalKit/.env`).
