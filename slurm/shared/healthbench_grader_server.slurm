@@ -15,6 +15,8 @@
 # eval submissions can discover it; point HEALTHBENCH_GRADER_BASE_URL at
 # http://<host>:8080/v1.
 set -euo pipefail
+# vLLM worker aborts otherwise dump multi-GB cores into the submodule cwd.
+ulimit -c 0
 
 MODEL_PATH="${GRADER_MODEL_PATH:-/capstor/store/cscs/swissai/infra01/hf_models/models/Qwen/Qwen3-235B-A22B-Instruct-2507}"
 ENDPOINT_FILE="${GRADER_ENDPOINT_FILE:-${SLURM_SUBMIT_DIR}/cache/grader/healthbench_endpoint}"

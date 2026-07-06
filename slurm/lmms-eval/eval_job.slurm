@@ -29,6 +29,8 @@
 #     --image-token-cache-dir /capstor/.../benchmark/image_token_cache/mmmu_val \
 #     --image-token-cache-local-copy 0
 set -euo pipefail
+# vLLM worker aborts otherwise dump multi-GB cores into the submodule cwd.
+ulimit -c 0
 
 SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 ORCH_REPO_ROOT="${ORCH_REPO_ROOT:-${SUBMIT_DIR}}"

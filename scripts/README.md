@@ -48,8 +48,3 @@ results/VLMEvalKit/<run-id>/<model>/<dataset>/  ──────┤   derive_v
 - Other remote-sensing trees (VRSBench, BigEarthNet-S2 patches, FRIEDA) live under
   `cache/rs_datasets/` and are staged manually by the admin; jobs find them via
   `RS_DATASETS_ROOT` (+ per-dataset `*_DIR` overrides) exported in `slurm/lmms-eval/eval_job.slurm`.
-
-## Deprecated
-
-- **`summarize_results.py`** — superseded by `make_dashboard.py`; expects a run layout nothing
-  produces. Slated for deletion.
