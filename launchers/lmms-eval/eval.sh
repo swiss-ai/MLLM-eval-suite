@@ -14,6 +14,8 @@
 #           geospatial-full, geospatial-smoke.
 # --mode    fill|readonly. Both modes use the shared cache directly with preload
 #           on and writes enabled.
+# --size         8b|70b parallelism profile: 8b = 4 DP workers (TP=1); 70b = 1 worker,
+#                model sharded across 4 GPUs (TP=4, gpu-mem 0.85). Default: 8b.
 # --submit-mode  batch|interactive. Batch submits one sbatch per task/model pair.
 #                Interactive runs the job script directly with bash so it uses
 #                the current shell's node allocation.
@@ -80,6 +82,7 @@ MODELS_RAW=""
 TASKS_RAW=""
 SUITE=""
 MODE="fill"
+SIZE="8b"
 SUBMIT_MODE="batch"
 ENABLE_THINKING=""
 GEN_KWARGS_OVERRIDE=""
@@ -91,6 +94,7 @@ while [[ $# -gt 0 ]]; do
     --tasks)    TASKS_RAW="$2"; shift 2 ;;
     --suite)    SUITE="$2"; shift 2 ;;
     --mode)     MODE="$2"; shift 2 ;;
+    --size)     SIZE="$2"; shift 2 ;;
     --submit-mode) SUBMIT_MODE="$2"; shift 2 ;;
     --enable-thinking) ENABLE_THINKING=1; shift ;;
     --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
@@ -108,6 +112,17 @@ done
 if [[ -z "$MODELS_RAW" ]]; then echo "missing <model> argument" >&2; usage; exit 1; fi
 
 case "$MODE" in fill|readonly) ;; *) echo "--mode must be fill|readonly (got: $MODE)" >&2; exit 1 ;; esac
+# Parallelism profile, mirroring the VLMEvalKit launcher: 8b = 4 DP workers on one
+# node; 70b = one worker with the model tensor-sharded across all 4 GPUs.
+case "$SIZE" in
+  8b)  SIZE_NUM_PROCESSES=4; SIZE_EXTRA_MODEL_ARGS="";                       SIZE_GPU_MEM="" ;;
+  70b) SIZE_NUM_PROCESSES=1; SIZE_EXTRA_MODEL_ARGS="tensor_parallel_size=4"; SIZE_GPU_MEM="0.85" ;;
+  *) echo "--size must be 8b|70b (got: $SIZE)" >&2; exit 1 ;;
+esac
+EXTRA_MODEL_ARGS="${EXTRA_MODEL_ARGS:-$SIZE_EXTRA_MODEL_ARGS}"
+if [[ -n "$ENABLE_THINKING" ]]; then
+  EXTRA_MODEL_ARGS="${EXTRA_MODEL_ARGS:+$EXTRA_MODEL_ARGS,}enable_thinking=True"
+fi
 case "$SUBMIT_MODE" in batch|interactive) ;; *) echo "--submit-mode must be batch|interactive (got: $SUBMIT_MODE)" >&2; exit 1 ;; esac
 
 # ------------------------------------------------------------------
@@ -191,7 +206,7 @@ GEN_KWARGS="${GEN_KWARGS:-max_new_tokens=16384,temperature=0}"
 if [[ -n "$GEN_KWARGS_OVERRIDE" ]]; then GEN_KWARGS="$GEN_KWARGS_OVERRIDE"; fi
 # 4 vLLM workers per node = 1 per GH200 GPU (4 GPUs). Per-task SQLite handles
 # 4 concurrent writers via WAL with sub-ms lock overhead.
-NUM_PROCESSES="${NUM_PROCESSES:-4}"
+NUM_PROCESSES="${NUM_PROCESSES:-$SIZE_NUM_PROCESSES}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
 
 # WandB config
@@ -299,8 +314,14 @@ while IFS= read -r TASK; do
       --wandb-api-key "${WANDB_API_KEY:-}"
     )
 
+    if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
+      JOB_ARGS+=(--extra-model-args "$EXTRA_MODEL_ARGS")
+    fi
+    if [[ -n "$SIZE_GPU_MEM" ]]; then
+      JOB_ARGS+=(--gpu-memory-utilization "$SIZE_GPU_MEM")
+    fi
     if [[ -n "$ENABLE_THINKING" ]]; then
-      JOB_ARGS+=(--extra-model-args "enable_thinking=True" --wandb-run-name "$MODEL_LABEL")
+      JOB_ARGS+=(--wandb-run-name "$MODEL_LABEL")
     fi
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
