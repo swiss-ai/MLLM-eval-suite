@@ -47,7 +47,9 @@ CURATED=(
   "sdpo-mix-less-refuse-feedback [thinking-32k]=sDPO (think)"
   "ap1p5-70b-sft-262k-2100=70B-2100"
   "ap1p5-70b-sft-262k-2700=70B-2700"
+  "ap1p5-70b-sft-262k-2700 [thinking-32k]=70B-2700 (think)"
   "apertus-1.5-70b-sft-rl-dpo-sdpo=70B-SDPO"
+  "apertus-1.5-70b-sft-rl-dpo-sdpo [thinking-32k]=70B-SDPO (think)"
 )
 ONLY=("${CURATED[@]%%=*}")
 LABELS=("${CURATED[@]}")
