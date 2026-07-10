@@ -172,6 +172,9 @@ export VLLM_SEED="${VLLM_SEED:-${SEED}}"
 # (defaults to --model when it is a path, else the wrapper default). Override knobs via env
 # (e.g. APERTUS_ENABLE_THINKING=1 APERTUS_TEMPERATURE=0.6) or edit the defaults
 # here; thinking needs APERTUS_TEMPERATURE > 0 and APERTUS_MAX_NEW_TOKENS ~16384.
+# FOREIGN_MODEL=1 skips the Apertus registry override so upstream
+# supported_VLM entries (molmo, llava_next, qwen, ...) resolve instead.
+if [[ "${FOREIGN_MODEL:-0}" != "1" ]]; then
 export APERTUS_RUN_NAME="${MODEL}"
 if [[ -z "${APERTUS_MODEL_PATH:-}" && "${MODEL}" == /* ]]; then
   [[ -d "${MODEL}" ]] || { echo "ERROR: --model '${MODEL}' is path-shaped but not a directory; refusing to silently load the default checkpoint." >&2; exit 1; }
@@ -185,6 +188,7 @@ export APERTUS_REPETITION_PENALTY="${APERTUS_REPETITION_PENALTY:-}"
 export APERTUS_MAX_NEW_TOKENS="${APERTUS_MAX_NEW_TOKENS:-}"
 export APERTUS_TENSOR_PARALLEL_SIZE="${APERTUS_TENSOR_PARALLEL_SIZE:-}"
 export APERTUS_GPU_MEMORY_UTILIZATION="${APERTUS_GPU_MEMORY_UTILIZATION:-}"
+fi
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
