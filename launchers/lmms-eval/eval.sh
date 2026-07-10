@@ -257,7 +257,8 @@ while IFS= read -r TASK; do
 
   while IFS= read -r MODEL_PATH; do
     [[ -z "$MODEL_PATH" ]] && continue
-    if [[ ! -d "$MODEL_PATH" ]]; then
+    # Foreign backends may take HF ids; only path-shaped models must exist.
+    if [[ ! -d "$MODEL_PATH" && ( "$MODEL_PATH" == /* || "${MODEL_BACKEND:-apertus_1p5_vllm}" == apertus* ) ]]; then
       echo "WARNING: model path not found, skipping: $MODEL_PATH" >&2
       continue
     fi
