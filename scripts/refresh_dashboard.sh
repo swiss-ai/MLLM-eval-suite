@@ -50,6 +50,7 @@ CURATED=(
   "ap1p5-70b-sft-262k-2700 [thinking-32k]=70B-2700 (think)"
   "apertus-1.5-70b-sft-rl-dpo-sdpo=70B-SDPO"
   "apertus-1.5-70b-sft-rl-dpo-sdpo [thinking-32k]=70B-SDPO (think)"
+  "qwen3-vl-8b-instruct=Qwen3-VL-8B"
 )
 ONLY=("${CURATED[@]%%=*}")
 LABELS=("${CURATED[@]}")
