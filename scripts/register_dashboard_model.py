@@ -17,7 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SUITE = HERE.parent
 sys.path.insert(0, str(HERE))
-from make_dashboard import canonical_model_key  # noqa: E402
+from make_dashboard import canonical_model_key, parse_models_manifest  # noqa: E402
 
 MANIFEST = HERE / "dashboard_models.txt"
 
@@ -36,27 +36,19 @@ def result_roots() -> list[Path]:
 
 
 def scan() -> dict:
-    found: dict[str, dict] = {}
+    found: dict[str, set] = {}
     for root in result_roots():
         for d in root.iterdir():
-            if not d.is_dir():
-                continue
-            key = canonical_model_key(d.name)
-            entry = found.setdefault(key, {"dirs": set(), "cells": 0})
-            entry["dirs"].add(d.name)
-            entry["cells"] += sum(1 for _ in d.rglob("*results.json")) or sum(1 for _ in d.iterdir())
+            if d.is_dir():
+                found.setdefault(canonical_model_key(d.name), set()).add(d.name)
     return found
 
 
 def registered() -> dict[str, str]:
-    reg = {}
-    for line in MANIFEST.read_text().splitlines():
-        line = line.split("#", 1)[0].strip()
-        if not line or "=" not in line:
-            continue
-        keypart, label = line.split("=", 1)
-        for k in keypart.split("|"):
-            reg[k.strip()] = label.strip()
+    only, labels, aliases = parse_models_manifest(MANIFEST)
+    label_of = dict(spec.split("=", 1) for spec in labels)
+    reg = {key: label_of[key] for key in only}
+    reg.update({alias: label_of[primary] for alias, primary in aliases.items()})
     return reg
 
 
@@ -66,8 +58,8 @@ def cmd_list(_args) -> int:
     width = max((len(k) for k in found), default=20)
     for key in sorted(found):
         mark = f"registered as {reg[key]!r}" if key in reg else "UNREGISTERED"
-        dirs = ", ".join(sorted(found[key]["dirs"])[:2])
-        print(f"{key:{width}}  {found[key]['cells']:5d} artifacts  {mark}  ({dirs})")
+        dirs = ", ".join(sorted(found[key])[:2])
+        print(f"{key:{width}}  {mark}  ({dirs})")
     return 0
 
 

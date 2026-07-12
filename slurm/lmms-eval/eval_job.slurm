@@ -237,6 +237,12 @@ if [[ -n "${LMMS_EVAL_DEV_PATH}" ]]; then
 else
   export PYTHONPATH="${LMMS_EVAL_REPO}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
 fi
+# Same hook as slurm/VLMEvalKit/eval_job.slurm: the container image sets its own
+# PYTHONPATH, so submission-env values are lost; EXTRA_PYTHONPATH survives and is
+# prepended (e.g. a staged newer transformers under cache/pylibs/).
+if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
+  export PYTHONPATH="${EXTRA_PYTHONPATH}:${PYTHONPATH}"
+fi
 export LD_LIBRARY_PATH="/opt/venv/lib/python3.12/site-packages/torch/lib:${LD_LIBRARY_PATH:-}"
 export HF_HOME="${HF_HOME_PATH}"
 export NLTK_DATA="${NLTK_DATA_PATH}"

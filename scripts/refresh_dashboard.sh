@@ -36,21 +36,9 @@ for d in "$VLMEVAL_OUTPUTS"/*/; do [[ -d "$d" ]] && link_model "$d" outputs; don
 done
 
 # Curated columns live in dashboard_models.txt (key[=|alias]=Label, display
-# order). Register new models with register_dashboard_model.py, not by hand.
+# order), parsed by make_dashboard.py itself. Register new models with
+# register_dashboard_model.py, not by hand.
 MODELS_FILE="${MODELS_FILE:-$HERE/dashboard_models.txt}"
-ONLY=(); LABELS=(); ALIASES=()
-while IFS= read -r line; do
-  line="${line%%#*}"
-  [[ -z "${line//[[:space:]]/}" ]] && continue
-  keypart="${line%%=*}"; label="${line#*=}"
-  primary="${keypart%%|*}"
-  ONLY+=("$primary")
-  LABELS+=("$primary=$label")
-  if [[ "$keypart" == *"|"* ]]; then
-    IFS='|' read -ra _parts <<<"$keypart"
-    for a in "${_parts[@]:1}"; do ALIASES+=("$a=$primary"); done
-  fi
-done < "$MODELS_FILE"
 
 # Per-task truncation rates for thinking runs (the ⌁ subscripts), recomputed
 # only when a run's samples are newer than its cache (the samples are huge).
@@ -67,9 +55,7 @@ for md in "$RUNS_ROOT"/*-thinking-32k; do
 done
 
 mkdir -p "$(dirname "$OUT")"
-ALIAS_ARGS=()
-[[ ${#ALIASES[@]} -gt 0 ]] && ALIAS_ARGS=(--alias "${ALIASES[@]}")
-"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --only "${ONLY[@]}" --label "${LABELS[@]}" "${ALIAS_ARGS[@]}" -o "$OUT"
+"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --models-file "$MODELS_FILE" -o "$OUT"
 # internal checkpoint results: keep out of search indexes
 "$PY" - "$OUT" <<'PYEOF'
 import re,sys

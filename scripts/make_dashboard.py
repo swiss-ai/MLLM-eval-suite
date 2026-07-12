@@ -100,11 +100,6 @@ _MODEL_ALIAS = {
     "sft-capfilter-lr6e-5-constant-innovator-fix-it23409": "sft-capfilter-innovator-it23409",
 }
 
-# Full-key merges supplied via --alias (foreign models whose lmms label and
-# VLMEvalKit registry name canonicalize differently, e.g. gemma-3-27b-it vs
-# gemma3-27b). Applied after mode suffixing.
-KEY_ALIASES: dict = {}
-
 
 def canonical_model_key(name: str) -> str:
     """Map a run/output dir name to a checkpoint identity shared across harnesses.
@@ -149,8 +144,28 @@ def canonical_model_key(name: str) -> str:
         key = "sft-rl-dpo"
     else:
         key = _MODEL_ALIAS.get(body, body or "base")
-    full = f"{key} [{mode}]" if mode else key
-    return KEY_ALIASES.get(full, full)
+    return f"{key} [{mode}]" if mode else key
+
+
+def parse_models_manifest(path: Path) -> tuple[list, list, dict]:
+    """Parse dashboard_models.txt: 'key[|alias...]=Label' lines, # comments.
+
+    Returns (only_keys, label_specs, alias_map) where alias_map sends each
+    alias key to its primary (foreign models whose lmms label and VLMEvalKit
+    registry name canonicalize differently, e.g. gemma-3-27b-it vs gemma3-27b).
+    """
+    only, labels, aliases = [], [], {}
+    for raw in path.read_text().splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or "=" not in line:
+            continue
+        keypart, label = line.split("=", 1)
+        keys = [k.strip() for k in keypart.split("|")]
+        only.append(keys[0])
+        labels.append(f"{keys[0]}={label.strip()}")
+        for alias in keys[1:]:
+            aliases[alias] = keys[0]
+    return only, labels, aliases
 
 
 # VLMEvalKit dataset dir -> canonical task name, restricted to the benchmarks
@@ -759,16 +774,14 @@ def main():
     p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
-    p.add_argument("--alias", nargs="*", default=[],
-                   help="merge canonical keys as 'from=to' (from's cells land in to's column)")
+    p.add_argument("--models-file", type=Path,
+                   help="column manifest (key[|alias]=Label per line); overrides --only/--label")
     p.add_argument("-o", "--output", type=Path, default=Path("dashboard.html"))
     args = p.parse_args()
 
-    for spec in args.alias:
-        src, sep, dst = spec.partition("=")
-        if not sep or not src or not dst:
-            p.error(f"--alias expects 'from=to', got {spec!r}")
-        KEY_ALIASES[src] = dst
+    aliases: dict = {}
+    if args.models_file:
+        args.only, args.label, aliases = parse_models_manifest(args.models_file)
 
     models_l: list[str] = []
     table_l: list[dict] = []
@@ -782,6 +795,14 @@ def main():
     models_v, table_v = ([], [])
     if args.vlmeval_root:
         models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
+    if aliases:
+        models_l = [aliases.get(m, m) for m in models_l]
+        models_v = [aliases.get(m, m) for m in models_v]
+        for row in table_l + table_v:
+            cells = {}
+            for k, v in row["cells"].items():
+                cells.setdefault(aliases.get(k, k), v)
+            row["cells"] = cells
     models = sorted(set(models_l) | set(models_v))
     if args.only:
         present = set(models)
