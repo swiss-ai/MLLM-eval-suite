@@ -334,6 +334,11 @@ PY_CMD+=(
   --work-dir "${WORK_DIR}"
   --response-cache "${RESPONSE_CACHE}"
 )
+# run.py overrides registry kwargs for Llama-4/Qwen2-VL/Qwen2.5-VL names with
+# this CLI flag, so registry-level use_vllm=True is ignored without it.
+if [[ -n "${VLMEVAL_USE_VLLM:-}" ]]; then
+  PY_CMD+=(--use-vllm)
+fi
 
 if [[ "${NNODES}" -gt 1 ]]; then
   # srun launches one worker container per node. The EDF .toml sets
