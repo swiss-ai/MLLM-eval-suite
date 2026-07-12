@@ -51,10 +51,6 @@ MindCubeBench_tiny_raw_qa
 ScienceQA_TEST
 
 # GUI
-ScreenSpot
-ScreenSpot_v2
-ScreenSpot_Pro
-OSWorld_G
 SiteBenchImage
 
 # Grounding / RefCOCO

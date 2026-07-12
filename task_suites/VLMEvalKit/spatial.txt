@@ -18,7 +18,3 @@ OmniSpatialBench_manual_cot
 SiteBenchImage
 RefSpatial_wo_unseen
 RoboSpatialHome
-ScreenSpot
-ScreenSpot_v2
-ScreenSpot_Pro
-OSWorld_G
