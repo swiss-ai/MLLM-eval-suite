@@ -178,7 +178,7 @@ VK_OWNED_TASKS = {
     "MindCubeBench_tiny_raw_qa": "mindcube", "OmniSpatialBench_default": "omnispatial",
     "OmniSpatialBench_manual_cot": "omnispatial_manual_cot",
     "SparBench": "sparbench", "SiteBenchImage": "site_bench", "ViewSpatialBench": "viewspatial",
-    "VSI-Bench-Debiased": "vsibench_debiased", "RefSpatial_wo_unseen": "refspatial",
+    "VSI-Bench-Debiased": "vsibench_debiased", "VSI-Bench-Debiased_32frame": "vsibench_debiased", "RefSpatial_wo_unseen": "refspatial",
     "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
     "ScreenSpot_v2": "screenspot_v2", "ScreenSpot_Pro": "screenspot_pro", "OSWorld_G": "osworld",
     "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
