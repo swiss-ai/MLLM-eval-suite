@@ -28,6 +28,19 @@ MAX_JUDGE_FAIL = 20.0  # percent; above this the judge was broken -> no real sco
 ROW = re.compile(r"^(\S+)\s+([\d.]+)%\s+\([\d/]+\)\s+([\d.]+)%\s+\([\d/]+\)\s+.+?\s+([\d.]+)(?=\s|$)")
 
 
+def _mmsafety_safety_rate(work_dir: str):
+    import json
+    for sj in glob.glob(f"{work_dir}/**/status.json", recursive=True):
+        try:
+            ds = json.loads(Path(sj).read_text()).get("datasets", {}).get("MMSafetyBench", {})
+            rate = ds.get("metrics", {}).get("category=Overall|safety_rate")
+            if rate is not None:
+                return round(float(rate), 6)
+        except (OSError, ValueError):
+            continue
+    return None
+
+
 def main() -> None:
     written = skipped = 0
     for log in glob.glob(str(LOGS / "*/vlmeval-*.out")):
@@ -47,6 +60,17 @@ def main() -> None:
                 skipped += 1
                 continue
             for wd in glob.glob(str(RESULTS / run_id / "*" / bench)):
+                # MMSafetyBench's summary value is attack_rate (lower=better);
+                # re-derive safety_rate from status.json so every dashboard row
+                # is higher=better, overriding any job-side acc.csv.
+                if bench == "MMSafetyBench":
+                    sval = _mmsafety_safety_rate(wd)
+                    if sval is None:
+                        skipped += 1
+                        continue
+                    (Path(wd) / "derived_acc.csv").write_text(f"metric,value\noverall,{sval}\n")
+                    written += 1
+                    continue
                 if glob.glob(f"{wd}/**/*acc*.csv", recursive=True):
                     continue
                 (Path(wd) / "derived_acc.csv").write_text(f"metric,value\noverall,{value}\n")
