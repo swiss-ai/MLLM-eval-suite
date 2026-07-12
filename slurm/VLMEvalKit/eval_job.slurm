@@ -287,11 +287,13 @@ import torch
 import vllm
 from vlmeval.config import supported_VLM
 from vlmeval.dataset import SUPPORTED_DATASETS
+from vlmeval.dataset.video_dataset_config import supported_video_datasets
 
 model = "${MODEL}"
 dataset = "${DATASET}"
 assert model in supported_VLM, f"unsupported model: {model}"
-assert dataset in SUPPORTED_DATASETS, f"unsupported dataset: {dataset}"
+assert dataset in SUPPORTED_DATASETS or dataset in supported_video_datasets, \
+    f"unsupported dataset: {dataset}"
 print("preflight repo", os.getcwd())
 print("preflight torch", torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.device_count())
 print("preflight vllm", getattr(vllm, "__version__", "unknown"))
