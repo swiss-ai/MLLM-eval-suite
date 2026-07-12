@@ -35,25 +35,22 @@ for d in "$VLMEVAL_OUTPUTS"/*/; do [[ -d "$d" ]] && link_model "$d" outputs; don
   for md in "$rid"*/; do [[ -d "$md" ]] && link_model "$md" "$(basename "$rid")"; done
 done
 
-# curated checkpoint set (exact canonical keys): SFT 4200 + RL stage2, both
-# direct and thinking, plus the sDPO alignment checkpoint.
-CURATED=(
-  "sft-capfilter-constant-it8816=it8816-const"
-  "sft-256k-4200=SFT-4200"
-  "sft-256k-4200 [thinking-32k]=SFT-4200 (think)"
-  "rl_1p5-8b-stage2_notools_mixthink_1606_480it=RL-mixthink"
-  "rl_1p5-8b-stage2_notools_mixthink_1606_480it [thinking-32k]=RL-mixthink (think)"
-  "sdpo-mix-less-refuse-feedback=sDPO"
-  "sdpo-mix-less-refuse-feedback [thinking-32k]=sDPO (think)"
-  "ap1p5-70b-sft-262k-2100=70B-2100"
-  "ap1p5-70b-sft-262k-2700=70B-2700"
-  "ap1p5-70b-sft-262k-2700 [thinking-32k]=70B-2700 (think)"
-  "apertus-1.5-70b-sft-rl-dpo-sdpo=70B-SDPO"
-  "apertus-1.5-70b-sft-rl-dpo-sdpo [thinking-32k]=70B-SDPO (think)"
-  "qwen3-vl-8b-instruct=Qwen3-VL-8B"
-)
-ONLY=("${CURATED[@]%%=*}")
-LABELS=("${CURATED[@]}")
+# Curated columns live in dashboard_models.txt (key[=|alias]=Label, display
+# order). Register new models with register_dashboard_model.py, not by hand.
+MODELS_FILE="${MODELS_FILE:-$HERE/dashboard_models.txt}"
+ONLY=(); LABELS=(); ALIASES=()
+while IFS= read -r line; do
+  line="${line%%#*}"
+  [[ -z "${line//[[:space:]]/}" ]] && continue
+  keypart="${line%%=*}"; label="${line#*=}"
+  primary="${keypart%%|*}"
+  ONLY+=("$primary")
+  LABELS+=("$primary=$label")
+  if [[ "$keypart" == *"|"* ]]; then
+    IFS='|' read -ra _parts <<<"$keypart"
+    for a in "${_parts[@]:1}"; do ALIASES+=("$a=$primary"); done
+  fi
+done < "$MODELS_FILE"
 
 # Per-task truncation rates for thinking runs (the ⌁ subscripts), recomputed
 # only when a run's samples are newer than its cache (the samples are huge).
@@ -70,7 +67,9 @@ for md in "$RUNS_ROOT"/*-thinking-32k; do
 done
 
 mkdir -p "$(dirname "$OUT")"
-"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --only "${ONLY[@]}" --label "${LABELS[@]}" -o "$OUT"
+ALIAS_ARGS=()
+[[ ${#ALIASES[@]} -gt 0 ]] && ALIAS_ARGS=(--alias "${ALIASES[@]}")
+"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --only "${ONLY[@]}" --label "${LABELS[@]}" "${ALIAS_ARGS[@]}" -o "$OUT"
 # internal checkpoint results: keep out of search indexes
 "$PY" - "$OUT" <<'PYEOF'
 import re,sys

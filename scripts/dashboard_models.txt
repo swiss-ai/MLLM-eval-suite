@@ -1,0 +1,30 @@
+# Dashboard columns, one per line, in display order:
+#   canonical_key=Display Label
+#   canonical_key|alias_key=Display Label   (alias's cells merge into the column)
+#
+# canonical_key is make_dashboard.canonical_model_key() of the results dir name.
+# Register new models with scripts/register_dashboard_model.py (validates the
+# key against actual results before it can land here); refresh_dashboard.sh
+# reads this file. Comments and blank lines are ignored.
+
+# Apertus checkpoints
+sft-capfilter-constant-it8816=it8816-const
+sft-256k-4200=SFT-4200
+sft-256k-4200 [thinking-32k]=SFT-4200 (think)
+rl_1p5-8b-stage2_notools_mixthink_1606_480it=RL-mixthink
+rl_1p5-8b-stage2_notools_mixthink_1606_480it [thinking-32k]=RL-mixthink (think)
+sdpo-mix-less-refuse-feedback=sDPO
+sdpo-mix-less-refuse-feedback [thinking-32k]=sDPO (think)
+ap1p5-70b-sft-262k-2100=70B-2100
+ap1p5-70b-sft-262k-2700=70B-2700
+ap1p5-70b-sft-262k-2700 [thinking-32k]=70B-2700 (think)
+apertus-1.5-70b-sft-rl-dpo-sdpo=70B-SDPO
+apertus-1.5-70b-sft-rl-dpo-sdpo [thinking-32k]=70B-SDPO (think)
+
+# Foreign baselines
+qwen3-vl-8b-instruct=Qwen3-VL-8B
+molmo2-8b=Molmo2-8B
+molmo-7b-d-0924=Molmo-7B-D
+gemma3-27b|gemma-3-27b-it=Gemma3-27B
+gemma4-12b-it=Gemma4-12B
+gemma4-26b-a4b-it=Gemma4-26B-A4B

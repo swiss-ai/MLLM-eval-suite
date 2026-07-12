@@ -100,6 +100,11 @@ _MODEL_ALIAS = {
     "sft-capfilter-lr6e-5-constant-innovator-fix-it23409": "sft-capfilter-innovator-it23409",
 }
 
+# Full-key merges supplied via --alias (foreign models whose lmms label and
+# VLMEvalKit registry name canonicalize differently, e.g. gemma-3-27b-it vs
+# gemma3-27b). Applied after mode suffixing.
+KEY_ALIASES: dict = {}
+
 
 def canonical_model_key(name: str) -> str:
     """Map a run/output dir name to a checkpoint identity shared across harnesses.
@@ -144,7 +149,8 @@ def canonical_model_key(name: str) -> str:
         key = "sft-rl-dpo"
     else:
         key = _MODEL_ALIAS.get(body, body or "base")
-    return f"{key} [{mode}]" if mode else key
+    full = f"{key} [{mode}]" if mode else key
+    return KEY_ALIASES.get(full, full)
 
 
 # VLMEvalKit dataset dir -> canonical task name, restricted to the benchmarks
@@ -753,8 +759,16 @@ def main():
     p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
+    p.add_argument("--alias", nargs="*", default=[],
+                   help="merge canonical keys as 'from=to' (from's cells land in to's column)")
     p.add_argument("-o", "--output", type=Path, default=Path("dashboard.html"))
     args = p.parse_args()
+
+    for spec in args.alias:
+        src, sep, dst = spec.partition("=")
+        if not sep or not src or not dst:
+            p.error(f"--alias expects 'from=to', got {spec!r}")
+        KEY_ALIASES[src] = dst
 
     models_l: list[str] = []
     table_l: list[dict] = []
