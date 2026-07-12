@@ -42,6 +42,26 @@ results/VLMEvalKit/<run-id>/<model>/<dataset>/  ──────┤   derive_v
   `--grader gpt-4.1`, the official protocol) without re-running inference. Resumable; grades
   append per rubric. Used to produce the `healthbench_gpt41` dashboard row.
 
+## Per-model environments
+
+One shared container (the `EVAL_ENVIRONMENT` toml via `slurm/shared/sbatch_overrides.sh`)
+runs every job; there are no per-model venvs and the GPU stack is never touched. Model
+differences are handled in four layers:
+
+1. **Configuration, not environment** — `MODEL_BACKEND`, `EXTRA_MODEL_ARGS`,
+   `FOREIGN_MODEL`, `VLMEVAL_MODEL_PATH_OVERRIDES` select code paths inside the same env.
+2. **Library overlays** — when a model needs a newer library than the container ships
+   (e.g. Gemma 4 → transformers ≥ 5.5 vs the container's 4.57), stage it once with a
+   `pip install --target=cache/pylibs/<name>` job, then submit with
+   `EXTRA_PYTHONPATH=cache/pylibs/<name>` (honored by both slurm templates; container
+   images clobber plain `PYTHONPATH`). Strip packages the container already provides
+   ABI-matched copies of (numpy) from the overlay.
+3. **Fork-code selection** — `LMMS_EVAL_DEV_PATH` points jobs at `third_party/lmms-eval`
+   instead of the container's baked copy (needed for tasks newer than the image, e.g. the
+   RS/geo suite).
+4. **Never edit the fork working trees while jobs are queued** — jobs import the shared
+   checkout at start time; land commits between fleets.
+
 ## Benchmark data staging
 
 - **`stage_geobench_xbd.py`** — stages the xBD imagery slice GEOBench-VLM needs.
