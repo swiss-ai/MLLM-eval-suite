@@ -178,7 +178,7 @@ VK_OWNED_TASKS = {
     "MindCubeBench_tiny_raw_qa": "mindcube", "OmniSpatialBench_default": "omnispatial",
     "OmniSpatialBench_manual_cot": "omnispatial_manual_cot",
     "SparBench": "sparbench", "SiteBenchImage": "site_bench", "ViewSpatialBench": "viewspatial",
-    "VSI-Bench-Debiased": "vsibench", "RefSpatial_wo_unseen": "refspatial",
+    "VSI-Bench-Debiased": "vsibench_debiased", "RefSpatial_wo_unseen": "refspatial",
     "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
     "ScreenSpot_v2": "screenspot_v2", "ScreenSpot_Pro": "screenspot_pro", "OSWorld_G": "osworld",
     "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
@@ -373,7 +373,8 @@ TAXONOMY = {
     "Robustness & Bias": {"exact": ["mmvp", "mmvp_pair", "vlms_are_biased", "vlmsareblind"]},
     "Spatial & Embodied": {"exact": [
         "cv_bench_2d", "cv_bench_3d", "embspatial", "erqa", "mindcube", "mmsi_bench",
-        "robospatial", "site_bench", "sparbench", "viewspatial",
+        "robospatial", "site_bench", "sparbench", "viewspatial", "vsibench_debiased",
+        "refspatial",
     ], "prefix": ["omnispatial", "3dsrbench"]},
     "Multi-Image": {"exact": ["muirbench", "blink"]},
     "Counting & Grounding": {"exact": ["countbench", "pixmo_count"], "prefix": ["refcoco"]},
