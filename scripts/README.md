@@ -31,6 +31,9 @@ results/VLMEvalKit/<run-id>/<model>/<dataset>/  ──────┤   derive_v
   failure class). Run it after every refresh; PASS expected.
 - **`derive_vlmeval_acc.py`** — reconstructs `derived_acc.csv` for VK judge benchmarks whose score
   only exists in job logs. Skips runs with high judge-failure rates rather than fabricating scores.
+  Direction contract: every dashboard row is higher-is-better; benchmarks whose native metric
+  is lower-is-better are normalized at derivation (mm_safetybench: attack_rate -> safety_rate,
+  labeled `safety_rate` on the row).
 
 ## HealthBench grading
 

@@ -289,7 +289,10 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
                 continue
             models.add(canon)
             cell = {"v": round(value, 2), "raw": value, "run": acc.parent.name}
-            rows.setdefault((task, "acc"), {})[canon] = cell
+            # mm_safetybench is direction-normalized to safety_rate at derivation
+            # (attack_rate is lower-better); label it so readers see which it is.
+            metric = "safety_rate" if task == "mm_safetybench" else "acc"
+            rows.setdefault((task, metric), {})[canon] = cell
 
     if skipped:
         print(f"VLMEval: skipped {len(skipped)} benchmark(s) with no parseable acc.csv "
