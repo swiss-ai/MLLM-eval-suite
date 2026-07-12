@@ -31,3 +31,4 @@ gemma4-26b-a4b-it=Gemma4-26B-A4B
 molmo-7b-o-0924=Molmo-7B-O
 eurovlm-9b-preview=EuroVLM-9B
 qwen2.5-vl-7b-instruct=Qwen2.5-VL-7B
+pixtral-12b=Pixtral-12B
