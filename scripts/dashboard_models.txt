@@ -28,3 +28,4 @@ molmo-7b-d-0924=Molmo-7B-D
 gemma3-27b|gemma-3-27b-it=Gemma3-27B
 gemma4-12b-it=Gemma4-12B
 gemma4-26b-a4b-it=Gemma4-26B-A4B
+molmo-7b-o-0924=Molmo-7B-O
