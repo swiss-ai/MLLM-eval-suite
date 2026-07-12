@@ -136,6 +136,12 @@ if [[ -d "${VLLM_REPO}" ]]; then
 else
   export PYTHONPATH="${REPO_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
 fi
+# The container image sets its own PYTHONPATH, so submission-env values are
+# lost; EXTRA_PYTHONPATH survives and is prepended (e.g. a staged newer
+# transformers under cache/pylibs/ for models the container build predates).
+if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
+  export PYTHONPATH="${EXTRA_PYTHONPATH}:${PYTHONPATH}"
+fi
 # /capstor/.../MLLM/wheelhouse provides libjson-c.so.5 which the slurm
 # switch/hpe_slingshot plugin dlopen()s when srun runs inside this container
 # (the container itself lacks libjson-c5). Without this path, multi-node
