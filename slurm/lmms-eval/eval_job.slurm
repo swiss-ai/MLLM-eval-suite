@@ -225,7 +225,9 @@ fi
 ########################################
 # Runtime environment
 ########################################
-export API_TYPE=dummy
+# Dummy judge by default so fleet jobs never spend API budget by accident;
+# judge-intended submissions opt in with API_TYPE=openai.
+export API_TYPE="${API_TYPE:-dummy}"
 export PATH="/opt/venv/bin:${PATH}"
 # Optional dev-tree override: prepend a user-local lmms-eval checkout to PYTHONPATH
 # so changes in dev are picked up without writing to the shared prod tree.
