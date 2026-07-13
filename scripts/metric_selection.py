@@ -130,6 +130,13 @@ def pick_headline_metric(task: str, metrics: dict[str, Any]) -> tuple[str | None
     """
     task_lower = task.lower()
 
+    # A graded score is meaningless when the grader itself failed; same
+    # contract as the VLMEvalKit judge-failure guard in derive_vlmeval_acc.
+    for key, value in metrics.items():
+        if "grader_failure_rate" in key and "stderr" not in key:
+            if isinstance(value, (int, float)) and value > 0.05:
+                return None, None
+
     # MME headline = full score (perception + cognition). A perception-only
     # headline drops the reasoning half and undersells thinking checkpoints.
     if task_lower == "mme":
