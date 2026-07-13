@@ -39,7 +39,13 @@ NODES="${NODES:-1}"
 SIZE="${SIZE:-8b}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
 SKIP_MM_PROFILING="${VLLM_APERTUS_SKIP_MM_PROFILING:-}"
-ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
+# Image-token caching memoizes the discrete image->VQ-token conversion; it is
+# meaningless for continuous-encoder (foreign) models, so default it off there.
+if [[ "${FOREIGN_MODEL:-0}" == "1" ]]; then
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
+else
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
+fi
 IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
 SBATCH_TIME="${SBATCH_TIME:-04:00:00}"
 MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-29541}"

@@ -208,6 +208,14 @@ if [[ -n "$GEN_KWARGS_OVERRIDE" ]]; then GEN_KWARGS="$GEN_KWARGS_OVERRIDE"; fi
 # 4 concurrent writers via WAL with sub-ms lock overhead.
 NUM_PROCESSES="${NUM_PROCESSES:-$SIZE_NUM_PROCESSES}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
+# The image-token cache memoizes the discrete image->VQ-token conversion shared
+# by every Apertus checkpoint; foreign continuous-encoder models run once and
+# have nothing to amortize.
+if [[ "${MODEL_BACKEND:-apertus_1p5_vllm}" == apertus* ]]; then
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
+else
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
+fi
 
 # WandB config
 ENABLE_WANDB="${ENABLE_WANDB:-false}"
@@ -304,7 +312,7 @@ while IFS= read -r TASK; do
       --num-processes "$NUM_PROCESSES"
       --batch-size "$BATCH_SIZE"
       --gen-kwargs "$GEN_KWARGS"
-      --enable-image-token-cache true
+      --enable-image-token-cache "$ENABLE_IMAGE_TOKEN_CACHE"
       --image-token-cache-dir "$TASK_CACHE_DIR"
       --image-token-cache-mode "$MODE"
       --enable-wandb "$ENABLE_WANDB"
