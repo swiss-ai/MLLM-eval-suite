@@ -16,6 +16,10 @@ def is_main_metric(metric: str) -> bool:
     return not ("stderr" in lowered or "_clt" in lowered or "_clustered" in lowered)
 
 
+# Fraction of failed grader calls above which a graded score is void.
+MAX_GRADER_FAILURE = 0.05
+
+
 # Task-specific headline metrics. Order matters: more specific task names must
 # precede broader substring matches such as seedbench and 3dsrbench.
 TASK_METRIC_PRIORITY: list[tuple[str, tuple[str, ...]]] = [
@@ -133,9 +137,9 @@ def pick_headline_metric(task: str, metrics: dict[str, Any]) -> tuple[str | None
     # A graded score is meaningless when the grader itself failed; same
     # contract as the VLMEvalKit judge-failure guard in derive_vlmeval_acc.
     for key, value in metrics.items():
-        if "grader_failure_rate" in key and "stderr" not in key:
-            if isinstance(value, (int, float)) and value > 0.05:
-                return None, None
+        if (metric_display_name(key).endswith("grader_failure_rate") and is_main_metric(key)
+                and isinstance(value, (int, float)) and value > MAX_GRADER_FAILURE):
+            return None, None
 
     # MME headline = full score (perception + cognition). A perception-only
     # headline drops the reasoning half and undersells thinking checkpoints.
