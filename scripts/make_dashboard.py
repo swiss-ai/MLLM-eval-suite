@@ -219,7 +219,7 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
     data = rows[1:]
 
     def scale(value: float) -> float:
-        return value * 100 if value <= 1.0 else value
+        return value * 100 if 0 <= value <= 1.0 else value
 
     if len(header) == 2 and header[1] == "value":
         cells = {_vk_norm(r[0]): r[1] for r in data if len(r) >= 2}
