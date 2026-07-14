@@ -22,14 +22,15 @@ apertus-1.5-70b-sft-rl-dpo-sdpo=70B-SDPO
 apertus-1.5-70b-sft-rl-dpo-sdpo [thinking-32k]=70B-SDPO (think)
 
 # group: Baselines
+# Grouped by family, then chronological/size within family.
+qwen2.5-vl-7b-instruct=Qwen2.5-VL-7B
 qwen3-vl-8b-instruct=Qwen3-VL-8B
-molmo2-8b=Molmo2-8B
 molmo-7b-d-0924=Molmo-7B-D
+molmo-7b-o-0924=Molmo-7B-O
+molmo2-8b=Molmo2-8B
 gemma3-27b|gemma-3-27b-it=Gemma3-27B
 gemma4-12b-it|gemma-4-12b-it=Gemma4-12B
 gemma4-26b-a4b-it|gemma-4-26b-a4b-it=Gemma4-26B-A4B
-molmo-7b-o-0924=Molmo-7B-O
-eurovlm-9b-preview=EuroVLM-9B
-qwen2.5-vl-7b-instruct=Qwen2.5-VL-7B
 pixtral-12b=Pixtral-12B
+eurovlm-9b-preview=EuroVLM-9B
 emu3-chat=Emu3-Chat
