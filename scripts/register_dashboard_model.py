@@ -45,7 +45,7 @@ def scan() -> dict:
 
 
 def registered() -> dict[str, str]:
-    only, labels, aliases = parse_models_manifest(MANIFEST)
+    only, labels, aliases, _groups = parse_models_manifest(MANIFEST)
     label_of = dict(spec.split("=", 1) for spec in labels)
     reg = {key: label_of[key] for key in only}
     reg.update({alias: label_of[primary] for alias, primary in aliases.items()})

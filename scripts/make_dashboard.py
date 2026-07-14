@@ -147,15 +147,22 @@ def canonical_model_key(name: str) -> str:
     return f"{key} [{mode}]" if mode else key
 
 
-def parse_models_manifest(path: Path) -> tuple[list, list, dict]:
+def parse_models_manifest(path: Path) -> tuple[list, list, dict, dict]:
     """Parse dashboard_models.txt: 'key[|alias...]=Label' lines, # comments.
 
-    Returns (only_keys, label_specs, alias_map) where alias_map sends each
-    alias key to its primary (foreign models whose lmms label and VLMEvalKit
-    registry name canonicalize differently, e.g. gemma-3-27b-it vs gemma3-27b).
+    A '# group: Name' comment starts a selector section; subsequent keys
+    belong to it. Returns (only_keys, label_specs, alias_map, group_map)
+    where alias_map sends each alias key to its primary (foreign models whose
+    lmms label and VLMEvalKit registry name canonicalize differently, e.g.
+    gemma-3-27b-it vs gemma3-27b) and group_map sends each key to its section.
     """
-    only, labels, aliases = [], [], {}
+    only, labels, aliases, groups = [], [], {}, {}
+    group = "Models"
     for raw in path.read_text().splitlines():
+        stripped = raw.strip()
+        if stripped.lower().startswith("# group:"):
+            group = stripped.split(":", 1)[1].strip() or group
+            continue
         line = raw.split("#", 1)[0].strip()
         if not line or "=" not in line:
             continue
@@ -163,9 +170,10 @@ def parse_models_manifest(path: Path) -> tuple[list, list, dict]:
         keys = [k.strip() for k in keypart.split("|")]
         only.append(keys[0])
         labels.append(f"{keys[0]}={label.strip()}")
+        groups[keys[0]] = group
         for alias in keys[1:]:
             aliases[alias] = keys[0]
-    return only, labels, aliases
+    return only, labels, aliases, groups
 
 
 # VLMEvalKit dataset dir -> canonical task name, restricted to the benchmarks
@@ -175,7 +183,7 @@ VK_OWNED_TASKS = {
     "BLINK": "blink", "MUIRBench": "muirbench", "EmbSpatialBench": "embspatial",
     "MMSIBench_wo_circular": "mmsi_bench", "3DSRBench": "3dsrbench",
     "CV-Bench-2D": "cv_bench_2d", "CV-Bench-3D": "cv_bench_3d", "ERQA": "erqa",
-    "MindCubeBench_tiny_raw_qa": "mindcube", "OmniSpatialBench_default": "omnispatial",
+    "MindCubeBench_tiny_raw_qa": "mindcube",
     "OmniSpatialBench_manual_cot": "omnispatial_manual_cot",
     "SparBench": "sparbench", "SiteBenchImage": "site_bench", "ViewSpatialBench": "viewspatial",
     "VSI-Bench-Debiased": "vsibench_debiased", "VSI-Bench-Debiased_32frame": "vsibench_debiased", "RefSpatial_wo_unseen": "refspatial",
@@ -462,12 +470,16 @@ h1 { font-size: clamp(26px, 3.5vw, 40px); font-weight: 500; letter-spacing: -.01
   border-bottom: 1px solid var(--hair); background: var(--paper-2);
 }
 .picker-head .lbl { font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.picker-head button {
+.picker-head button, .chip-group-head button {
   font: 11px ui-monospace, Menlo, monospace; color: var(--ink); background: none;
   border: 1px solid var(--hair); padding: 3px 10px; cursor: pointer;
 }
-.picker-head button:hover { border-color: var(--red); color: var(--red); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px; max-height: 170px; overflow: auto; }
+.picker-head button:hover, .chip-group-head button:hover { border-color: var(--red); color: var(--red); }
+.chip-group-head button { padding: 1px 8px; font-size: 10px; }
+.chips { padding: 6px 14px 12px; max-height: 230px; overflow: auto; }
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 6px; }
+.chip-group-head { flex-basis: 100%; display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.chip-group-head .lbl { font-size: 11px; }
 .chip {
   display: inline-flex; align-items: center; gap: 7px;
   font: 11.5px ui-monospace, Menlo, monospace;
@@ -622,13 +634,31 @@ const visRows = () => {
 };
 
 function renderChips() {
-  document.getElementById("chips").innerHTML = D.models.map(m =>
+  const groupNames = [];
+  for (const m of D.models) {
+    const g = D.groups[m] || "Models";
+    if (!groupNames.includes(g)) groupNames.push(g);
+  }
+  const chipHtml = m =>
     `<span class="chip ${state.sel.has(m) ? "on" : ""}" data-m="${m}" style="--c:${color[m]}" title="${m}">` +
-    `<span class="dot"></span>${D.labels[m]} <span class="cov">${coverage[m]}</span></span>`).join("");
+    `<span class="dot"></span>${D.labels[m]} <span class="cov">${coverage[m]}</span></span>`;
+  document.getElementById("chips").innerHTML = groupNames.map(g => {
+    const members = D.models.filter(m => (D.groups[m] || "Models") === g);
+    return `<div class="chip-group"><div class="chip-group-head"><span class="lbl">${g}</span>` +
+      `<button class="grp-all" data-g="${g}">all</button><button class="grp-none" data-g="${g}">none</button></div>` +
+      members.map(chipHtml).join("") + `</div>`;
+  }).join("");
   document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
     const m = c.dataset.m;
     state.sel.has(m) ? state.sel.delete(m) : state.sel.add(m);
     renderAll();
+  });
+  const grpMembers = g => D.models.filter(m => (D.groups[m] || "Models") === g);
+  document.querySelectorAll(".grp-all").forEach(b => b.onclick = () => {
+    grpMembers(b.dataset.g).forEach(m => state.sel.add(m)); renderAll();
+  });
+  document.querySelectorAll(".grp-none").forEach(b => b.onclick = () => {
+    grpMembers(b.dataset.g).forEach(m => state.sel.delete(m)); renderAll();
   });
   document.getElementById("selcount").textContent = `${state.sel.size}/${D.models.length} selected`;
 }
@@ -718,7 +748,9 @@ function renderMatrix() {
   }
   document.getElementById("matrix").innerHTML = rows.length
     ? h + "</tbody>"
-    : `<tbody><tr><td class="nodata">no ${state.mod} benchmarks yet</td></tr></tbody>`;
+    : `<tbody><tr><td class="nodata">${state.sel.size
+        ? `no ${state.mod} benchmarks yet`
+        : "no models selected — pick Apertus checkpoints and baselines above"}</td></tr></tbody>`;
   const thd = document.querySelector("#matrix thead");
   if (thd) document.getElementById("matrix-view").style.setProperty("--thead-h", thd.offsetHeight + "px");
   document.querySelectorAll("thead th").forEach(th => th.onclick = () => {
@@ -786,8 +818,9 @@ def main():
     args = p.parse_args()
 
     aliases: dict = {}
+    model_groups: dict = {}
     if args.models_file:
-        args.only, args.label, aliases = parse_models_manifest(args.models_file)
+        args.only, args.label, aliases, model_groups = parse_models_manifest(args.models_file)
 
     models_l: list[str] = []
     table_l: list[dict] = []
@@ -844,7 +877,7 @@ def main():
     # Pre-select the best-covered checkpoints so the page opens with a
     # meaningful comparison instead of every sparse column at once.
     coverage = {m: sum(1 for r in cells_rows if m in r["cells"]) for m in models}
-    default_selected = models if args.only else sorted(models, key=lambda m: -coverage[m])[:5]
+    default_selected = [] if model_groups else sorted(models, key=lambda m: -coverage[m])[:5]
     data = {
         "models": models,
         "labels": labels,
@@ -852,6 +885,7 @@ def main():
         "categories": categories,
         "modality": {c: m for c, m in CATEGORY_MODALITY.items() if m != "vision"},
         "defaultSelected": default_selected,
+        "groups": {m: model_groups.get(m, "Models") for m in models},
     }
     n_vk = sum(1 for r in cells_rows if r["framework"] == "VLMEvalKit")
     sources = f"lmms-eval ({len(cells_rows) - n_vk} rows)" + (f" · VLMEvalKit ({n_vk} rows)" if n_vk else "")

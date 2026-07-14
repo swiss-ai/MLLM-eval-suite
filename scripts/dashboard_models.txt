@@ -7,7 +7,7 @@
 # key against actual results before it can land here); refresh_dashboard.sh
 # reads this file. Comments and blank lines are ignored.
 
-# Apertus checkpoints
+# group: Apertus checkpoints
 sft-capfilter-constant-it8816=it8816-const
 sft-256k-4200=SFT-4200
 sft-256k-4200 [thinking-32k]=SFT-4200 (think)
@@ -21,7 +21,7 @@ ap1p5-70b-sft-262k-2700 [thinking-32k]=70B-2700 (think)
 apertus-1.5-70b-sft-rl-dpo-sdpo=70B-SDPO
 apertus-1.5-70b-sft-rl-dpo-sdpo [thinking-32k]=70B-SDPO (think)
 
-# Foreign baselines
+# group: Baselines
 qwen3-vl-8b-instruct=Qwen3-VL-8B
 molmo2-8b=Molmo2-8B
 molmo-7b-d-0924=Molmo-7B-D
