@@ -338,8 +338,11 @@ while IFS= read -r TASK; do
       bash "$SLURM_TEMPLATE" "${JOB_ARGS[@]}" >"$JOB_OUTPUT" 2>"$JOB_ERROR"
     else
       echo "    submit: sbatch ${SLURM_TEMPLATE}"
+      TIME_ARGS=()
+      [[ -n "${SBATCH_TIME:-}" ]] && TIME_ARGS=(--time "${SBATCH_TIME}")
       sbatch \
         "${SBATCH_OVERRIDES[@]}" \
+        "${TIME_ARGS[@]}" \
         --output "$JOB_OUTPUT" \
         --error  "$JOB_ERROR" \
         "$SLURM_TEMPLATE" \
