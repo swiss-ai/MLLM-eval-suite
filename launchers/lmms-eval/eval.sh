@@ -2,7 +2,7 @@
 # eval.sh — Apertus VLM eval CLI (per-task SQLite cache, single user entry point).
 #
 # Usage:
-#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval|geospatial-full|geospatial-smoke] [--mode fill|readonly] [--submit-mode batch|interactive] [--help]
+#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval|visual-llm-judge|geospatial-full|geospatial-smoke] [--mode fill|readonly] [--submit-mode batch|interactive] [--help]
 #
 # <model> forms:
 #   /path/to/ckpt                       single path
@@ -11,7 +11,9 @@
 #
 # --tasks   comma-separated, @file.txt, or direct path to a suite file.
 # --suite   named curation: full (default), smoke, audio-full, audio-smoke, audio-llm-eval,
-#           geospatial-full, geospatial-smoke.
+#           visual-llm-judge, geospatial-full, geospatial-smoke.
+#           visual-llm-judge holds the judge-scored visual tasks; it is disjoint
+#           from full and the launcher refuses to submit it without a judge.
 # --mode    fill|readonly. Both modes use the shared cache directly with preload
 #           on and writes enabled.
 # --size         8b|70b parallelism profile: 8b = 4 DP workers (TP=1); 70b = 1 worker,
@@ -66,6 +68,7 @@ SUITE_FULL="${SUITE_FULL:-${SUITE_DIR}/visual_full.txt}"
 SUITE_AUDIO_SMOKE="${SUITE_AUDIO_SMOKE:-${SUITE_DIR}/audio_smoke.txt}"
 SUITE_AUDIO_FULL="${SUITE_AUDIO_FULL:-${SUITE_DIR}/audio_full.txt}"
 SUITE_AUDIO_LLM_EVAL="${SUITE_AUDIO_LLM_EVAL:-${SUITE_DIR}/audio_llm_eval.txt}"
+SUITE_VISUAL_LLM_JUDGE="${SUITE_VISUAL_LLM_JUDGE:-${SUITE_DIR}/visual_llm_judge.txt}"
 SUITE_GEOSPATIAL_FULL="${SUITE_GEOSPATIAL_FULL:-${SUITE_DIR}/geospatial_full.txt}"
 SUITE_GEOSPATIAL_SMOKE="${SUITE_GEOSPATIAL_SMOKE:-${SUITE_DIR}/geospatial_smoke.txt}"
 
@@ -158,12 +161,35 @@ else
     audio-full) TASKS=$(resolve_list "$SUITE_AUDIO_FULL") ;;
     audio-smoke) TASKS=$(resolve_list "$SUITE_AUDIO_SMOKE") ;;
     audio-llm-eval) TASKS=$(resolve_list "$SUITE_AUDIO_LLM_EVAL") ;;
+    visual-llm-judge) TASKS=$(resolve_list "$SUITE_VISUAL_LLM_JUDGE") ;;
     geospatial-full) TASKS=$(resolve_list "$SUITE_GEOSPATIAL_FULL") ;;
     geospatial-smoke) TASKS=$(resolve_list "$SUITE_GEOSPATIAL_SMOKE") ;;
-    *) echo "--suite must be full|smoke|audio-full|audio-smoke|audio-llm-eval|geospatial-full|geospatial-smoke (got: $SUITE)" >&2; exit 1 ;;
+    *) echo "--suite must be full|smoke|audio-full|audio-smoke|audio-llm-eval|visual-llm-judge|geospatial-full|geospatial-smoke (got: $SUITE)" >&2; exit 1 ;;
   esac
 fi
 [[ -z "$TASKS" ]] && { echo "no tasks resolved" >&2; exit 1; }
+
+# Judge-scored tasks silently mark every sample wrong when the judge is absent
+# (dummy provider, or a client that never constructs). Fail loud instead, the
+# same contract the VLMEvalKit launcher enforces. ALLOW_NO_JUDGE=1 overrides.
+if [[ -f "$SUITE_VISUAL_LLM_JUDGE" && "${ALLOW_NO_JUDGE:-0}" != "1" ]]; then
+  JUDGE_HITS="$(comm -12 <(echo "$TASKS" | sort -u) <(resolve_list "@${SUITE_VISUAL_LLM_JUDGE}" | sort -u) || true)"
+  if [[ -n "$JUDGE_HITS" ]]; then
+    for t in $JUDGE_HITS; do
+      case "$t" in
+        babyvision)
+          [[ -n "${BABYVISION_API_KEY:-}" ]] || { echo "ERROR: task 'babyvision' needs BABYVISION_API_KEY (set ALLOW_NO_JUDGE=1 to override)" >&2; exit 1; } ;;
+        healthbench)
+          [[ -n "${HEALTHBENCH_GRADER_BASE_URL:-}" ]] || { echo "ERROR: task 'healthbench' needs HEALTHBENCH_GRADER_BASE_URL (a live grader endpoint)" >&2; exit 1; } ;;
+        *)
+          if [[ "${API_TYPE:-}" != "openai" || -z "${OPENAI_API_KEY:-}" ]]; then
+            echo "ERROR: judge task '$t' needs API_TYPE=openai and OPENAI_API_KEY; without them it is scored by the dummy judge (all-zero)." >&2
+            exit 1
+          fi ;;
+      esac
+    done
+  fi
+fi
 
 # ------------------------------------------------------------------
 # Container-environment fixes for sbatch from inside Pyxis container.
