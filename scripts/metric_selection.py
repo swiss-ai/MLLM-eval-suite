@@ -49,6 +49,9 @@ TASK_METRIC_PRIORITY: list[tuple[str, tuple[str, ...]]] = [
     ("blink", ("blink_acc",)),
     ("cv_bench", ("cv_bench_acc",)),
     # Other locally important multi-metric benchmarks.
+    # generative MMLU: pin the flexible filter. strict-match does no answer
+    # extraction at all and scores 0.0 for every model.
+    ("mmlu_medical", ("exact_match,flexible-extract", "exact_match")),
     ("seedbench_2_plus", ("seedbench_2_plus_all",)),
     ("seedbench", ("seed_image", "seed_all")),  # image-only headline (skip video dims)
     ("mmstar", ("average",)),
@@ -100,6 +103,14 @@ def _numeric_metric(metrics: dict[str, Any], wanted: str) -> tuple[str, float] |
     nested_key = ""
     if wanted.startswith(("accuracy_by_task.", "accuracy_by_topic.")):
         wanted_metric, _, nested_key = wanted.partition(".")
+    # A wanted name carrying a filter ("exact_match,flexible-extract") pins that
+    # filter; otherwise filters share a display name and the winner would be
+    # whichever the harness happened to serialize first.
+    if "," in wanted_metric:
+        for metric, value in metrics.items():
+            if metric == wanted_metric and isinstance(value, (int, float)):
+                return metric_display_name(metric), float(value)
+        return None
     for metric, value in metrics.items():
         if not is_main_metric(metric):
             continue
