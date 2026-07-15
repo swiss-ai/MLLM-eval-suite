@@ -60,6 +60,9 @@ def framework_for(task: str) -> str:
 # ok_vqa / simplevqa (low-signal, not widely reported), and refspatial (a true
 # zero-shot floor — Apertus never trained on it; points parse but always ~0).
 DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial", "mathvista_testmini", "logicvista_reasoning",
+                         # lmms duplicate of the VLMEvalKit-owned HallusionBench row
+                         # (VK runs the judge; the lmms copy scored 0.0 keyless).
+                         "hallusion_bench_image",
                          # n-gram captioning metrics (CIDEr/BLEU) measure prompt-style overlap, not
                          # caption quality, on free-form RS output; results stay on disk.
                          # Run/schedule policy lives in task_suites/*; entries here only
