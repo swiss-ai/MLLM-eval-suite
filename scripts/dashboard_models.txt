@@ -19,6 +19,7 @@ ap1p5-70b-sft-262k-2700=70B-2700
 ap1p5-70b-sft-262k-2700 [thinking-32k]=70B-2700 (think)
 apertus-1.5-70b-sft-rl-dpo-sdpo=70B-SDPO
 apertus-1.5-70b-sft-rl-dpo-sdpo [thinking-32k]=70B-SDPO (think)
+apertus-1.5-70b-sft-rl-dpo-final=70B-FINAL
 
 # group: Baselines
 # Grouped by family, then chronological/size within family.
@@ -34,4 +35,3 @@ gemma4-26b-a4b-it|gemma-4-26b-a4b-it=Gemma4-26B-A4B
 pixtral-12b=Pixtral-12B
 eurovlm-9b-preview=EuroVLM-9B
 emu3-chat=Emu3-Chat
-apertus-1.5-70b-sft-rl-dpo-final=70B-FINAL
