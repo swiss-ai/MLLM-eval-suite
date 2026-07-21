@@ -274,7 +274,7 @@ while IFS= read -r DATASET; do
 
   while IFS= read -r MODEL; do
     [[ -z "${MODEL}" ]] && continue
-    MODEL_SLUG="$(safe_name "${MODEL}")"
+    MODEL_SLUG="$(safe_name "$(basename "${MODEL}")")"
     JOB_NAME="vlmeval-${DATA_SLUG}"
     WORK_DIR="${WORK_BASE}/${MODEL_SLUG}/${DATA_SLUG}"
     if [[ "${SUBMIT_MODE}" == "interactive" ]]; then

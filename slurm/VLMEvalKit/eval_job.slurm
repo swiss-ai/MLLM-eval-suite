@@ -113,7 +113,7 @@ is_true() {
   esac
 }
 
-: "${WORK_DIR:=${WORK_BASE}/${MODEL}/${DATASET}}"
+: "${WORK_DIR:=${WORK_BASE}/$(basename "${MODEL}")/${DATASET}}"
 
 if [[ ! "${NUM_PROCESSES}" =~ ^[0-9]+$ || "${NUM_PROCESSES}" -lt 1 ]]; then
   echo "--num-processes must be a positive integer (got: ${NUM_PROCESSES})" >&2
