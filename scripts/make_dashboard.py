@@ -276,7 +276,14 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
                 return vk_name in name and not any(s in name for s in shadows)
 
             def by_mtime(paths):
-                return sorted(paths, key=lambda p: Path(p).stat().st_mtime)
+                def mtime(p):
+                    # transient judge artifacts in the shared outputs tree can
+                    # vanish between glob and stat
+                    try:
+                        return Path(p).stat().st_mtime
+                    except OSError:
+                        return 0.0
+                return sorted((p for p in paths if Path(p).exists()), key=mtime)
 
             all_accs, all_scores = [], []
             for bench_dir in bench_dirs:
