@@ -1,0 +1,274 @@
+{
+  "results": {
+    "mmstar": {
+      "alias": "mmstar",
+      "coarse perception,none": 0.37780476215616915,
+      "coarse perception_stderr,none": "N/A",
+      "coarse perception_stderr_clt,none": 0.03063032594455827,
+      "coarse perception_stderr_clustered,none": "N/A",
+      "average,none": 0.30879171168419445,
+      "average_stderr,none": "N/A",
+      "average_stderr_clt,none": 0.011909773715515534,
+      "average_stderr_clustered,none": "N/A",
+      "fine-grained perception,none": 0.23358511422254977,
+      "fine-grained perception_stderr,none": "N/A",
+      "fine-grained perception_stderr_clt,none": 0.026587432487268498,
+      "fine-grained perception_stderr_clustered,none": "N/A",
+      "instance reasoning,none": 0.31253150082436054,
+      "instance reasoning_stderr,none": "N/A",
+      "instance reasoning_stderr_clt,none": 0.029361067575219855,
+      "instance reasoning_stderr_clustered,none": "N/A",
+      "logical reasoning,none": 0.30185172363390184,
+      "logical reasoning_stderr,none": "N/A",
+      "logical reasoning_stderr_clt,none": 0.029462657598578648,
+      "logical reasoning_stderr_clustered,none": "N/A",
+      "math,none": 0.3142876236300454,
+      "math_stderr,none": "N/A",
+      "math_stderr_clt,none": 0.029933259094191533,
+      "math_stderr_clustered,none": "N/A",
+      "science & technology,none": 0.31268954563813983,
+      "science & technology_stderr,none": "N/A",
+      "science & technology_stderr_clt,none": 0.028328537274211415,
+      "science & technology_stderr_clustered,none": "N/A"
+    }
+  },
+  "group_subtasks": {
+    "mmstar": []
+  },
+  "configs": {
+    "mmstar": {
+      "task": "mmstar",
+      "tag": [
+        "public_eval_qwen3_5_family"
+      ],
+      "dataset_path": "Lin-Chen/MMStar",
+      "dataset_kwargs": {
+        "token": true
+      },
+      "test_split": "val",
+      "full_docs": false,
+      "process_results_use_image": false,
+      "doc_to_visual": "<function mmstar_doc_to_visual at 0x40043c2e2840>",
+      "doc_to_text": "<function mmstar_doc_to_text at 0x40043c2e1f80>",
+      "doc_to_target": "answer",
+      "process_results": "<function mmstar_process_results at 0x40043c2e0cc0>",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        {
+          "metric": "coarse perception",
+          "aggregation": "<function mmstar_aggregate_results at 0x40043c2e0720>",
+          "higher_is_better": true
+        },
+        {
+          "metric": "fine-grained perception",
+          "aggregation": "<function mmstar_aggregate_results at 0x40043c2e1440>",
+          "higher_is_better": true
+        },
+        {
+          "metric": "instance reasoning",
+          "aggregation": "<function mmstar_aggregate_results at 0x40043c2dbb00>",
+          "higher_is_better": true
+        },
+        {
+          "metric": "logical reasoning",
+          "aggregation": "<function mmstar_aggregate_results at 0x40043c2dae80>",
+          "higher_is_better": true
+        },
+        {
+          "metric": "science & technology",
+          "aggregation": "<function mmstar_aggregate_results at 0x40043c2dade0>",
+          "higher_is_better": true
+        },
+        {
+          "metric": "math",
+          "aggregation": "<function mmstar_aggregate_results at 0x40043c2d9ee0>",
+          "higher_is_better": true
+        },
+        {
+          "metric": "average",
+          "aggregation": "<function mmstar_aggregate_results at 0x40043c2d9580>",
+          "higher_is_better": true
+        }
+      ],
+      "output_type": "generate_until",
+      "generation_kwargs": {
+        "until": [
+          "\n\n"
+        ],
+        "do_sample": false,
+        "max_new_tokens": 2048,
+        "temperature": 0
+      },
+      "repeats": 1,
+      "should_decontaminate": false,
+      "score_key": "score",
+      "metadata": [
+        {
+          "version": 0.0
+        }
+      ],
+      "lmms_eval_specific_kwargs": {
+        "default": {
+          "pre_prompt": "",
+          "post_prompt": "\nAnswer with the option's letter from the given choices directly"
+        },
+        "qwen3_vl": {
+          "pre_prompt": "Question: ",
+          "post_prompt": "Answer with the option letter only."
+        },
+        "pre_prompt": "",
+        "post_prompt": "\nAnswer with the option's letter from the given choices directly"
+      }
+    }
+  },
+  "versions": {
+    "mmstar": "Yaml"
+  },
+  "n-shot": {
+    "mmstar": 0
+  },
+  "higher_is_better": {
+    "mmstar": {
+      "coarse perception": true,
+      "fine-grained perception": true,
+      "instance reasoning": true,
+      "logical reasoning": true,
+      "science & technology": true,
+      "math": true,
+      "average": true
+    }
+  },
+  "n-samples": {
+    "mmstar": {
+      "original": 1500,
+      "effective": 1500
+    }
+  },
+  "config": {
+    "model": "vllm",
+    "model_args": "model=allenai/Molmo-7B-D-0924,trust_remote_code=True,max_model_len=4096,max_num_batched_tokens=4096",
+    "batch_size": "512",
+    "batch_sizes": [],
+    "device": null,
+    "use_cache": null,
+    "limit": null,
+    "offset": 0,
+    "bootstrap_iters": 100000,
+    "gen_kwargs": {
+      "max_new_tokens": 2048,
+      "temperature": 0
+    },
+    "random_seed": 1234,
+    "numpy_seed": 1234,
+    "torch_seed": 1234,
+    "fewshot_seed": 1234,
+    "resolved_cli_args": {
+      "config": "",
+      "model": "vllm",
+      "tasks": "mmstar",
+      "model_args": "model=allenai/Molmo-7B-D-0924,trust_remote_code=True,max_model_len=4096,max_num_batched_tokens=4096",
+      "launcher_args": null,
+      "num_fewshot": null,
+      "batch_size": "512",
+      "max_batch_size": null,
+      "device": null,
+      "output_path": "/iopsstor/scratch/cscs/xyixuan/apertus/MLLM-eval-suite/results/lmms-eval/Molmo-7B-D-0924/20260722T062158Z_197465/mmstar",
+      "limit": null,
+      "offset": 0,
+      "use_cache": null,
+      "cache_requests": null,
+      "check_integrity": false,
+      "write_out": false,
+      "log_samples": true,
+      "wandb_log_samples": false,
+      "log_samples_suffix": "vllm_prod",
+      "system_instruction": null,
+      "apply_chat_template": false,
+      "fewshot_as_multiturn": false,
+      "show_config": false,
+      "include_path": null,
+      "gen_kwargs": "max_new_tokens=2048,temperature=0",
+      "reasoning_tags": "[[\"<think>\", \"</think>\"], [\"<analysis>\", \"</analysis>\"]]",
+      "verbosity": "INFO",
+      "wandb_args": "",
+      "timezone": "Asia/Singapore",
+      "hf_hub_log_args": ",output_path=/iopsstor/scratch/cscs/xyixuan/apertus/MLLM-eval-suite/results/lmms-eval/Molmo-7B-D-0924/20260722T062158Z_197465/mmstar,token=hf_REDACTED",
+      "predict_only": false,
+      "seed": [
+        1234,
+        1234,
+        1234,
+        1234
+      ],
+      "trust_remote_code": false,
+      "process_with_media": false,
+      "agentic_trace_mode": "basic",
+      "force_simple": false,
+      "tui": false,
+      "repeats": 1,
+      "baseline": null,
+      "max_tokens": null,
+      "power_analysis": false,
+      "effect_size": 0.03,
+      "alpha": 0.05,
+      "power": 0.8,
+      "correlation": 0.5,
+      "std_a": null,
+      "std_b": null
+    }
+  },
+  "git_hash": null,
+  "git_branch": null,
+  "lmms_eval_version": "unknown@unknown",
+  "date": "20260722_142256",
+  "throughput": {
+    "total_gen_tokens": 5769,
+    "total_elapsed_time": 26.554153203964233,
+    "avg_speed": 217.2541506290155,
+    "avg_ttft": 8.657961208343506,
+    "avg_tpot": 0.13780547399875787,
+    "avg_rank": 0.0
+  },
+  "usage": {},
+  "efficiency": {
+    "by_task": {
+      "mmstar": {
+        "docs": 1500.0,
+        "docs_with_token_counts": 0.0,
+        "total_input_tokens": 0.0,
+        "total_output_tokens": 0.0,
+        "total_tokens": 0.0,
+        "total_correct_score": 0.0,
+        "avg_output_tokens_per_sample": 0.0,
+        "tokens_per_correct_answer": null
+      }
+    },
+    "overall": {
+      "docs": 1500.0,
+      "docs_with_token_counts": 0.0,
+      "total_input_tokens": 0.0,
+      "total_output_tokens": 0.0,
+      "total_tokens": 0.0,
+      "total_correct_score": 0.0,
+      "avg_output_tokens_per_sample": 0.0,
+      "tokens_per_correct_answer": null
+    }
+  },
+  "task_hashes": {
+    "mmstar": "74585533388c8f519af743fcfa952aa1c2e0ee4d6276c19dbc440b945501266c"
+  },
+  "model_source": "vllm",
+  "model_name": "allenai/Molmo-7B-D-0924",
+  "model_name_sanitized": "allenai__Molmo-7B-D-0924",
+  "system_instruction": null,
+  "system_instruction_sha": null,
+  "fewshot_as_multiturn": false,
+  "chat_template": null,
+  "chat_template_sha": null,
+  "start_time": 1016036.035080684,
+  "end_time": 1016164.835916975,
+  "total_evaluation_time_seconds": "128.80083629104774"
+}

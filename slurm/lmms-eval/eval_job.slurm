@@ -229,12 +229,11 @@ fi
 # judge-intended submissions opt in with API_TYPE=openai.
 export API_TYPE="${API_TYPE:-dummy}"
 export PATH="/opt/venv/bin:${PATH}"
-# Optional dev-tree override: prepend a user-local lmms-eval checkout to PYTHONPATH
-# so changes in dev are picked up without writing to the shared prod tree.
-# Usage: LMMS_EVAL_DEV_PATH=/path/to/your/lmms-eval bash scripts/eval.sh ...
-LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH:-}"
+# The submodule checkout is authoritative; the container ships an older copy at
+# ${LMMS_EVAL_REPO} that silently shadows our task and metric fixes otherwise.
+# Set LMMS_EVAL_DEV_PATH= (empty) to run the container's copy instead.
+LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH-${ORCH_REPO_ROOT}/third_party/lmms-eval}"
 if [[ -n "${LMMS_EVAL_DEV_PATH}" ]]; then
-  echo "PYTHONPATH dev-tree override: ${LMMS_EVAL_DEV_PATH}"
   export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${LMMS_EVAL_REPO}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
 else
   export PYTHONPATH="${LMMS_EVAL_REPO}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
@@ -251,6 +250,10 @@ export NLTK_DATA="${NLTK_DATA_PATH}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME_PATH}"
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT_PATH}"
 export LMMS_EVAL_MODELS_CACHE="${LMMS_EVAL_MODELS_CACHE_PATH}"
+# Prepared arrow + extracted archives on shared storage; unset, lmms-eval falls
+# back to node-local scratch and every fresh node re-extracts the datasets.
+BENCHMARK_DATA_ROOT="${BENCHMARK_DATA_ROOT:-/capstor/store/cscs/swissai/infra01/vision-datasets/benchmark}"
+export LMMS_EVAL_DATASETS_CACHE="${LMMS_EVAL_DATASETS_CACHE:-${BENCHMARK_DATA_ROOT}/lmms_eval_datasets_cache}"
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export TOKENIZERS_PARALLELISM=false
@@ -340,7 +343,7 @@ if [[ "${NUM_GPUS}" -lt "${NUM_PROCESSES}" ]]; then
   exit 1
 fi
 
-mkdir -p "${OUTPUT_PATH}" "${NLTK_DATA}" "${LOG_DIR}" "${HF_HOME}" "${XDG_CACHE_HOME}" "${VLLM_CACHE_ROOT}" "${LMMS_EVAL_MODELS_CACHE}"
+mkdir -p "${OUTPUT_PATH}" "${NLTK_DATA}" "${LOG_DIR}" "${HF_HOME}" "${XDG_CACHE_HOME}" "${VLLM_CACHE_ROOT}" "${LMMS_EVAL_MODELS_CACHE}" "${LMMS_EVAL_DATASETS_CACHE}"
 
 # Ensure ANTLR runtime version expected by OmegaConf/Emu3.5 tokenizer path.
 # This keeps jobs robust even if the base image has a newer incompatible ANTLR.
@@ -410,6 +413,17 @@ if [[ "${MODEL_BACKEND}" != apertus* ]]; then
   # BAAI/Emu3-Chat).
   MODEL_ARGS="${EXTRA_MODEL_ARGS}"
   EXTRA_MODEL_ARGS=""
+  # Without this the wrapper falls back to its own default checkpoint and the run
+  # silently evaluates a different model than --model-path names.
+  if [[ "${MODEL_ARGS}" != *model=* ]]; then
+    MODEL_ARGS="model=${MODEL_PATH}${MODEL_ARGS:+,${MODEL_ARGS}}"
+  fi
+  # Gemma 3's encoder is fixed at 896x896, so high-resolution pages are squashed
+  # until pan-and-scan tiles them; the shipped preprocessor leaves it off while
+  # the published scores assume it on (InfoVQA 52.6 -> 68.7 here).
+  if [[ "${MODEL_PATH}" == *gemma-3* && "${MODEL_ARGS}" != *do_pan_and_scan* ]]; then
+    MODEL_ARGS="${MODEL_ARGS:+${MODEL_ARGS},}mm_processor_kwargs={\"do_pan_and_scan\":true}"
+  fi
 else
 MODEL_ARGS="model=${MODEL_PATH},tokenizer=${TOKENIZER_PATH},tensor_parallel_size=1,gpu_memory_utilization=${GPU_MEMORY_UTILIZATION},trust_remote_code=${TRUST_REMOTE_CODE},max_model_len=${MAX_MODEL_LEN},hf_overrides=${HF_OVERRIDES}"
 MODEL_ARGS="${MODEL_ARGS},max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS},enable_prefix_caching=${ENABLE_PREFIX_CACHING},enforce_eager=${ENFORCE_EAGER},skip_mm_profiling=True"
@@ -509,6 +523,8 @@ fi
 echo "========== lmms-eval prod launch =========="
 echo "VLLM_REPO=${VLLM_REPO}"
 echo "LMMS_EVAL_REPO=${LMMS_EVAL_REPO}"
+echo "LMMS_EVAL_RESOLVED=$(python -c 'import lmms_eval,os;print(os.path.dirname(lmms_eval.__file__))' 2>/dev/null || echo '<import failed>')"
+echo "LMMS_EVAL_COMMIT=$(git -C "${LMMS_EVAL_DEV_PATH:-${LMMS_EVAL_REPO}}" rev-parse --short HEAD 2>/dev/null || echo '<unknown>')"
 echo "MODEL_PATH=${MODEL_PATH}"
 echo "TOKENIZER_PATH=${TOKENIZER_PATH}"
 echo "CHAT_TEMPLATE=${CHAT_TEMPLATE:-<tokenizer default>}"

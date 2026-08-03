@@ -297,6 +297,21 @@ while IFS= read -r TASK; do
       continue
     fi
 
+    # A gated repo we cannot read 401s at load time, which slurm records as a
+    # two-minute COMPLETED with no score. Check the hub before spending an
+    # allocation, against the same HF_HOME the job will use.
+    if [[ ! -d "$MODEL_PATH" ]]; then
+      if ! HF_HOME="${HF_HOME:-${ORCH_REPO_ROOT}/cache/hf}" python3 - "$MODEL_PATH" <<'PYEOF' 2>/dev/null
+import sys
+from huggingface_hub import auth_check
+auth_check(sys.argv[1])
+PYEOF
+      then
+        echo "ERROR: no read access to '$MODEL_PATH' (gated repo, or no token at \$HF_HOME/token); skipping" >&2
+        continue
+      fi
+    fi
+
     # Derive a stable model label: parent dir name if path ends in /HF, else basename.
     MODEL_LABEL="$(basename "$MODEL_PATH")"
     [[ "$MODEL_LABEL" == "HF" ]] && MODEL_LABEL="$(basename "$(dirname "$MODEL_PATH")")"
