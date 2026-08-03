@@ -255,6 +255,14 @@ if [[ ! -f /etc/apertus_image_version ]]; then
   fi
 fi
 
+# Current images ship nltk but no tokenizer data; MM-IFEval's rule-based
+# verifiers need punkt_tab at judge time.
+export NLTK_DATA="${NLTK_DATA:-${RUNTIME_CACHE}/nltk_data}"
+if [[ ! -d "${NLTK_DATA}/tokenizers/punkt_tab" ]]; then
+  mkdir -p "${NLTK_DATA}"
+  "${PYTHON_BIN}" -c "import nltk; nltk.download('punkt_tab', download_dir='${NLTK_DATA}', quiet=True)" >&2 || true
+fi
+
 "${PYTHON_BIN}" - <<'PY'
 import os
 from pathlib import Path
