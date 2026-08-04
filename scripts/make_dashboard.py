@@ -49,7 +49,7 @@ EASI_SPATIAL_PREFIXES = (
 # Spatial-intelligence + multi-image benchmarks are owned by VLMEvalKit/EASI
 # (correct interleaving + EASI protocol); everything else by lmms-eval. The
 # badge shows which harness produced each benchmark's number, EASI-style.
-VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + ("muirbench",)
+VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + ("muirbench", "mm_ifeval", "mia_bench")
 
 
 def framework_for(task: str) -> str:
@@ -195,7 +195,7 @@ VK_OWNED_TASKS = {
     "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
     "ScreenSpot_v2": "screenspot_v2", "ScreenSpot_Pro": "screenspot_pro", "OSWorld_G": "osworld",
     "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
-    "LogicVista": "logicvista",
+    "LogicVista": "logicvista", "MM-IFEval": "mm_ifeval", "MIA-Bench": "mia_bench",
     "MMVet": "mmvet", "MIA-Bench": "mia_bench", "MMSafetyBench": "mm_safetybench",
     "CharXiv_descriptive_val": "charxiv_descriptive", "CharXiv_reasoning_val": "charxiv_reasoning",
 }
@@ -400,6 +400,7 @@ TAXONOMY = {
         "vsibench_debiased", "refspatial",
     ], "prefix": ["omnispatial", "3dsrbench"]},
     "Multi-Image": {"exact": ["muirbench", "blink"]},
+    "Instruction Following": {"exact": ["mm_ifeval", "mia_bench"]},
     "Counting & Grounding": {"exact": ["countbench", "pixmo_count"], "prefix": ["refcoco"]},
     "Docs, Charts & OCR": {"exact": [
         "docvqa_val", "infovqa_val", "chartqa", "charxiv_descriptive", "charxiv_reasoning",
