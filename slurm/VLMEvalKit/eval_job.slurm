@@ -232,28 +232,6 @@ if [[ "${NUM_GPUS}" -lt "${NEED_GPUS}" ]]; then
 fi
 
 # TODO(2026-08-01): drop this whole if/fi (and the marker check in the
-# Dockerfile) once /etc/apertus_image_version is baked into every cluster image
-# we run against. Tracked as "legacy-image overlay" cleanup.
-# Until then: pip install bs4/nltk and download wordnet at runtime because the
-# older container image is missing them. Persists to RUNTIME_CACHE so a job
-# that lands on a node with a warm cache skips the install + download.
-if [[ ! -f /etc/apertus_image_version ]]; then
-  PIP_OVERLAY="${RUNTIME_CACHE}/pip_pkgs"
-  export NLTK_DATA="${RUNTIME_CACHE}/nltk_data"
-  if [[ -d "${PIP_OVERLAY}/bs4" && -f "${NLTK_DATA}/corpora/wordnet.zip" ]]; then
-    echo "[preflight] legacy image detected; reusing cached bs4 + wordnet overlay" >&2
-    export PYTHONPATH="${PIP_OVERLAY}:${PYTHONPATH:-}"
-  else
-    echo "[preflight] legacy image detected; installing bs4 + wordnet overlay" >&2
-    mkdir -p "${PIP_OVERLAY}" "${NLTK_DATA}"
-    # Drop inherited PIP_CONSTRAINT from the base image (points at a non-existent
-    # /etc/pip/constraint.txt) for this isolated --target install only.
-    PIP_CONSTRAINT="" "${PYTHON_BIN}" -m pip install \
-      --quiet --target="${PIP_OVERLAY}" beautifulsoup4 nltk >&2
-    export PYTHONPATH="${PIP_OVERLAY}:${PYTHONPATH:-}"
-    "${PYTHON_BIN}" -c "import nltk; nltk.download('wordnet', download_dir='${NLTK_DATA}', quiet=True)" >&2
-  fi
-fi
 
 # Current images ship nltk but no tokenizer data; MM-IFEval's rule-based
 # verifiers need punkt_tab at judge time.
