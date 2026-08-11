@@ -174,6 +174,7 @@ if [[ -z "${FOREIGN_MODEL:-}" ]]; then
     *) FOREIGN_MODEL=1 ;;
   esac
 fi
+export FOREIGN_MODEL
 if [[ "${FOREIGN_MODEL}" == "1" ]]; then
   ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
 else
