@@ -240,7 +240,7 @@ else
 fi
 # Same hook as slurm/VLMEvalKit/eval_job.slurm: the container image sets its own
 # PYTHONPATH, so submission-env values are lost; EXTRA_PYTHONPATH survives and is
-# prepended (e.g. a staged newer transformers under cache/pylibs/).
+# prepended (e.g. a staged package the container build predates).
 if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
   export PYTHONPATH="${EXTRA_PYTHONPATH}:${PYTHONPATH}"
 fi
