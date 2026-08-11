@@ -320,3 +320,6 @@ RUN printf '%s\n' \
     '  /workspace/benchmark-audio-tokenizer (VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE)' \
     '  /workspace/benchmark-audio-tokenizer/src/repos/wavtokenizer (WAVTOKENIZER)' \
     > /etc/motd
+
+ARG BUILD_STAMP=unknown
+RUN echo "${BUILD_STAMP}" > /etc/apertus_image_version
