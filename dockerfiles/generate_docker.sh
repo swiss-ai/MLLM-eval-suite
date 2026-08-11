@@ -6,8 +6,13 @@ export IMG="apertus-vllm-vision-eval-prod"
 export SQSH="${SCRIPT_DIR}/apertus-vllm-vision-eval-prod.sqsh"
 export SQSH_DIR="${SCRIPT_DIR}"
 export BUILD_CTX="${SCRIPT_DIR}"
+# persistent layer cache: /dev/shm storage dies with each job, this survives on
+# scratch so unchanged strata (apt, torch, wheels) rebuild in minutes.
+export LAYER_CACHE="${LAYER_CACHE:-${SCRIPT_DIR}/build-cache}"
+mkdir -p "$LAYER_CACHE"
 
 podman build \
+  --layers --cache-to "$LAYER_CACHE" --cache-from "$LAYER_CACHE" \
   -v "$SQSH_DIR/empty.sources.list:/etc/apt/sources.list:ro,z" \
   -v "$SQSH_DIR/my-sources.d:/etc/apt/sources.list.d:ro,z" \
   -v "$SQSH_DIR/99-jfrog-proxy:/etc/apt/apt.conf.d/99-jfrog-proxy:ro,z" \
