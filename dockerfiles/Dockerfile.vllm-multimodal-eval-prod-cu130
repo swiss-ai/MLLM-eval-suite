@@ -87,11 +87,13 @@ WORKDIR /workspace
 
 RUN git clone https://github.com/swiss-ai/vllm.git /workspace/vllm && \
     cd /workspace/vllm && \
+    git fetch origin "${SWISS_AI_VLLM_COMMIT}" && \
     git checkout "${SWISS_AI_VLLM_COMMIT}" && \
     echo "vLLM branch: ${SWISS_AI_VLLM_BRANCH}" && \
     echo "vLLM commit: $(git rev-parse HEAD)"
 RUN git clone --branch "${TRANSFORMERS_BRANCH}" https://github.com/swiss-ai/transformers.git /workspace/transformers && \
     cd /workspace/transformers && \
+    git fetch origin "${TRANSFORMERS_COMMIT}" && \
     git checkout "${TRANSFORMERS_COMMIT}" && \
     echo "Transformers branch: ${TRANSFORMERS_BRANCH}" && \
     echo "Transformers commit: $(git rev-parse HEAD)"
