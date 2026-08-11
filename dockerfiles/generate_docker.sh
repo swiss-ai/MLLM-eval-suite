@@ -8,7 +8,7 @@ export SQSH_DIR="${SCRIPT_DIR}"
 export BUILD_CTX="${SCRIPT_DIR}"
 # persistent layer cache: /dev/shm storage dies with each job, this survives on
 # scratch so unchanged strata (apt, torch, wheels) rebuild in minutes.
-export LAYER_CACHE="${LAYER_CACHE:-${SCRIPT_DIR}/build-cache}"
+export LAYER_CACHE="${LAYER_CACHE:-/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/build-cache}"
 mkdir -p "$LAYER_CACHE"
 
 podman build \
