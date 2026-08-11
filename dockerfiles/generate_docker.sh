@@ -22,7 +22,10 @@ podman build \
 
 # import next to the current image, then rotate: the live sqsh is never
 # deleted until its replacement fully exists.
-enroot import -o "${SQSH}.new" "podman://$IMG"
+# enroot's podman:// handler exits 1 even after a successful import (temp-dir
+# cleanup bug), so success is judged by the artifact: the stamp must read back.
+enroot import -o "${SQSH}.new" "podman://$IMG" || echo "enroot import exited $? — verifying artifact"
+unsquashfs -cat "${SQSH}.new" /etc/apertus_image_version || { echo "import produced no valid image" >&2; exit 1; }
 if [ -f "$SQSH" ]; then mv -f "$SQSH" "${SQSH%.sqsh}-old.sqsh"; fi
 mv "${SQSH}.new" "$SQSH"
 echo "built: $SQSH  (previous kept as ${SQSH%.sqsh}-old.sqsh)"
