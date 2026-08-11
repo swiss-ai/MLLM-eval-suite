@@ -46,6 +46,7 @@ SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/lmms-eval/eval_job.slurm}"
 source "${ORCH_REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
 LMMS_CACHE_ROOT="${LMMS_CACHE_ROOT:-${REPO_ROOT}/cache/lmms-eval}"
 CACHE_BASE="${CACHE_BASE:-${LMMS_CACHE_ROOT}/image_token_cache}"
+declare -A HF_AUTH_CHECKED
 LOG_BASE="${LOG_DIR:-${REPO_ROOT}/logs/lmms-eval}"
 OUTPUT_PATH="${OUTPUT_PATH:-${REPO_ROOT}/results/lmms-eval}"
 HF_HOME_PATH="${HF_HOME:-${REPO_ROOT}/cache/hf}"
@@ -298,18 +299,20 @@ while IFS= read -r TASK; do
     fi
 
     # A gated repo we cannot read 401s at load time, which slurm records as a
-    # two-minute COMPLETED with no score. Check the hub before spending an
-    # allocation, against the same HF_HOME the job will use.
-    if [[ ! -d "$MODEL_PATH" ]]; then
-      if ! HF_HOME="${HF_HOME:-${ORCH_REPO_ROOT}/cache/hf}" python3 - "$MODEL_PATH" <<'PYEOF' 2>/dev/null
-import sys
-from huggingface_hub import auth_check
-auth_check(sys.argv[1])
-PYEOF
-      then
-        echo "ERROR: no read access to '$MODEL_PATH' (gated repo, or no token at \$HF_HOME/token); skipping" >&2
-        continue
+    # two-minute COMPLETED with no score. Check the hub once per model before
+    # spending an allocation, against the same HF_HOME the job will use.
+    if [[ ! -d "$MODEL_PATH" && -z "${HF_AUTH_CHECKED[$MODEL_PATH]:-}" ]]; then
+      if HF_HOME="$HF_HOME_PATH" python3 -c \
+          'import sys; from huggingface_hub import auth_check; auth_check(sys.argv[1])' \
+          "$MODEL_PATH" 2>/dev/null; then
+        HF_AUTH_CHECKED[$MODEL_PATH]=ok
+      else
+        HF_AUTH_CHECKED[$MODEL_PATH]=denied
       fi
+    fi
+    if [[ "${HF_AUTH_CHECKED[$MODEL_PATH]:-}" == "denied" ]]; then
+      echo "ERROR: no read access to '$MODEL_PATH' (gated repo, or no token at \$HF_HOME/token); skipping" >&2
+      continue
     fi
 
     # Derive a stable model label: parent dir name if path ends in /HF, else basename.

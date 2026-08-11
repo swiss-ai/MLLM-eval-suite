@@ -195,7 +195,7 @@ VK_OWNED_TASKS = {
     "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
     "ScreenSpot_v2": "screenspot_v2", "ScreenSpot_Pro": "screenspot_pro", "OSWorld_G": "osworld",
     "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
-    "LogicVista": "logicvista", "MM-IFEval": "mm_ifeval", "MIA-Bench": "mia_bench",
+    "LogicVista": "logicvista", "MM-IFEval": "mm_ifeval",
     "MMVet": "mmvet", "MIA-Bench": "mia_bench", "MMSafetyBench": "mm_safetybench",
     "CharXiv_descriptive_val": "charxiv_descriptive", "CharXiv_reasoning_val": "charxiv_reasoning",
 }
@@ -276,14 +276,15 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
                 return vk_name in name and not any(s in name for s in shadows)
 
             def by_mtime(paths):
-                def mtime(p):
-                    # transient judge artifacts in the shared outputs tree can
-                    # vanish between glob and stat
+                # transient judge artifacts in the shared outputs tree can
+                # vanish between glob and stat
+                stamped = []
+                for p in paths:
                     try:
-                        return Path(p).stat().st_mtime
+                        stamped.append((Path(p).stat().st_mtime, p))
                     except OSError:
-                        return 0.0
-                return sorted((p for p in paths if Path(p).exists()), key=mtime)
+                        continue
+                return [p for _, p in sorted(stamped)]
 
             all_accs, all_scores = [], []
             for bench_dir in bench_dirs:

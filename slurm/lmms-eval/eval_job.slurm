@@ -252,8 +252,7 @@ export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT_PATH}"
 export LMMS_EVAL_MODELS_CACHE="${LMMS_EVAL_MODELS_CACHE_PATH}"
 # Prepared arrow + extracted archives on shared storage; unset, lmms-eval falls
 # back to node-local scratch and every fresh node re-extracts the datasets.
-BENCHMARK_DATA_ROOT="${BENCHMARK_DATA_ROOT:-/capstor/store/cscs/swissai/infra01/vision-datasets/benchmark}"
-export LMMS_EVAL_DATASETS_CACHE="${LMMS_EVAL_DATASETS_CACHE:-${BENCHMARK_DATA_ROOT}/lmms_eval_datasets_cache}"
+export LMMS_EVAL_DATASETS_CACHE="${LMMS_EVAL_DATASETS_CACHE:-/capstor/store/cscs/swissai/infra01/vision-datasets/benchmark/lmms_eval_datasets_cache}"
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export TOKENIZERS_PARALLELISM=false
