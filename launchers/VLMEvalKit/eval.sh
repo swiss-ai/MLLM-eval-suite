@@ -39,13 +39,6 @@ NODES="${NODES:-1}"
 SIZE="${SIZE:-8b}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
 SKIP_MM_PROFILING="${VLLM_APERTUS_SKIP_MM_PROFILING:-}"
-# Image-token caching memoizes the discrete image->VQ-token conversion; it is
-# meaningless for continuous-encoder (foreign) models, so default it off there.
-if [[ "${FOREIGN_MODEL:-0}" == "1" ]]; then
-  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
-else
-  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
-fi
 IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
 SBATCH_TIME="${SBATCH_TIME:-04:00:00}"
 MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-29541}"
@@ -170,6 +163,22 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Image-token caching memoizes the discrete image->VQ-token conversion; it is
+# meaningless for continuous-encoder (foreign) models, so default it off there.
+# Runs after arg parsing so the decision sees the real model list, not the
+# Apertus default; an explicit --enable-image-token-cache always wins.
+if [[ -z "${FOREIGN_MODEL:-}" ]]; then
+  case "${MODELS_RAW}" in
+    Apertus*|/*|@*) FOREIGN_MODEL=0 ;;
+    *) FOREIGN_MODEL=1 ;;
+  esac
+fi
+if [[ "${FOREIGN_MODEL}" == "1" ]]; then
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
+else
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
+fi
 
 # Parallelism profile by model size, identical to the lmms-eval launcher: 8b
 # fits one GH200 (4 DP workers, TP=1); 70b shards one model across all 4 GPUs
