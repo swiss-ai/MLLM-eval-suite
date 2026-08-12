@@ -132,9 +132,9 @@ export PATH="/opt/venv/bin:${PATH}"
 # DP workers race on the shared torch.compile cache during CUDA-graph capture; compile independently.
 export VLLM_DISABLE_COMPILE_CACHE=1
 if [[ -d "${VLLM_REPO}" ]]; then
-  export PYTHONPATH="${REPO_DIR}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
+  export PYTHONPATH="${REPO_DIR}:${VLLM_REPO}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
 else
-  export PYTHONPATH="${REPO_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
+  export PYTHONPATH="${REPO_DIR}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
 fi
 # The container image sets its own PYTHONPATH, so submission-env values are
 # lost; EXTRA_PYTHONPATH survives and is prepended (e.g. a staged newer
