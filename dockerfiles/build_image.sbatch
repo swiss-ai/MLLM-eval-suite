@@ -1,4 +1,8 @@
 #!/bin/bash
+# Submit with SPANK vars cleared, or an outer container session injects
+# --environment and the build runs inside the eval image (no podman):
+#   for v in $(env | grep -oE '^SLURM_SPANK[A-Za-z_]*'); do unset $v; done
+#   sbatch --account=infra01 --reservation=<res> build_image.sbatch
 #SBATCH --job-name=build-eval-image
 #SBATCH --nodes=1
 #SBATCH --exclusive
