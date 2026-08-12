@@ -4,8 +4,7 @@ from functools import lru_cache
 
 from .tokenizer import ApertusImageTokenizer
 
-_init_lock = threading.Lock()
-_warm = False
+_encode_lock = threading.Lock()
 
 
 @lru_cache(maxsize=1)
@@ -35,15 +34,11 @@ def splice_frames(prompt, images, tokenizer):
     """Replace each image placeholder in `prompt` with its framed visual-token
     text from the Emu3.5 VQ tokenizer, so the engine only ever sees token ids.
     Fails loudly on placeholder/image count mismatch."""
-    global _warm
     image_tokenizer, mm_kwargs = _shared_state()
-    # The VQ tokenizer lazy-loads on first encode via a module-import dance
-    # that is not safe under concurrent first calls; serialize until warm.
-    if not _warm:
-        with _init_lock:
-            frames = image_tokenizer.encode_images(images, tokenizer=tokenizer, mm_processor_kwargs=mm_kwargs)
-            _warm = True
-    else:
+    # One encode in flight: the lazy first load's module-import dance is not
+    # thread-safe, and concurrent VQ forward passes OOM the GPU next to the
+    # engine. Callers' threads still parallelize PIL/template/tokenizer work.
+    with _encode_lock:
         frames = image_tokenizer.encode_images(images, tokenizer=tokenizer, mm_processor_kwargs=mm_kwargs)
     _TOKENIZERS[id(tokenizer)] = tokenizer
     aliases = _aliases_for(id(tokenizer))
