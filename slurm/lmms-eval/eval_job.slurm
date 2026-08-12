@@ -234,9 +234,9 @@ export PATH="/opt/venv/bin:${PATH}"
 # Set LMMS_EVAL_DEV_PATH= (empty) to run the container's copy instead.
 LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH-${ORCH_REPO_ROOT}/third_party/lmms-eval}"
 if [[ -n "${LMMS_EVAL_DEV_PATH}" ]]; then
-  export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${LMMS_EVAL_REPO}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
+  export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${LMMS_EVAL_REPO}:${VLLM_REPO}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
 else
-  export PYTHONPATH="${LMMS_EVAL_REPO}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
+  export PYTHONPATH="${LMMS_EVAL_REPO}:${VLLM_REPO}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
 fi
 # Same hook as slurm/VLMEvalKit/eval_job.slurm: the container image sets its own
 # PYTHONPATH, so submission-env values are lost; EXTRA_PYTHONPATH survives and is
