@@ -12,3 +12,8 @@ points at the iopsstor build output. Test a freshly built image by exporting
 launching; promote to the capstor path only after the canary passes. Judged
 benchmarks carry ±2-3pt judge+inference noise at ~500 samples — compare raw
 prediction agreement against a reference run, not scores alone.
+
+Fresh-inference controls must bypass the shared response cache: pass
+`-- --response-cache <fresh dir>` through the launcher (a CLI flag; a
+RESPONSE_CACHE env var is silently ignored and the run replays cached
+predictions and judge results, agreeing 100% with whatever filled them).
