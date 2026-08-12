@@ -13,8 +13,10 @@ launching; promote to the capstor path only after the canary passes. Judged
 benchmarks carry ±2-3pt judge+inference noise at ~500 samples — compare raw
 prediction agreement against a reference run, not scores alone.
 
-Fresh-inference controls must bypass the shared response cache: pass
-`-- --response-cache <fresh dir>` through the launcher (a CLI flag; a
+Fresh-inference controls must bypass the shared response cache: call the
+VLMEvalKit launcher directly (`launchers/eval.sh --eval-framework VLMEvalKit`;
+the default `all` dispatcher forwards the flag to lmms-eval, which rejects it)
+and pass `-- --response-cache <fresh dir>`; the image-token cache follows it (a CLI flag; a
 RESPONSE_CACHE env var is silently ignored and the run replays cached
 predictions and judge results, agreeing 100% with whatever filled them).
 

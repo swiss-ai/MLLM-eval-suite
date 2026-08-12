@@ -181,7 +181,12 @@ export VLLM_SEED="${VLLM_SEED:-${SEED}}"
 # here; thinking needs APERTUS_TEMPERATURE > 0 and APERTUS_MAX_NEW_TOKENS ~16384.
 # FOREIGN_MODEL=1 skips the Apertus registry override so upstream
 # supported_VLM entries (molmo, llava_next, qwen, ...) resolve instead.
-if [[ "${FOREIGN_MODEL:-0}" != "1" ]]; then
+# Unset (direct sbatch): derive from the model name like the launcher does,
+# so a foreign name never silently scores the Apertus default checkpoint.
+if [[ -z "${FOREIGN_MODEL:-}" ]]; then
+  case "${MODEL}" in [Aa]pertus*|/*) FOREIGN_MODEL=0 ;; *) FOREIGN_MODEL=1 ;; esac
+fi
+if [[ "${FOREIGN_MODEL}" != "1" ]]; then
 export APERTUS_RUN_NAME="${MODEL}"
 if [[ -z "${APERTUS_MODEL_PATH:-}" && "${MODEL}" == /* ]]; then
   [[ -d "${MODEL}" ]] || { echo "ERROR: --model '${MODEL}' is path-shaped but not a directory; refusing to silently load the default checkpoint." >&2; exit 1; }

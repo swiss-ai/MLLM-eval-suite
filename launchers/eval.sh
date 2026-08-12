@@ -57,6 +57,10 @@ set_thinking_env() { export APERTUS_ENABLE_THINKING=1 APERTUS_TEMPERATURE=0.6 AP
 derive_vk_identity() {
   VK_MODEL="${1}"
   if [[ -e "${1}" ]]; then
+    if [[ -f "${1}/config.json" ]] && ! grep -q "Apertus" "${1}/config.json"; then
+      echo "ERROR: --model ${1} is a checkpoint path but its config.json declares a non-Apertus architecture; refusing to route it through the Apertus wrapper. Pass the model's registry name instead." >&2
+      exit 1
+    fi
     export APERTUS_MODEL_PATH="${1}"
     VK_MODEL="$(basename "${1%/}")"
     [[ "${VK_MODEL}" == "HF" ]] && VK_MODEL="$(basename "$(dirname "${1%/}")")"

@@ -52,7 +52,7 @@ class ApertusImageTokenizationCache:
     def __init__(self, config: ApertusImageTokenCacheConfig) -> None:
         self._config = config
         self._memory: ThreadSafeLRUCache[str, str | CollisionGuardCacheRecord] = (
-            ThreadSafeLRUCache(0)
+            ThreadSafeLRUCache(config.memory_cache_size)
         )
         self._disk_enabled = config.enabled
         self._disk_backend: SQLiteImagePromptBackend | None = None
@@ -173,6 +173,10 @@ class ApertusImageTokenizationCache:
         except Exception as exc:
             self._stats.sqlite_open_time_ms += self._elapsed_ms(start)
             self._disk_init_failed = True
+            import os as _os
+
+            if _os.environ.get("VLLM_APERTUS_IMAGE_TOKEN_CACHE_STRICT", "").strip() in ("1", "true"):
+                raise
             logger.warning(
                 "Failed to initialize Apertus image token SQLite cache at %s: %s. "
                 "Falling back to uncached tokenization.",

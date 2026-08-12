@@ -211,7 +211,7 @@ def build_emu35_vision_tokenizer(
 
 
 class ApertusImageTokenizer:
-    IMAGE_TOKEN_CACHE_VERSION = "apertus-image-tokenization-v1"
+    IMAGE_TOKEN_CACHE_VERSION = "apertus-image-tokenization-v2-harness"
     DEFAULT_VQ_HUB = "BAAI/Emu3.5-VisionTokenizer"
     DEFAULT_MIN_PIXELS = 256 * 256
     DEFAULT_MAX_PIXELS = 1400 * 1400
@@ -601,6 +601,7 @@ class ApertusImageTokenizer:
         if not images:
             return []
 
+        emu35_codebase = resolve_emu35_codebase(mm_processor_kwargs)
         min_pixels = self.coerce_int(
             mm_processor_kwargs.get(
                 "apertus_min_pixels",
@@ -677,6 +678,7 @@ class ApertusImageTokenizer:
                 # effective input to Emu3.5 tokenization.
                 logical_key = (
                     self.IMAGE_TOKEN_CACHE_VERSION,
+                    str(emu35_codebase),
                     resized_image_hash,
                     resized_image.size,
                     min_pixels,

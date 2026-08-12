@@ -37,7 +37,7 @@ def splice_frames(prompt, images, tokenizer):
     image_tokenizer, mm_kwargs = _shared_state()
     # One encode in flight: the lazy first load's module-import dance is not
     # thread-safe, and concurrent VQ forward passes OOM the GPU next to the
-    # engine. Callers' threads still parallelize PIL/template/tokenizer work.
+    # engine.
     with _encode_lock:
         frames = image_tokenizer.encode_images(images, tokenizer=tokenizer, mm_processor_kwargs=mm_kwargs)
     _TOKENIZERS[id(tokenizer)] = tokenizer

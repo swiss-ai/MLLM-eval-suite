@@ -19,7 +19,7 @@ SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/VLMEvalKit/eval_job.slurm}"
 source "${REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
 
 RESPONSE_CACHE="${VLMEVAL_RESPONSE_CACHE:-${REPO_ROOT}/cache/VLMEvalKit}"
-IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-${RESPONSE_CACHE}/image_token_cache}"
+IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-}"
 LMU_DATA="${LMUData:-${REPO_ROOT}/cache/VLMEvalKit/LMUData}"
 WORK_BASE="${WORK_BASE:-${REPO_ROOT}/results/VLMEvalKit}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)_$$}"
@@ -212,23 +212,21 @@ fi
 MODELS="$(resolve_list "${MODELS_RAW}")"
 [[ -n "${DATASETS}" ]] || { echo "no datasets resolved" >&2; exit 1; }
 
+# Derived after flag parsing so --response-cache moves the image-token cache
+# with it (a fresh-inference canary must not replay prod VQ frames).
+IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-${RESPONSE_CACHE}/image_token_cache}"
+
 # Image-token caching and the job-side Apertus registry override apply only to
-# Apertus-native models. Classify from the *resolved* model list (so @files and
-# comma lists work) plus the orchestrator's explicit APERTUS_MODEL_PATH signal;
-# explicit FOREIGN_MODEL / --enable-image-token-cache always win.
-if [[ -z "${FOREIGN_MODEL:-}" ]]; then
-  FOREIGN_MODEL=1
-  [[ -n "${APERTUS_MODEL_PATH:-}" ]] && FOREIGN_MODEL=0
-  while IFS= read -r _model; do
-    case "${_model}" in [Aa]pertus*|/*) FOREIGN_MODEL=0 ;; esac
-  done <<< "${MODELS}"
-fi
-export FOREIGN_MODEL
-if [[ "${FOREIGN_MODEL}" == "1" ]]; then
-  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
-else
-  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
-fi
+# Apertus-native models. Classified per model at submit time (jobs are per
+# model x dataset, so a mixed list must not share one classification); the
+# orchestrator's explicit APERTUS_MODEL_PATH marks a checkpoint-path run as
+# native. Explicit FOREIGN_MODEL / --enable-image-token-cache always win.
+USER_FOREIGN_MODEL="${FOREIGN_MODEL:-}"
+classify_foreign() {
+  [[ -n "${USER_FOREIGN_MODEL}" ]] && { echo "${USER_FOREIGN_MODEL}"; return; }
+  [[ -n "${APERTUS_MODEL_PATH:-}" ]] && { echo 0; return; }
+  case "$1" in [Aa]pertus*) echo 0 ;; *) echo 1 ;; esac
+}
 
 # Judge datasets score via an OpenAI-compatible judge; without a key VLMEvalKit
 # silently falls back to regex parsing and produces wrong-looking-real numbers.
@@ -273,7 +271,7 @@ echo "  batch size:     ${BATCH_SIZE}"
 echo "  skip mm prof:   ${VLLM_APERTUS_SKIP_MM_PROFILING:-<default true>}"
 echo "  response cache: ${RESPONSE_CACHE}"
 echo "  image cache:    ${ENABLE_IMAGE_TOKEN_CACHE} ${IMAGE_TOKEN_CACHE_MODE} (${IMAGE_TOKEN_CACHE_BASE})"
-echo "  foreign model:  ${FOREIGN_MODEL}"
+echo "  foreign model:  ${USER_FOREIGN_MODEL:-per-model}"
 echo "  LMUData:        ${LMU_DATA}"
 echo "  work base:      ${WORK_BASE}"
 echo "  run id:         ${RUN_ID}"
@@ -287,6 +285,12 @@ while IFS= read -r DATASET; do
   while IFS= read -r MODEL; do
     [[ -z "${MODEL}" ]] && continue
     MODEL_SLUG="$(safe_name "$(basename "${MODEL}")")"
+    MODEL_FOREIGN="$(classify_foreign "${MODEL}")"
+    if [[ "${MODEL_FOREIGN}" == "1" ]]; then
+      MODEL_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
+    else
+      MODEL_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
+    fi
     JOB_NAME="vlmeval-${DATA_SLUG}"
     WORK_DIR="${WORK_BASE}/${MODEL_SLUG}/${DATA_SLUG}"
     if [[ "${SUBMIT_MODE}" == "interactive" ]]; then
@@ -304,7 +308,7 @@ while IFS= read -r DATASET; do
       --mode "${MODE}"
       --work-dir "${WORK_DIR}"
       --response-cache "${RESPONSE_CACHE}"
-      --enable-image-token-cache "${ENABLE_IMAGE_TOKEN_CACHE}"
+      --enable-image-token-cache "${MODEL_IMAGE_TOKEN_CACHE}"
       --image-token-cache-mode "${IMAGE_TOKEN_CACHE_MODE}"
       --image-token-cache-base "${IMAGE_TOKEN_CACHE_BASE}"
       --lmu-data "${LMU_DATA}"
@@ -332,7 +336,8 @@ while IFS= read -r DATASET; do
       )
     fi
 
-    echo "--- submit: data=${DATASET} model=${MODEL} work=${WORK_DIR} ---"
+    export FOREIGN_MODEL="${MODEL_FOREIGN}"
+    echo "--- submit: data=${DATASET} model=${MODEL} foreign=${MODEL_FOREIGN} work=${WORK_DIR} ---"
     echo "    logs:   ${JOB_OUTPUT} / ${JOB_ERROR}"
     if [[ "${DRY_RUN}" -eq 1 ]]; then
       printf ' %q' "${CMD[@]}"
