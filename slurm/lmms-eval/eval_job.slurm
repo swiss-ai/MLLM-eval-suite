@@ -415,9 +415,13 @@ if [[ "${MODEL_BACKEND}" != apertus* ]]; then
   MODEL_ARGS="${EXTRA_MODEL_ARGS}"
   EXTRA_MODEL_ARGS=""
   # Without this the wrapper falls back to its own default checkpoint and the run
-  # silently evaluates a different model than --model-path names.
-  if [[ "${MODEL_ARGS}" != *model=* ]]; then
-    MODEL_ARGS="model=${MODEL_PATH}${MODEL_ARGS:+,${MODEL_ARGS}}"
+  # silently evaluates a different model than --model-path names. vLLM-style
+  # and emu3 wrappers take model=; HF-style wrappers take pretrained=.
+  if [[ "${MODEL_ARGS}" != *model=* && "${MODEL_ARGS}" != *pretrained=* ]]; then
+    case "${MODEL_BACKEND}" in
+      emu3*|*vllm*) MODEL_ARGS="model=${MODEL_PATH}${MODEL_ARGS:+,${MODEL_ARGS}}" ;;
+      *)            MODEL_ARGS="pretrained=${MODEL_PATH}${MODEL_ARGS:+,${MODEL_ARGS}}" ;;
+    esac
   fi
   # Gemma 3's encoder is fixed at 896x896, so high-resolution pages are squashed
   # until pan-and-scan tiles them; the shipped preprocessor leaves it off while
