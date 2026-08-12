@@ -6,10 +6,6 @@ export IMG="apertus-vllm-vision-eval-prod"
 export SQSH="${SCRIPT_DIR}/apertus-vllm-vision-eval-prod.sqsh"
 export SQSH_DIR="${SCRIPT_DIR}"
 export BUILD_CTX="${SCRIPT_DIR}"
-# persistent layer cache: /dev/shm storage dies with each job, this survives on
-# scratch so unchanged strata (apt, torch, wheels) rebuild in minutes.
-export LAYER_CACHE="${LAYER_CACHE:-/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/build-cache}"
-mkdir -p "$LAYER_CACHE"
 
 podman build \
   -v "$SQSH_DIR/empty.sources.list:/etc/apt/sources.list:ro,z" \
@@ -24,6 +20,7 @@ podman build \
 # deleted until its replacement fully exists.
 # enroot's podman:// handler exits 1 even after a successful import (temp-dir
 # cleanup bug), so success is judged by the artifact: the stamp must read back.
+rm -f "${SQSH}.new"
 enroot import -o "${SQSH}.new" "podman://$IMG" || echo "enroot import exited $? — verifying artifact"
 unsquashfs -cat "${SQSH}.new" /etc/apertus_image_version || { echo "import produced no valid image" >&2; exit 1; }
 if [ -f "$SQSH" ]; then mv -f "$SQSH" "${SQSH%.sqsh}-old.sqsh"; fi

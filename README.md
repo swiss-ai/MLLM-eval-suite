@@ -102,7 +102,8 @@ Suite files under `task_suites/` are the source of truth for what each named `--
 
 ## Repository structure
 
-- `third_party/` — the two harness forks (branch `apertus-1p5-eval` each), pinned by commit.
+- `shared/` — engine-independent runtime modules importable by both harnesses (Apertus image tokenization; on every job's PYTHONPATH).
+- `third_party/` — the two harness forks (lmms-eval on `apertus-1p5-eval-v2`, VLMEvalKit on `apertus-1p5-eval`), pinned by commit.
 - `launchers/` — production entrypoints: `eval.sh` dispatcher plus per-framework launchers.
 - `slurm/` — job templates and shared snippets (`sbatch_overrides.sh`, image-token cache env,
   the HealthBench grader server).
@@ -120,7 +121,7 @@ git submodule update --init --recursive          # after cloning
 git submodule update --remote --merge            # move to branch tips (admin)
 ```
 
-- `third_party/lmms-eval`: [swiss-ai/lmms-eval](https://github.com/swiss-ai/lmms-eval), branch `apertus-1p5-eval`
+- `third_party/lmms-eval`: [swiss-ai/lmms-eval](https://github.com/swiss-ai/lmms-eval), branch `apertus-1p5-eval-v2`
 - `third_party/VLMEvalKit`: [swiss-ai/VLMEvalKit](https://github.com/swiss-ai/VLMEvalKit), branch `apertus-1p5-eval`
 
 ## Development notes (admin)

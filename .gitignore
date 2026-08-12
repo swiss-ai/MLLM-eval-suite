@@ -25,3 +25,4 @@ core_*
 # generated dashboard + bridge cache
 scripts/__pycache__/
 cache/vlmeval_bridge/
+.build-snapshot.sh

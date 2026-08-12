@@ -366,7 +366,7 @@ except Exception as exc:
     print(f"Root cause: {exc}", file=sys.stderr)
     sys.exit(2)
 
-emu35_root = os.getenv("VLLM_APERTUS_EMU35_CODEBASE", "/workspace/Emu3.5")
+emu35_root = os.environ["VLLM_APERTUS_EMU35_CODEBASE"]
 module_path = os.path.join(emu35_root, "src", "vision_tokenizer", "__init__.py")
 if not os.path.isfile(module_path):
     print(f"Preflight failed: missing Emu3.5 vision tokenizer module: {module_path}", file=sys.stderr)

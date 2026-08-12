@@ -7,7 +7,7 @@ Store shared configuration fragments or documented conventions used by both eval
 ## Canary deploys
 
 `apertus-vllm-vision-eval-canary.toml` is identical to prod except the image
-points at the iopsstor build output. Test a freshly built image by exporting
+points at a local build output (edit its `image =` line to your build path). Test a freshly built image by exporting
 `EVAL_ENVIRONMENT=$PWD/toml/shared/apertus-vllm-vision-eval-canary.toml` before
 launching; promote to the capstor path only after the canary passes. Judged
 benchmarks carry ±2-3pt judge+inference noise at ~500 samples — compare raw
@@ -17,3 +17,9 @@ Fresh-inference controls must bypass the shared response cache: pass
 `-- --response-cache <fresh dir>` through the launcher (a CLI flag; a
 RESPONSE_CACHE env var is silently ignored and the run replays cached
 predictions and judge results, agreeing 100% with whatever filled them).
+
+`apertus-vllm-vision-eval-2026-05-torch210.toml` pins the archived May image
+(rollback / reproduction of pre-Aug-11 results). All three tomls differ from
+prod only in `image =`; when editing the shared env block, edit prod and
+re-copy it into the variants — drift between them invalidates canary
+comparisons.

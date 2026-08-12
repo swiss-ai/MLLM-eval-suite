@@ -18,9 +18,10 @@ CONF
 # enroot's overlay mount needs a local filesystem (Lustre gives EINVAL), so
 # temp stays on /dev/shm; only the mount-free blob cache goes to scratch.
 export ENROOT_TEMP_PATH="/dev/shm/$USER/enroot-tmp"
-export ENROOT_DATA_PATH="/dev/shm/$USER/enroot-tmp/data"
+export ENROOT_DATA_PATH="$ENROOT_TEMP_PATH/data"
 export ENROOT_CACHE_PATH="$SLURM_SUBMIT_DIR/enroot-tmp/cache"
 mkdir -p "$ENROOT_TEMP_PATH" "$ENROOT_DATA_PATH" "$ENROOT_CACHE_PATH"
-trap 'rm -rf "$SLURM_SUBMIT_DIR/enroot-tmp"' EXIT
+trap 'rm -rf "$SLURM_SUBMIT_DIR/enroot-tmp" "$SLURM_SUBMIT_DIR/.build-snapshot.sh"' EXIT
 cd "$SLURM_SUBMIT_DIR"
+# bash reads scripts incrementally; a snapshot makes mid-build edits harmless.
 cp generate_docker.sh .build-snapshot.sh; bash .build-snapshot.sh

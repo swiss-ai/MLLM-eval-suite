@@ -164,23 +164,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Image-token caching memoizes the discrete image->VQ-token conversion; it is
-# meaningless for continuous-encoder (foreign) models, so default it off there.
-# Runs after arg parsing so the decision sees the real model list, not the
-# Apertus default; an explicit --enable-image-token-cache always wins.
-if [[ -z "${FOREIGN_MODEL:-}" ]]; then
-  case "${MODELS_RAW}" in
-    Apertus*|/*|@*) FOREIGN_MODEL=0 ;;
-    *) FOREIGN_MODEL=1 ;;
-  esac
-fi
-export FOREIGN_MODEL
-if [[ "${FOREIGN_MODEL}" == "1" ]]; then
-  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
-else
-  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
-fi
-
 # Parallelism profile by model size, identical to the lmms-eval launcher: 8b
 # fits one GH200 (4 DP workers, TP=1); 70b shards one model across all 4 GPUs
 # (TP=4, one worker). Explicit env/flag overrides any single knob.
@@ -229,6 +212,24 @@ fi
 MODELS="$(resolve_list "${MODELS_RAW}")"
 [[ -n "${DATASETS}" ]] || { echo "no datasets resolved" >&2; exit 1; }
 
+# Image-token caching and the job-side Apertus registry override apply only to
+# Apertus-native models. Classify from the *resolved* model list (so @files and
+# comma lists work) plus the orchestrator's explicit APERTUS_MODEL_PATH signal;
+# explicit FOREIGN_MODEL / --enable-image-token-cache always win.
+if [[ -z "${FOREIGN_MODEL:-}" ]]; then
+  FOREIGN_MODEL=1
+  [[ -n "${APERTUS_MODEL_PATH:-}" ]] && FOREIGN_MODEL=0
+  while IFS= read -r _model; do
+    case "${_model}" in [Aa]pertus*|/*) FOREIGN_MODEL=0 ;; esac
+  done <<< "${MODELS}"
+fi
+export FOREIGN_MODEL
+if [[ "${FOREIGN_MODEL}" == "1" ]]; then
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
+else
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
+fi
+
 # Judge datasets score via an OpenAI-compatible judge; without a key VLMEvalKit
 # silently falls back to regex parsing and produces wrong-looking-real numbers.
 # Fail loud instead (ALLOW_NO_JUDGE=1 to override).
@@ -272,6 +273,7 @@ echo "  batch size:     ${BATCH_SIZE}"
 echo "  skip mm prof:   ${VLLM_APERTUS_SKIP_MM_PROFILING:-<default true>}"
 echo "  response cache: ${RESPONSE_CACHE}"
 echo "  image cache:    ${ENABLE_IMAGE_TOKEN_CACHE} ${IMAGE_TOKEN_CACHE_MODE} (${IMAGE_TOKEN_CACHE_BASE})"
+echo "  foreign model:  ${FOREIGN_MODEL}"
 echo "  LMUData:        ${LMU_DATA}"
 echo "  work base:      ${WORK_BASE}"
 echo "  run id:         ${RUN_ID}"

@@ -4,9 +4,8 @@ Store Dockerfiles and build documentation for evaluation environments. Keep imag
 
 ## Layer cache
 
-Builds cache layers to
-`/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/build-cache`
-(shared, durable; see the README there). First build after a Dockerfile change
-pays the delta; later builds finish in minutes. Override with `LAYER_CACHE=`.
-Build on a compute node inside the reservation, without `--environment`
-(needs host podman): `sbatch --account=infra01 --reservation=<res> build_image.sbatch`.
+Cross-job layer caching is not currently wired: podman's --cache-to/--cache-from
+require a registry reference, so every build re-executes all layers (~55 min).
+The planned fix is a small local OCI registry on scratch; until then the
+capstor build-cache directory is unused.
+
