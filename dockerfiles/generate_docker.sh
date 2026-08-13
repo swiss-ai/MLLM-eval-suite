@@ -20,6 +20,13 @@ podman build \
 # deleted until its replacement fully exists.
 # enroot's podman:// handler exits 1 even after a successful import (temp-dir
 # cleanup bug), so success is judged by the artifact: the stamp must read back.
+# The import extracts the image again under ENROOT_TEMP_PATH, which shares
+# /dev/shm with podman's layer store; free the build cache first or the
+# extraction runs out of space mid-tar.
+df -h /dev/shm | tail -1
+podman builder prune -af >/dev/null 2>&1 || true
+podman image prune -f >/dev/null 2>&1 || true
+df -h /dev/shm | tail -1
 rm -f "${SQSH}.new"
 enroot import -o "${SQSH}.new" "podman://$IMG" || echo "enroot import exited $? — verifying artifact"
 unsquashfs -cat "${SQSH}.new" /etc/apertus_image_version || { echo "import produced no valid image" >&2; exit 1; }
