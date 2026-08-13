@@ -270,7 +270,7 @@ echo "  dp workers:     ${NUM_PROCESSES} per node (world_size = ${NODES} * ${NUM
 echo "  batch size:     ${BATCH_SIZE}"
 echo "  skip mm prof:   ${VLLM_APERTUS_SKIP_MM_PROFILING:-<default true>}"
 echo "  response cache: ${RESPONSE_CACHE}"
-echo "  image cache:    ${ENABLE_IMAGE_TOKEN_CACHE} ${IMAGE_TOKEN_CACHE_MODE} (${IMAGE_TOKEN_CACHE_BASE})"
+echo "  image cache:    ${ENABLE_IMAGE_TOKEN_CACHE:-<per-model>} ${IMAGE_TOKEN_CACHE_MODE} (${IMAGE_TOKEN_CACHE_BASE})"
 echo "  foreign model:  ${USER_FOREIGN_MODEL:-per-model}"
 echo "  LMUData:        ${LMU_DATA}"
 echo "  work base:      ${WORK_BASE}"
