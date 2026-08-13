@@ -20,15 +20,14 @@ podman build \
 # deleted until its replacement fully exists.
 # enroot's podman:// handler exits 1 even after a successful import (temp-dir
 # cleanup bug), so success is judged by the artifact: the stamp must read back.
-# The import extracts the image again under ENROOT_TEMP_PATH, which shares
-# /dev/shm with podman's layer store; free the build cache first or the
-# extraction runs out of space mid-tar.
+# NEVER prune here: `podman builder prune -a` empties the layer store and takes
+# the just-built image with it (measured: /dev/shm 55G -> 44M, import then had
+# nothing to read). Space is not the constraint — 279G was free when the import
+# died with "tar: Unexpected EOF", so capture podman's own stderr instead.
 df -h /dev/shm | tail -1
-podman builder prune -af >/dev/null 2>&1 || true
-podman image prune -f >/dev/null 2>&1 || true
-df -h /dev/shm | tail -1
+podman images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | head -3
 rm -f "${SQSH}.new"
-enroot import -o "${SQSH}.new" "podman://$IMG" || echo "enroot import exited $? — verifying artifact"
+enroot import -o "${SQSH}.new" "podman://$IMG" 2>&1 | tail -40 || echo "enroot import exited $? — verifying artifact"
 unsquashfs -cat "${SQSH}.new" /etc/apertus_image_version || { echo "import produced no valid image" >&2; exit 1; }
 if [ -f "$SQSH" ]; then mv -f "$SQSH" "${SQSH%.sqsh}-old.sqsh"; fi
 mv "${SQSH}.new" "$SQSH"
