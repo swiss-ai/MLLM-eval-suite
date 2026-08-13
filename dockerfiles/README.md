@@ -2,10 +2,12 @@
 
 Store Dockerfiles and build documentation for evaluation environments. Keep image-specific instructions close to the Dockerfile that needs them.
 
-## Layer cache
+## Build cache
 
-Cross-job layer caching is not currently wired: podman's --cache-to/--cache-from
-require a registry reference, so every build re-executes all layers (~55 min).
-The planned fix is a small local OCI registry on scratch; until then the
-capstor build-cache directory is unused.
+The uv download cache is bind-mounted from
+`/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/build-cache/uv`,
+so torch, the vLLM wheel and the 1GB flashinfer cubin come off capstor instead
+of the network on every build (override with `UV_CACHE_DIR=`). Podman *layer*
+caching is still not wired — that needs a registry ref, which `--cache-to` a
+directory cannot provide — so every build re-executes all steps.
 

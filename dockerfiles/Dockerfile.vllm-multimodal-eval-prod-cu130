@@ -10,12 +10,15 @@ ARG VLLM_MAIN_CUDA_VERSION=13.0
 # per-layer head_dim) in ways that broke evaluation.
 ARG VLLM_REPO_URL=https://github.com/vllm-project/vllm.git
 ARG VLLM_SRC_BRANCH=main
+# One source of truth for which vLLM this image is: the source checkout and the
+# precompiled wheel must be the same commit or the tree and the binary disagree.
+# VLLM_WHEEL_VERSION must match that commit's published wheel; verify with
+#   curl -s https://wheels.vllm.ai/<commit>/vllm/ | grep aarch64
 ARG VLLM_SRC_COMMIT=324f452f640015e9616b5ad5615fae6c25eb6353
 ARG TRANSFORMERS_BRANCH=add-apertus1p5
 ARG TRANSFORMERS_COMMIT=3596b056f73c7f44849c042cc02413c747636eab
 ARG VLMEVALKIT_BRANCH=apertus-1p5-eval
 ARG LMMS_EVAL_BRANCH=apertus-1p5-eval-v2
-ARG VLLM_REPO_COMMIT=324f452f640015e9616b5ad5615fae6c25eb6353
 ARG VLLM_WHEEL_VERSION=0.26.1rc1.dev687
 
 # GH200 = Hopper SM90a
@@ -131,8 +134,8 @@ RUN set -eu; \
         arm64|aarch64) WHEEL_ARCH="aarch64" ;; \
         *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
     esac; \
-    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://wheels.vllm.ai/${VLLM_REPO_COMMIT}/vllm-${VLLM_WHEEL_VERSION}%2Bg$(echo ${VLLM_REPO_COMMIT} | cut -c1-9)-cp38-abi3-manylinux_2_28_${WHEEL_ARCH}.whl}"; \
-    export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_PRECOMPILED_WHEEL_COMMIT:-${VLLM_REPO_COMMIT}}"; \
+    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://wheels.vllm.ai/${VLLM_SRC_COMMIT}/vllm-${VLLM_WHEEL_VERSION}%2Bg$(echo ${VLLM_SRC_COMMIT} | cut -c1-9)-cp38-abi3-manylinux_2_28_${WHEEL_ARCH}.whl}"; \
+    export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_PRECOMPILED_WHEEL_COMMIT:-${VLLM_SRC_COMMIT}}"; \
     VLLM_USE_PRECOMPILED=1 uv pip install \
     --python /opt/venv/bin/python \
     --reinstall-package vllm \

@@ -20,8 +20,9 @@ and pass `-- --response-cache <fresh dir>`; the image-token cache follows it (a 
 RESPONSE_CACHE env var is silently ignored and the run replays cached
 predictions and judge results, agreeing 100% with whatever filled them).
 
-`apertus-vllm-vision-eval-2026-05-torch210.toml` pins the archived May image
-(rollback / reproduction of pre-Aug-11 results). All three tomls differ from
+`apertus-vllm-vision-eval-2026-05-torch210.toml` pins the archived May image —
+for reproducing pre-Aug-11 results only. Rollback is the `-old.sqsh` kept beside
+the live image by each build, not this toml. All three tomls differ from
 prod only in `image =`; when editing the shared env block, edit prod and
 re-copy it into the variants — drift between them invalidates canary
 comparisons.

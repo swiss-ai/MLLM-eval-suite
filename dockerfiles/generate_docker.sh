@@ -33,9 +33,19 @@ podman build \
 # died with "tar: Unexpected EOF", so capture podman's own stderr instead.
 df -h /dev/shm | tail -1
 podman images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | head -3
-rm -f "${SQSH}.new"
-enroot import -o "${SQSH}.new" "podman://$IMG" 2>&1 | tail -40 || echo "enroot import exited $? — verifying artifact"
-unsquashfs -cat "${SQSH}.new" /etc/apertus_image_version || { echo "import produced no valid image" >&2; exit 1; }
+# The import fails transiently (podman's save stream truncates: identical inputs,
+# one run fails and the next succeeds), and a failure here costs the whole build.
+# Retry, judging each attempt by the artifact rather than the exit code — enroot's
+# podman:// handler exits 1 even after writing a valid image.
+for attempt in 1 2 3; do
+  rm -f "${SQSH}.new"
+  enroot import -o "${SQSH}.new" "podman://$IMG" 2>&1 | tail -40 || true
+  if unsquashfs -cat "${SQSH}.new" /etc/apertus_image_version 2>/dev/null; then
+    break
+  fi
+  echo "import attempt ${attempt} produced no valid image" >&2
+  [ "$attempt" = 3 ] && { echo "import failed after 3 attempts" >&2; exit 1; }
+done
 if [ -f "$SQSH" ]; then mv -f "$SQSH" "${SQSH%.sqsh}-old.sqsh"; fi
 mv "${SQSH}.new" "$SQSH"
 echo "built: $SQSH  (previous kept as ${SQSH%.sqsh}-old.sqsh)"
