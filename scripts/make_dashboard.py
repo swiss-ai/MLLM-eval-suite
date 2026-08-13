@@ -25,31 +25,123 @@ from metric_selection import iter_headline_metrics, normalize_score
 # Spatial-intelligence benchmarks are tracked on EASI via VLMEvalKit
 # (https://easi.lmms-lab.com/leaderboard/), not here. Matches the EASI block
 # in metric_selection.TASK_METRIC_PRIORITY.
-EASI_SPATIAL_PREFIXES = (
-    "3dsrbench",
-    "site_bench",
-    "mmsi_bench",
-    "viewspatial",
-    "embspatial",
-    "mindcube",
-    "sparbench",
-    "spatial_dise",
-    "omnispatial",
-    "erqa",
-    "blink",
-    "cv_bench",
-    "vsibench",
-    "refspatial",
-    "where2place",
-    # UI grounding, also not reported from this harness.
-    "screenspot",
-    "osworld",
-)
+# ---------------------------------------------------------------------------
+# The benchmark registry: one record per dashboard task key. Everything the
+# dashboard needs to know about a benchmark lives here — its category, the
+# VLMEvalKit dataset name(s) when that harness owns it, a headline-metric
+# override, and whether the key/category match by prefix. The legacy
+# structures below are derived views of this table; edit the table, not them.
+# ---------------------------------------------------------------------------
+BENCHMARKS = {
+    "3dsrbench": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk": "3DSRBench", "vk_prefix": True},
+    "ai2d": {"cat": "STEM & Knowledge"},
+    "babyvision": {"cat": "Math & Logic"},
+    "bigearth": {"cat": "Remote Sensing", "cat_prefix": True},
+    "blink": {"cat": "Multi-Image", "vk": "BLINK", "vk_prefix": True},
+    "chartqa": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_doc_parsing": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_kie": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_multi_lan_ocr": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_multi_scene_ocr": {"cat": "Docs, Charts & OCR"},
+    "charxiv_descriptive": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_descriptive_val"},
+    "charxiv_reasoning": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_reasoning_val"},
+    "countbench": {"cat": "Counting & Grounding"},
+    "cv_bench": {"vk_prefix": True},
+    "cv_bench_2d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-2D"},
+    "cv_bench_3d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-3D"},
+    "docvqa_val": {"cat": "Docs, Charts & OCR"},
+    "embspatial": {"cat": "Spatial & Embodied", "vk": "EmbSpatialBench", "vk_prefix": True},
+    "erqa": {"cat": "Spatial & Embodied", "vk": "ERQA", "vk_prefix": True},
+    "frieda": {"cat": "Remote Sensing"},
+    "geobench": {"cat": "Remote Sensing", "cat_prefix": True},
+    "gqa": {"cat": "General VQA & Perception"},
+    "hallusionbench": {"cat": "Alignment", "vk": "HallusionBench"},
+    "healthbench": {"cat": "Medical", "cat_prefix": True},
+    "iconqa_val": {"cat": "Docs, Charts & OCR"},
+    "infovqa_val": {"cat": "Docs, Charts & OCR"},
+    "logicvista": {"cat": "Math & Logic", "vk": "LogicVista"},
+    "mathverse": {"cat": "Math & Logic", "vk": "MathVerse_MINI"},
+    "mathvision": {"cat": "Math & Logic", "cat_prefix": True},
+    "mathvista_mini": {"cat": "Math & Logic", "vk": "MathVista_MINI"},
+    "medmcqa": {"cat": "Medical"},
+    "medqa": {"cat": "Medical"},
+    "medxpertqa_mm": {"cat": "Medical VQA"},
+    "medxpertqa_text": {"cat": "Medical"},
+    "mia_bench": {"cat": "Alignment", "vk": "MIA-Bench"},
+    "mindcube": {"cat": "Spatial & Embodied", "vk": "MindCubeBench_tiny_raw_qa", "vk_prefix": True},
+    "mm_ifeval": {"cat": "Instruction Following", "vk": "MM-IFEval"},
+    "mm_safetybench": {"cat": "Alignment", "vk": "MMSafetyBench", "headline": ('safety_rate',)},
+    "mmbench_en_dev": {"cat": "General VQA & Perception"},
+    "mme": {"cat": "General VQA & Perception"},
+    "mme_cognition": {"cat": "General VQA & Perception"},
+    "mme_perception": {"cat": "General VQA & Perception"},
+    "mmerealworld": {"cat": "General VQA & Perception"},
+    "mmlu_medical": {"cat": "Medical"},
+    "mmmu_pro_standard": {"cat": "STEM & Knowledge"},
+    "mmmu_pro_vision": {"cat": "STEM & Knowledge"},
+    "mmmu_val": {"cat": "STEM & Knowledge"},
+    "mmsi_bench": {"cat": "Spatial & Embodied", "vk": "MMSIBench_wo_circular", "vk_prefix": True},
+    "mmstar": {"cat": "General VQA & Perception"},
+    "mmvet": {"cat": "General VQA & Perception", "vk": "MMVet"},
+    "mmvp": {"cat": "Robustness & Bias"},
+    "mmvp_pair": {"cat": "Robustness & Bias"},
+    "mtvqa": {"cat": "Docs, Charts & OCR"},
+    "muirbench": {"cat": "Multi-Image", "vk": "MUIRBench"},
+    "ocrbench": {"cat": "Docs, Charts & OCR"},
+    "ocrbench_v2": {"cat": "Docs, Charts & OCR"},
+    "omnidocbench": {"cat": "Docs, Charts & OCR"},
+    "omnispatial": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk_prefix": True},
+    "omnispatial_manual_cot": {"vk": "OmniSpatialBench_manual_cot"},
+    "osworld": {"vk": "OSWorld_G", "vk_prefix": True},
+    "path_mmu": {"cat": "Medical VQA", "cat_prefix": True},
+    "path_mmu_test": {"cat": "Medical VQA"},
+    "path_vqa": {"cat": "Medical VQA"},
+    "pixmo_count": {"cat": "Counting & Grounding"},
+    "pmc_vqa": {"cat": "Medical VQA"},
+    "pope": {"cat": "Alignment"},
+    "pubmedqa": {"cat": "Medical"},
+    "realworldqa": {"cat": "General VQA & Perception"},
+    "refcoco": {"cat": "Counting & Grounding", "cat_prefix": True},
+    "refspatial": {"cat": "Spatial & Embodied", "vk": "RefSpatial_wo_unseen", "vk_prefix": True},
+    "robospatial": {"cat": "Spatial & Embodied", "vk": "RoboSpatialHome"},
+    "rsrcc": {"cat": "Remote Sensing", "cat_prefix": True},
+    "scienceqa": {"cat": "STEM & Knowledge"},
+    "screenspot": {"vk": "ScreenSpot", "vk_prefix": True},
+    "screenspot_pro": {"vk": "ScreenSpot_Pro"},
+    "screenspot_v2": {"vk": "ScreenSpot_v2"},
+    "seedbench": {"cat": "General VQA & Perception"},
+    "seedbench_2_plus": {"cat": "Docs, Charts & OCR"},
+    "site_bench": {"cat": "Spatial & Embodied", "vk": "SiteBenchImage", "vk_prefix": True, "headline": ('overall_caa', 'overall_accuracy', 'accuracy')},
+    "slake": {"cat": "Medical VQA"},
+    "sparbench": {"cat": "Spatial & Embodied", "vk": "SparBench", "vk_prefix": True},
+    "spatial_dise": {"cat": "Spatial & Embodied", "vk": "Spatial-DISE_BENCH", "vk_prefix": True},
+    "textvqa_val": {"cat": "Docs, Charts & OCR"},
+    "viewspatial": {"cat": "Spatial & Embodied", "vk": "ViewSpatialBench", "vk_prefix": True},
+    "visualpuzzles_direct": {"cat": "Math & Logic"},
+    "visulogic": {"cat": "Math & Logic"},
+    "vlms_are_biased": {"cat": "Robustness & Bias"},
+    "vlmsareblind": {"cat": "Robustness & Bias"},
+    "vqa_rad": {"cat": "Medical VQA"},
+    "vqav2_val": {"cat": "General VQA & Perception"},
+    "vrsbench": {"cat": "Remote Sensing", "cat_prefix": True},
+    "vsibench": {"vk_prefix": True},
+    "vsibench_debiased": {"cat": "Spatial & Embodied", "vk": ['VSI-Bench-Debiased', 'VSI-Bench-Debiased_32frame']},
+    "vstar_bench": {"cat": "General VQA & Perception"},
+    "where2place": {"vk_prefix": True},
+}
+
+
+# Categories in display order, with modality.
+CATEGORIES = [('General VQA & Perception', 'vision'), ('Robustness & Bias', 'vision'), ('Spatial & Embodied', 'vision'), ('Multi-Image', 'vision'), ('Instruction Following', 'vision'), ('Counting & Grounding', 'vision'), ('Docs, Charts & OCR', 'vision'), ('Math & Logic', 'vision'), ('STEM & Knowledge', 'vision'), ('Remote Sensing', 'vision'), ('Alignment', 'vision'), ('Medical VQA', 'vision'), ('Medical', 'text')]
+
+EXTRA_VK_PREFIXES = ('muirbench', 'mm_ifeval', 'mia_bench')
+
+EASI_SPATIAL_PREFIXES = tuple(k for k, b in BENCHMARKS.items() if b.get("vk_prefix"))
 
 # Spatial-intelligence + multi-image benchmarks are owned by VLMEvalKit/EASI
 # (correct interleaving + EASI protocol); everything else by lmms-eval. The
 # badge shows which harness produced each benchmark's number, EASI-style.
-VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + ("muirbench", "mm_ifeval", "mia_bench")
+VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + EXTRA_VK_PREFIXES
 
 
 def framework_for(task: str) -> str:
@@ -184,30 +276,16 @@ def parse_models_manifest(path: Path) -> tuple[list, list, dict, dict]:
 # VLMEvalKit owns (spatial + multi-image + UI grounding). Everything else in a
 # VLMEval_Outputs tree is lmms-eval-owned and ignored here.
 VK_OWNED_TASKS = {
-    "BLINK": "blink", "MUIRBench": "muirbench", "EmbSpatialBench": "embspatial",
-    "MMSIBench_wo_circular": "mmsi_bench", "3DSRBench": "3dsrbench",
-    "CV-Bench-2D": "cv_bench_2d", "CV-Bench-3D": "cv_bench_3d", "ERQA": "erqa",
-    "MindCubeBench_tiny_raw_qa": "mindcube",
-    "OmniSpatialBench_manual_cot": "omnispatial_manual_cot",
-    "SparBench": "sparbench", "Spatial-DISE_BENCH": "spatial_dise",
-    "SiteBenchImage": "site_bench", "ViewSpatialBench": "viewspatial",
-    "VSI-Bench-Debiased": "vsibench_debiased", "VSI-Bench-Debiased_32frame": "vsibench_debiased", "RefSpatial_wo_unseen": "refspatial",
-    "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
-    "ScreenSpot_v2": "screenspot_v2", "ScreenSpot_Pro": "screenspot_pro", "OSWorld_G": "osworld",
-    "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
-    "LogicVista": "logicvista", "MM-IFEval": "mm_ifeval",
-    "MMVet": "mmvet", "MIA-Bench": "mia_bench", "MMSafetyBench": "mm_safetybench",
-    "CharXiv_descriptive_val": "charxiv_descriptive", "CharXiv_reasoning_val": "charxiv_reasoning",
+    vk: key
+    for key, b in BENCHMARKS.items()
+    for vk in ([b["vk"]] if isinstance(b.get("vk"), str) else b.get("vk", []))
 }
 _VK_HEADLINE = ("overall", "overall_accuracy", "acc", "accuracy")
 _VK_AGG_LABELS = ("all", "overall", "none")
 # Per-benchmark headline override where the EASI-canonical metric is not plain
 # accuracy. site_bench reports chance-adjusted accuracy (overall_caa); raw
 # accuracy ~2x inflates it relative to the EASI leaderboard.
-VK_HEADLINE_BY_TASK = {
-    "site_bench": ("overall_caa", "overall_accuracy", "accuracy"),
-    "mm_safetybench": ("safety_rate",),
-}
+VK_HEADLINE_BY_TASK = {k: b["headline"] for k, b in BENCHMARKS.items() if "headline" in b}
 
 
 def _vk_norm(name: str) -> str:
@@ -390,34 +468,12 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
 # declarative structure — dict order is display order, modality defaults to
 # "vision", tasks match by exact name or prefix.
 TAXONOMY = {
-    "General VQA & Perception": {"exact": [
-        "vqav2_val", "gqa", "realworldqa", "mmerealworld", "mme", "mme_cognition", "mme_perception",
-        "mmbench_en_dev", "mmstar", "seedbench", "mmvet", "vstar_bench",
-    ]},
-    "Robustness & Bias": {"exact": ["mmvp", "mmvp_pair", "vlms_are_biased", "vlmsareblind"]},
-    "Spatial & Embodied": {"exact": [
-        "cv_bench_2d", "cv_bench_3d", "embspatial", "erqa", "mindcube", "mmsi_bench",
-        "robospatial", "site_bench", "sparbench", "spatial_dise", "viewspatial",
-        "vsibench_debiased", "refspatial",
-    ], "prefix": ["omnispatial", "3dsrbench"]},
-    "Multi-Image": {"exact": ["muirbench", "blink"]},
-    "Instruction Following": {"exact": ["mm_ifeval", "mia_bench"]},
-    "Counting & Grounding": {"exact": ["countbench", "pixmo_count"], "prefix": ["refcoco"]},
-    "Docs, Charts & OCR": {"exact": [
-        "docvqa_val", "infovqa_val", "chartqa", "charxiv_descriptive", "charxiv_reasoning",
-        "ocrbench", "ocrbench_v2", "omnidocbench", "textvqa_val", "seedbench_2_plus", "iconqa_val",
-    ]},
-    "Math & Logic": {"exact": ["mathvista_mini", "mathverse", "logicvista", "visulogic", "visualpuzzles_direct", "babyvision"],
-                     "prefix": ["mathvision"]},
-    "STEM & Knowledge": {"exact": ["mmmu_val", "mmmu_pro_standard", "mmmu_pro_vision", "scienceqa", "ai2d"]},
-    "Remote Sensing": {"exact": ["frieda"], "prefix": ["bigearth", "geobench", "vrsbench", "rsrcc"]},
-    "Alignment": {"exact": ["mm_safetybench", "mia_bench", "pope", "hallusionbench"]},
-    "Medical VQA": {"modality": "vision",
-                    "exact": ["vqa_rad", "slake", "path_vqa", "pmc_vqa", "path_mmu_test", "medxpertqa_mm"],
-                    "prefix": ["path_mmu"]},
-    "Medical": {"modality": "text",
-                "exact": ["medqa", "medmcqa", "pubmedqa", "mmlu_medical", "medxpertqa_text"],
-                "prefix": ["healthbench"]},
+    cat: {
+        **({"modality": modality} if modality != "vision" else {}),
+        "exact": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and not b.get("cat_prefix")],
+        "prefix": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and b.get("cat_prefix")],
+    }
+    for cat, modality in CATEGORIES
 }
 
 CATEGORY_ORDER = list(TAXONOMY)
