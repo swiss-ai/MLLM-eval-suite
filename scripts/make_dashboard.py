@@ -339,6 +339,7 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
     rows: dict[tuple[str, str], dict[str, dict]] = {}
     models: set[str] = set()
     skipped: list[str] = []
+    cell_mtimes: dict = {}
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
         for vk_name, task in VK_OWNED_TASKS.items():
@@ -424,6 +425,7 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
         return [], []
 
     rows: dict[tuple[str, str], dict[str, dict]] = {}
+    cell_mtimes: dict = {}
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
         trunc = _truncation_for(mdir.name)
@@ -452,7 +454,13 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
                 cell = {"v": round(norm * 100, 2), "raw": value, "run": run_id}
                 if task in trunc:
                     cell["t"] = round(trunc[task] * 100, 1)
-                rows.setdefault((row_task, metric), {})[canon] = cell
+                # Two result dirs can canonicalize to one column (label case,
+                # path-slug variants); the newest artifact wins, not dir order.
+                mt = path.stat().st_mtime
+                key = (row_task, metric, canon)
+                if cell_mtimes.get(key, -1) <= mt:
+                    rows.setdefault((row_task, metric), {})[canon] = cell
+                    cell_mtimes[key] = mt
 
     models = sorted({canonical_model_key(d.name) for d in model_dirs})
     table = [
