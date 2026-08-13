@@ -7,7 +7,14 @@ export SQSH="${SCRIPT_DIR}/apertus-vllm-vision-eval-prod.sqsh"
 export SQSH_DIR="${SCRIPT_DIR}"
 export BUILD_CTX="${SCRIPT_DIR}"
 
+# Persistent uv download cache: podman's own cache mounts live in /dev/shm and
+# die with the job, so every build re-downloaded ~4-5GB (torch, vLLM wheel,
+# the 1GB flashinfer cubin) — slow, and a network blip fails the build.
+export UV_CACHE_DIR="${UV_CACHE_DIR:-/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/build-cache/uv}"
+mkdir -p "$UV_CACHE_DIR"
+
 podman build \
+  -v "$UV_CACHE_DIR:/root/.cache/uv:z" \
   -v "$SQSH_DIR/empty.sources.list:/etc/apt/sources.list:ro,z" \
   -v "$SQSH_DIR/my-sources.d:/etc/apt/sources.list.d:ro,z" \
   -v "$SQSH_DIR/99-jfrog-proxy:/etc/apt/apt.conf.d/99-jfrog-proxy:ro,z" \
