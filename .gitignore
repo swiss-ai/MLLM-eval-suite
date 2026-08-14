@@ -27,3 +27,5 @@ scripts/__pycache__/
 cache/vlmeval_bridge/
 .build-snapshot.sh
 quarantine/**
+!quarantine/**/
+!quarantine/**/README.md
