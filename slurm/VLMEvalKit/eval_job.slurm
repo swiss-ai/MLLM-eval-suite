@@ -127,16 +127,11 @@ fi
 
 cd "${REPO_DIR}"
 
-VLLM_REPO="${VLLM_REPO:-/workspace/vllm}"
 export PATH="/opt/venv/bin:${PATH}"
 # DP workers race on the shared torch.compile cache during CUDA-graph capture; compile independently.
 export VLLM_DISABLE_COMPILE_CACHE=1
 source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
-if [[ -d "${VLLM_REPO}" ]]; then
-  export PYTHONPATH="${REPO_DIR}:${VLLM_REPO}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
-else
-  export PYTHONPATH="${REPO_DIR}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
-fi
+export PYTHONPATH="${REPO_DIR}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
 # The container image sets its own PYTHONPATH, so submission-env values are
 # lost; EXTRA_PYTHONPATH survives and is prepended (e.g. a staged newer
 # packages the container build predates).

@@ -13,12 +13,19 @@ set -euo pipefail
 # enroot import must happen in this same allocation before /dev/shm vanishes.
 export XDG_CONFIG_HOME=/dev/shm/$USER/xdg-config
 mkdir -p "$XDG_CONFIG_HOME/containers" /dev/shm/$USER/{root,runroot}
+# mount_program="" forces the kernel overlay mount: auto-detection has been
+# falling back to fuse-overlayfs, which spent ~45 min extracting the flashinfer
+# cubin layer. If storage init fails here, the kernel refused rootless overlay
+# on tmpfs — drop the [storage.options.overlay] block to accept fuse again.
 cat > "$XDG_CONFIG_HOME/containers/storage.conf" <<CONF
 [storage]
   driver = "overlay"
   runroot = "/dev/shm/$USER/runroot"
   graphroot = "/dev/shm/$USER/root"
+[storage.options.overlay]
+  mount_program = ""
 CONF
+podman info 2>/dev/null | grep -iE "graphDriverName|Native Overlay|mount_program|Backing Filesystem" || true
 # enroot's overlay mount needs a local filesystem (Lustre gives EINVAL), so
 # temp stays on /dev/shm; only the mount-free blob cache goes to scratch.
 export ENROOT_TEMP_PATH="/dev/shm/$USER/enroot-tmp"

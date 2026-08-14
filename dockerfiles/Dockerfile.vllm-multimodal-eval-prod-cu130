@@ -118,9 +118,7 @@ RUN git clone https://github.com/swiss-ai/VLMEvalKit.git /workspace/VLMEvalKit &
     echo "VLMEvalKit commit: $(git rev-parse HEAD)"
 
 
-ENV VLLM_REPO=/workspace/vllm \
-    PYTHONPATH=/workspace/VLMEvalKit:${PYTHONPATH} \
-    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python3.12/site-packages/torch/lib
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python3.12/site-packages/torch/lib
 
 
 WORKDIR /workspace/vllm
@@ -128,12 +126,7 @@ WORKDIR /workspace/vllm
 RUN set -eu; \
     export VLLM_PRECOMPILED_WHEEL_VARIANT="${VLLM_PRECOMPILED_WHEEL_VARIANT:-cu130}"; \
     export VLLM_MAIN_CUDA_VERSION="${VLLM_MAIN_CUDA_VERSION:-13.0}"; \
-    ARCH="${TARGETARCH:-$(uname -m)}"; \
-    case "$ARCH" in \
-        amd64|x86_64) WHEEL_ARCH="x86_64" ;; \
-        arm64|aarch64) WHEEL_ARCH="aarch64" ;; \
-        *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
-    esac; \
+    WHEEL_ARCH="aarch64"; \
     export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://wheels.vllm.ai/${VLLM_SRC_COMMIT}/vllm-${VLLM_WHEEL_VERSION}%2Bg$(echo ${VLLM_SRC_COMMIT} | cut -c1-9)-cp38-abi3-manylinux_2_28_${WHEEL_ARCH}.whl}"; \
     export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_PRECOMPILED_WHEEL_COMMIT:-${VLLM_SRC_COMMIT}}"; \
     VLLM_USE_PRECOMPILED=1 uv pip install \
@@ -216,9 +209,6 @@ PY
 RUN uv pip install --python /opt/venv/bin/python \
       --no-build-isolation \
       -r /tmp/vlmevalkit-image-requirements.txt && \
-    uv pip install --python /opt/venv/bin/python \
-      --no-deps \
-      --editable /workspace/VLMEvalKit && \
     uv pip install --python /opt/venv/bin/python --reinstall \
       "protobuf>=5.29.6,<6.0.0dev" \
       antlr4-python3-runtime==4.9.3 && \
@@ -244,11 +234,16 @@ RUN uv pip uninstall torchcodec || true && \
     CMAKE_PREFIX_PATH="/opt/venv/lib/python3.12/site-packages/pybind11/share/cmake/pybind11:${CMAKE_PREFIX_PATH:-}" \
     uv pip install -v --no-build-isolation .
 
+# The image ships engine + dependencies only; harness code comes from the suite
+# checkouts prepended to PYTHONPATH at job time. Removing the build trees makes
+# a missing checkout fail loudly instead of silently running image-frozen code.
+RUN uv pip uninstall --python /opt/venv/bin/python lmms_eval && \
+    rm -rf /workspace/vllm /workspace/transformers /workspace/lmms-eval /workspace/VLMEvalKit /workspace/torchcodec
+WORKDIR /workspace
+
 RUN printf '%s\n' \
-    'Production CUDA 13 image with local vLLM source, lmms-eval, and VLMEvalKit Apertus dependencies.' \
-    'Included paths:' \
-    '  /workspace/VLMEvalKit' \
-    '  /workspace/vllm' \
+    'Production CUDA 13 image: vLLM engine + lmms-eval/VLMEvalKit dependencies.' \
+    'No harness code is baked in; jobs prepend the suite checkouts to PYTHONPATH.' \
     > /etc/motd
 
 ARG BUILD_STAMP=unknown

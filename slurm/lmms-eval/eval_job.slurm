@@ -35,7 +35,6 @@ ulimit -c 0
 SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 ORCH_REPO_ROOT="${ORCH_REPO_ROOT:-${SUBMIT_DIR}}"
 CACHE_ROOT="${CACHE_ROOT:-${ORCH_REPO_ROOT}/cache/lmms-eval}"
-CONTAINER_REPO_ROOT="${CONTAINER_REPO_ROOT:-/workspace}"
 
 ########################################
 # Required runtime configuration
@@ -90,9 +89,6 @@ WANDB_RESUME="${WANDB_RESUME:-allow}"
 WANDB_LOG_SAMPLES="${WANDB_LOG_SAMPLES:-false}"
 WANDB_ARGS="${WANDB_ARGS:-}"
 WANDB_API_KEY="${WANDB_API_KEY:-}"
-
-VLLM_REPO="${VLLM_REPO:-${CONTAINER_REPO_ROOT}/vllm}"
-LMMS_EVAL_REPO="${LMMS_EVAL_REPO:-${CONTAINER_REPO_ROOT}/lmms-eval}"
 
 usage() {
   cat <<'EOF'
@@ -229,15 +225,10 @@ fi
 # judge-intended submissions opt in with API_TYPE=openai.
 export API_TYPE="${API_TYPE:-dummy}"
 export PATH="/opt/venv/bin:${PATH}"
-# The submodule checkout is authoritative; the container ships an older copy at
-# ${LMMS_EVAL_REPO} that silently shadows our task and metric fixes otherwise.
-# Set LMMS_EVAL_DEV_PATH= (empty) to run the container's copy instead.
-LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH-${ORCH_REPO_ROOT}/third_party/lmms-eval}"
-if [[ -n "${LMMS_EVAL_DEV_PATH}" ]]; then
-  export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${LMMS_EVAL_REPO}:${VLLM_REPO}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
-else
-  export PYTHONPATH="${LMMS_EVAL_REPO}:${VLLM_REPO}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
-fi
+# The submodule checkout is the only code source; the image carries engine and
+# dependencies but no harness code.
+LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH:-${ORCH_REPO_ROOT}/third_party/lmms-eval}"
+export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
 # Same hook as slurm/VLMEvalKit/eval_job.slurm: the container image sets its own
 # PYTHONPATH, so submission-env values are lost; EXTRA_PYTHONPATH survives and is
 # prepended (e.g. a staged package the container build predates).
@@ -431,7 +422,7 @@ if [[ "${MODEL_BACKEND}" != apertus* ]]; then
   fi
 else
 MODEL_ARGS="model=${MODEL_PATH},tokenizer=${TOKENIZER_PATH},tensor_parallel_size=1,gpu_memory_utilization=${GPU_MEMORY_UTILIZATION},trust_remote_code=${TRUST_REMOTE_CODE},max_model_len=${MAX_MODEL_LEN},hf_overrides=${HF_OVERRIDES}"
-MODEL_ARGS="${MODEL_ARGS},max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS},enable_prefix_caching=${ENABLE_PREFIX_CACHING},enforce_eager=${ENFORCE_EAGER},skip_mm_profiling=True"
+MODEL_ARGS="${MODEL_ARGS},max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS},enable_prefix_caching=${ENABLE_PREFIX_CACHING},enforce_eager=${ENFORCE_EAGER}"
 fi
 
 if [[ -n "${CHAT_TEMPLATE}" && "${MODEL_BACKEND}" == apertus* ]]; then
@@ -526,10 +517,8 @@ fi
 /opt/venv/bin/python -c "import nltk; nltk.download('wordnet')"
 
 echo "========== lmms-eval prod launch =========="
-echo "VLLM_REPO=${VLLM_REPO}"
-echo "LMMS_EVAL_REPO=${LMMS_EVAL_REPO}"
 echo "LMMS_EVAL_RESOLVED=$(python -c 'import lmms_eval,os;print(os.path.dirname(lmms_eval.__file__))' 2>/dev/null || echo '<import failed>')"
-echo "LMMS_EVAL_COMMIT=$(git -C "${LMMS_EVAL_DEV_PATH:-${LMMS_EVAL_REPO}}" rev-parse --short HEAD 2>/dev/null || echo '<unknown>')"
+echo "LMMS_EVAL_COMMIT=$(git -C "${LMMS_EVAL_DEV_PATH}" rev-parse --short HEAD 2>/dev/null || echo '<unknown>')"
 echo "MODEL_PATH=${MODEL_PATH}"
 echo "TOKENIZER_PATH=${TOKENIZER_PATH}"
 echo "CHAT_TEMPLATE=${CHAT_TEMPLATE:-<tokenizer default>}"
