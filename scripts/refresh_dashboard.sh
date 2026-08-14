@@ -42,7 +42,7 @@ MODELS_FILE="${MODELS_FILE:-$HERE/dashboard_models.txt}"
 
 # Per-task truncation rates for thinking runs (the ⌁ subscripts), recomputed
 # only when a run's samples are newer than its cache (the samples are huge).
-TRUNC_TOOL="${TRUNC_TOOL:-/iopsstor/scratch/cscs/xyixuan/apertus/lmms-eval/examples/apertus-vllm/scripts/truncation_report.py}"
+TRUNC_TOOL="${TRUNC_TOOL:-${SUITE}/third_party/lmms-eval/examples/apertus-vllm/scripts/truncation_report.py}"
 mkdir -p "$SUITE/cache/truncation"
 for md in "$RUNS_ROOT"/*-thinking-32k; do
   [[ -d "$md" ]] || continue
