@@ -1,7 +1,11 @@
-# Widely reported math battery (upstream task names, upstream scoring configs).
-# minerva_math500 = MATH-500 with math_verify symbolic checking; aime24/25 are
-# regex-scored. Instruct checkpoints usually want `-- --apply-chat-template`.
+# Widely reported math battery. gsm8k/aime are upstream tasks; the *_verify
+# and hmmt tasks are suite-local YAMLs (task_suites/lm-eval/custom/) scored
+# with math_verify — upstream's minerva/leaderboard math utils demand
+# antlr4 4.11, which conflicts with VLMEvalKit's 4.9.3 pin in the shared venv.
+# Protocol: 0-shot, greedy, 16384 tokens (the suite's non-thinking standard).
 gsm8k
-minerva_math500
+math500_verify
+math_lvl5_verify
+hmmt_feb_2025
 aime24
 aime25
