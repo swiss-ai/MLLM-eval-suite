@@ -17,6 +17,7 @@ generation_kwargs:
     - "</s>"
     - "<|im_end|>"
     - "<|eot_id|>"
+    - "<|assistant_end|>"
   do_sample: false
   temperature: 0.0
   max_gen_toks: 16384
