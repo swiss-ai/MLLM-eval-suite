@@ -234,6 +234,13 @@ RUN uv pip uninstall torchcodec || true && \
     CMAKE_PREFIX_PATH="/opt/venv/lib/python3.12/site-packages/pybind11/share/cmake/pybind11:${CMAKE_PREFIX_PATH:-}" \
     uv pip install -v --no-build-isolation .
 
+# lm-eval-harness dependencies; the harness itself runs from the suite
+# submodule on PYTHONPATH, same contract as the other two.
+RUN uv pip install --python /opt/venv/bin/python \
+    rouge-score \
+    sqlitedict \
+    word2number
+
 # The image ships engine + dependencies only; harness code comes from the suite
 # checkouts prepended to PYTHONPATH at job time. Removing the build trees makes
 # a missing checkout fail loudly instead of silently running image-frozen code.

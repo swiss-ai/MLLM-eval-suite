@@ -1,0 +1,9 @@
+# Standard text battery (upstream lm-eval task names, one job per line).
+# Extend deliberately: each addition is a dashboard column owned by lm-eval.
+mmlu
+arc_challenge
+hellaswag
+winogrande
+gsm8k
+truthfulqa_mc2
+ifeval
