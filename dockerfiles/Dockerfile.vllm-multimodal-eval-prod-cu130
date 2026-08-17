@@ -235,11 +235,14 @@ RUN uv pip uninstall torchcodec || true && \
     uv pip install -v --no-build-isolation .
 
 # lm-eval-harness dependencies; the harness itself runs from the suite
-# submodule on PYTHONPATH, same contract as the other two.
+# submodule on PYTHONPATH, same contract as the other two. math-verify goes in
+# --no-deps: its real deps (latex2sympy2_extended, sympy) are already present,
+# and resolving it normally would move the antlr4 pin VLMEvalKit relies on.
 RUN uv pip install --python /opt/venv/bin/python \
     rouge-score \
     sqlitedict \
-    word2number
+    word2number && \
+    uv pip install --python /opt/venv/bin/python --no-deps math-verify
 
 # The image ships engine + dependencies only; harness code comes from the suite
 # checkouts prepended to PYTHONPATH at job time. Removing the build trees makes

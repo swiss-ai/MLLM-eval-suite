@@ -1,0 +1,7 @@
+# Widely reported math battery (upstream task names, upstream scoring configs).
+# minerva_math500 = MATH-500 with math_verify symbolic checking; aime24/25 are
+# regex-scored. Instruct checkpoints usually want `-- --apply-chat-template`.
+gsm8k
+minerva_math500
+aime24
+aime25
