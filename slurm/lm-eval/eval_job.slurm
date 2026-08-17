@@ -17,6 +17,7 @@ HF_HOME_PATH="${HF_HOME:-${ORCH_REPO_ROOT}/cache/hf}"
 GEN_KWARGS=""
 EXTRA_MODEL_ARGS=""
 APPLY_CHAT_TEMPLATE=0
+CHAT_TEMPLATE_NAME=""
 LIMIT=""
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.85}"
 MAX_MODEL_LEN="${MAX_MODEL_LEN:-65536}"
@@ -38,7 +39,10 @@ while [[ $# -gt 0 ]]; do
     --hf-home)                HF_HOME_PATH="$2"; shift 2 ;;
     --gen-kwargs)             GEN_KWARGS="$2"; shift 2 ;;
     --extra-model-args)       EXTRA_MODEL_ARGS="$2"; shift 2 ;;
-    --apply-chat-template)    APPLY_CHAT_TEMPLATE=1; shift ;;
+    --apply-chat-template)
+      APPLY_CHAT_TEMPLATE=1
+      if [[ -n "${2:-}" && "${2:-}" != --* ]]; then CHAT_TEMPLATE_NAME="$2"; shift; fi
+      shift ;;
     --limit)                  LIMIT="$2"; shift 2 ;;
     --gpu-memory-utilization) GPU_MEMORY_UTILIZATION="$2"; shift 2 ;;
     --max-model-len)          MAX_MODEL_LEN="$2"; shift 2 ;;
@@ -86,7 +90,10 @@ if compgen -G "${INCLUDE_DIR}/*.yaml" >/dev/null 2>&1; then
   CMD+=(--include_path "$INCLUDE_DIR")
 fi
 [[ -n "$GEN_KWARGS" ]] && CMD+=(--gen_kwargs "$GEN_KWARGS")
-[[ "$APPLY_CHAT_TEMPLATE" -eq 1 ]] && CMD+=(--apply_chat_template)
+if [[ "$APPLY_CHAT_TEMPLATE" -eq 1 ]]; then
+  CMD+=(--apply_chat_template)
+  [[ -n "$CHAT_TEMPLATE_NAME" ]] && CMD+=("$CHAT_TEMPLATE_NAME")
+fi
 [[ -n "$LIMIT" ]] && CMD+=(--limit "$LIMIT")
 
 echo "========== lm-eval launch =========="
