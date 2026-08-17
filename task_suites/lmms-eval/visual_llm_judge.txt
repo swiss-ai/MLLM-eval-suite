@@ -1,0 +1,24 @@
+# lmms-eval visual benchmarks whose scoring calls an LLM judge.
+# Kept disjoint from visual_full.txt (same contract as VLMEvalKit's llm_judge.txt):
+# a judge task run without a key is scored by the dummy provider or a dead
+# client, which silently marks every sample wrong. Submit these only with the
+# judge configured — the launcher refuses otherwise.
+#
+# Judge config per task (the three surfaces are not yet unified):
+#   babyvision                  BABYVISION_API_KEY
+#   mathvision_reason_*         API_TYPE=openai + OPENAI_API_KEY
+#   mathverse                   API_TYPE=openai + OPENAI_API_KEY
+#   healthbench                 HEALTHBENCH_GRADER_BASE_URL (local Qwen grader)
+#
+# Comments and blank lines are stripped by resolve_list in eval.sh.
+
+# Visual reasoning puzzles (GPT judges the boxed coordinate answer)
+babyvision
+
+# Competition math with free-form answers (GPT extracts & compares)
+mathvision_reason_test
+mathvision_reason_testmini
+mathverse
+
+# Medical rubric grading (graded by a locally served Qwen grader)
+healthbench

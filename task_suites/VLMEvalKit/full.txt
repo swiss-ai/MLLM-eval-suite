@@ -15,7 +15,6 @@ MME
 AI2D_TEST
 MMMU_DEV_VAL
 MMMU_Pro_10c
-CMMMU_VAL
 MMVP
 MMBench_DEV_EN_V11
 MMStar
@@ -39,7 +38,7 @@ OmniDocBench
 
 # Spatial
 EmbSpatialBench
-OmniSpatialBench_default
+OmniSpatialBench_manual_cot
 SparBench
 ViewSpatialBench
 CV-Bench-2D
@@ -51,10 +50,6 @@ MindCubeBench_tiny_raw_qa
 ScienceQA_TEST
 
 # GUI
-ScreenSpot
-ScreenSpot_v2
-ScreenSpot_Pro
-OSWorld_G
 SiteBenchImage
 
 # Grounding / RefCOCO

@@ -1,10 +1,11 @@
 #!/bin/bash
-#SBATCH --account=infra01
+# account / environment / reservation come from the launcher via
+# slurm/shared/sbatch_overrides.sh (EVAL_ACCOUNT / EVAL_ENVIRONMENT /
+# EVAL_RESERVATION). For direct submission: source that snippet and pass
+# "${SBATCH_OVERRIDES[@]}" to sbatch.
 #SBATCH --job-name=lmms-eval-apertus
-#SBATCH --environment=/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/toml/shared/apertus-vllm-vision-eval-prod.toml
 #SBATCH --nodes=1
 #SBATCH --exclusive
-#SBATCH --reservation=SD-69241-apertus-1-5-0
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=285
 #SBATCH --time=12:00:00
@@ -28,11 +29,12 @@
 #     --image-token-cache-dir /capstor/.../benchmark/image_token_cache/mmmu_val \
 #     --image-token-cache-local-copy 0
 set -euo pipefail
+# vLLM worker aborts otherwise dump multi-GB cores into the submodule cwd.
+ulimit -c 0
 
 SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 ORCH_REPO_ROOT="${ORCH_REPO_ROOT:-${SUBMIT_DIR}}"
 CACHE_ROOT="${CACHE_ROOT:-${ORCH_REPO_ROOT}/cache/lmms-eval}"
-CONTAINER_REPO_ROOT="${CONTAINER_REPO_ROOT:-/workspace}"
 
 ########################################
 # Required runtime configuration
@@ -74,17 +76,7 @@ EXTRA_MODEL_ARGS=""
 SEED=1234
 EVAL_SEED="${SEED}"
 ENABLE_IMAGE_TOKEN_CACHE=true
-IMAGE_TOKEN_CACHE_COLLISION_GUARD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD:-0}"
-IMAGE_TOKEN_CACHE_LOCAL_COPY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_COPY:-0}"
-IMAGE_TOKEN_CACHE_LOCAL_BASE="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_BASE:-/tmp/${USER}/apertus_image_token_cache}"
-IMAGE_TOKEN_CACHE_PRELOAD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD:-1}"
-IMAGE_TOKEN_CACHE_READONLY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY:-0}"
-IMAGE_TOKEN_CACHE_WRITE_MISSES="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES:-1}"
-IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT:-10}"
-IMAGE_TOKEN_MEMORY_CACHE_SIZE="${VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE:-131072}"
-IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS:-5000}"
-IMAGE_TOKEN_SQLITE_MMAP_SIZE="${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE:-1073741824}"
-IMAGE_TOKEN_CACHE_DEBUG="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG:-0}"
+IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
 PREFETCH_EMU35_VISION_TOKENIZER=true
 ENABLE_WANDB=false
 WANDB_PROJECT="${WANDB_PROJECT:-lmms-eval}"
@@ -97,9 +89,6 @@ WANDB_RESUME="${WANDB_RESUME:-allow}"
 WANDB_LOG_SAMPLES="${WANDB_LOG_SAMPLES:-false}"
 WANDB_ARGS="${WANDB_ARGS:-}"
 WANDB_API_KEY="${WANDB_API_KEY:-}"
-
-VLLM_REPO="${VLLM_REPO:-${CONTAINER_REPO_ROOT}/vllm}"
-LMMS_EVAL_REPO="${LMMS_EVAL_REPO:-${CONTAINER_REPO_ROOT}/lmms-eval}"
 
 usage() {
   cat <<'EOF'
@@ -138,27 +127,8 @@ Options:
   --enable-image-token-cache <true|false>
                                          Enable Apertus image tokenization cache.
   --image-token-cache-dir <path>         Existing directory for SQLite cache.
-  --image-token-cache-collision-guard <0|1|true|false>
-                                         Enable collision guard mode.
-  --image-token-cache-local-copy <0|1|true|false>
-                                         Copy SQLite cache to node-local storage before launch. Default: 1.
-  --image-token-cache-local-base <path>  Node-local base directory for copied image-token cache.
-                                         Default: /tmp/${USER}/apertus_image_token_cache
-  --image-token-cache-preload <0|1|true|false>
-                                         Preload SQLite entries into process-local memory cache. Default: 1.
-  --image-token-cache-readonly <0|1|true|false>
-                                         Open/use image-token cache as read-only during eval. Default: 1.
-  --image-token-cache-write-misses <0|1|true|false>
-                                         Persist misses to SQLite during eval. Default: 0.
-  Environment override:
-    VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT
-                                         Safety margin (%) for node-local free-space preflight before copying cache. Default: 10.
-  --image-token-memory-cache-size <int>  In-process LRU size.
-  --image-token-sqlite-busy-timeout-ms <int>
-                                         SQLite busy timeout in milliseconds.
-  --image-token-sqlite-mmap-size <bytes> SQLite mmap_size hint in bytes.
-  --image-token-cache-debug <0|1|true|false>
-                                         Enable cache debug logs.
+  --image-token-cache-mode <fill|readonly>
+                                         fill builds the cache; readonly uses a sealed one. Default: fill.
   --prefetch-emu35-vision-tokenizer <true|false>
                                          Prefetch BAAI/Emu3.5-VisionTokenizer once before launch.
   --enable-wandb <true|false>            Enable W&B metric logging. Default: false (forced off in this script).
@@ -208,16 +178,7 @@ while [[ $# -gt 0 ]]; do
     --offline-datasets) OFFLINE_DATASETS="$2"; shift 2 ;;
     --enable-image-token-cache) ENABLE_IMAGE_TOKEN_CACHE="$2"; shift 2 ;;
     --image-token-cache-dir) IMAGE_TOKEN_CACHE_DIR="$2"; shift 2 ;;
-    --image-token-cache-collision-guard) IMAGE_TOKEN_CACHE_COLLISION_GUARD="$2"; shift 2 ;;
-    --image-token-cache-local-copy) IMAGE_TOKEN_CACHE_LOCAL_COPY="$2"; shift 2 ;;
-    --image-token-cache-local-base) IMAGE_TOKEN_CACHE_LOCAL_BASE="$2"; shift 2 ;;
-    --image-token-cache-preload) IMAGE_TOKEN_CACHE_PRELOAD="$2"; shift 2 ;;
-    --image-token-cache-readonly) IMAGE_TOKEN_CACHE_READONLY="$2"; shift 2 ;;
-    --image-token-cache-write-misses) IMAGE_TOKEN_CACHE_WRITE_MISSES="$2"; shift 2 ;;
-    --image-token-memory-cache-size) IMAGE_TOKEN_MEMORY_CACHE_SIZE="$2"; shift 2 ;;
-    --image-token-sqlite-busy-timeout-ms) IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="$2"; shift 2 ;;
-    --image-token-sqlite-mmap-size) IMAGE_TOKEN_SQLITE_MMAP_SIZE="$2"; shift 2 ;;
-    --image-token-cache-debug) IMAGE_TOKEN_CACHE_DEBUG="$2"; shift 2 ;;
+    --image-token-cache-mode) IMAGE_TOKEN_CACHE_MODE="$2"; shift 2 ;;
     --prefetch-emu35-vision-tokenizer) PREFETCH_EMU35_VISION_TOKENIZER="$2"; shift 2 ;;
     --enable-wandb) echo "Info: W&B is disabled in this script; ignoring --enable-wandb=$2"; shift 2 ;;
     --wandb-project) WANDB_PROJECT="$2"; shift 2 ;;
@@ -230,7 +191,7 @@ while [[ $# -gt 0 ]]; do
     --wandb-log-samples) WANDB_LOG_SAMPLES="$2"; shift 2 ;;
     --wandb-args) WANDB_ARGS="$2"; shift 2 ;;
     --wandb-api-key) WANDB_API_KEY="$2"; shift 2 ;;
-    --debug-mode) IMAGE_TOKEN_CACHE_DEBUG=1; shift ;;
+    --debug-mode) export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG=1; shift ;;
     --help) usage; exit 0 ;;
     *)
       echo "Unknown option: $1"
@@ -249,29 +210,30 @@ is_true() {
   esac
 }
 
-# Ensure OCR-safe default generation cap.
-# If max_new_tokens is absent, append/set it to 32768.
-# If caller already set max_new_tokens, keep caller value.
+# Default generation cap: 16384 for non-thinking runs (Artificial Analysis
+# standard). Thinking recipes pass their own 32k cap explicitly.
 if [[ -z "${GEN_KWARGS}" ]]; then
-  GEN_KWARGS="max_new_tokens=32768"
+  GEN_KWARGS="max_new_tokens=16384"
 elif [[ ! "${GEN_KWARGS}" =~ (^|,)max_new_tokens= ]]; then
-  GEN_KWARGS="${GEN_KWARGS},max_new_tokens=32768"
+  GEN_KWARGS="${GEN_KWARGS},max_new_tokens=16384"
 fi
 
 ########################################
 # Runtime environment
 ########################################
-export API_TYPE=dummy
+# Dummy judge by default so fleet jobs never spend API budget by accident;
+# judge-intended submissions opt in with API_TYPE=openai.
+export API_TYPE="${API_TYPE:-dummy}"
 export PATH="/opt/venv/bin:${PATH}"
-# Optional dev-tree override: prepend a user-local lmms-eval checkout to PYTHONPATH
-# so changes in dev are picked up without writing to the shared prod tree.
-# Usage: LMMS_EVAL_DEV_PATH=/path/to/your/lmms-eval bash scripts/eval.sh ...
-LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH:-}"
-if [[ -n "${LMMS_EVAL_DEV_PATH}" ]]; then
-  echo "PYTHONPATH dev-tree override: ${LMMS_EVAL_DEV_PATH}"
-  export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${LMMS_EVAL_REPO}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
-else
-  export PYTHONPATH="${LMMS_EVAL_REPO}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
+# The submodule checkout is the only code source; the image carries engine and
+# dependencies but no harness code.
+LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH:-${ORCH_REPO_ROOT}/third_party/lmms-eval}"
+export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
+# Same hook as slurm/VLMEvalKit/eval_job.slurm: the container image sets its own
+# PYTHONPATH, so submission-env values are lost; EXTRA_PYTHONPATH survives and is
+# prepended (e.g. a staged package the container build predates).
+if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
+  export PYTHONPATH="${EXTRA_PYTHONPATH}:${PYTHONPATH}"
 fi
 export LD_LIBRARY_PATH="/opt/venv/lib/python3.12/site-packages/torch/lib:${LD_LIBRARY_PATH:-}"
 export HF_HOME="${HF_HOME_PATH}"
@@ -279,9 +241,18 @@ export NLTK_DATA="${NLTK_DATA_PATH}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME_PATH}"
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT_PATH}"
 export LMMS_EVAL_MODELS_CACHE="${LMMS_EVAL_MODELS_CACHE_PATH}"
+# Prepared arrow + extracted archives on shared storage; unset, lmms-eval falls
+# back to node-local scratch and every fresh node re-extracts the datasets.
+export LMMS_EVAL_DATASETS_CACHE="${LMMS_EVAL_DATASETS_CACHE:-/capstor/store/cscs/swissai/infra01/vision-datasets/benchmark/lmms_eval_datasets_cache}"
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export TOKENIZERS_PARALLELISM=false
+# Remote-sensing task image trees (geospatial suite), staged under cache/rs_datasets.
+RS_DATASETS_ROOT="${RS_DATASETS_ROOT:-${ORCH_REPO_ROOT}/cache/rs_datasets}"
+export VRSBENCH_DIR="${VRSBENCH_DIR:-${RS_DATASETS_ROOT}/vrsbench}"
+export GEOBENCH_DIR="${GEOBENCH_DIR:-${RS_DATASETS_ROOT}/geobench}"
+export FRIEDA_DIR="${FRIEDA_DIR:-${RS_DATASETS_ROOT}/frieda}"
+export BIGEARTH_S2_DIR="${BIGEARTH_S2_DIR:-${RS_DATASETS_ROOT}/bigearth/BigEarthNet-S2}"
 if is_true "${ENABLE_WANDB}"; then
   if [[ -z "${WANDB_API_KEY}" && -t 0 ]]; then
     read -r -s -p "Enter WANDB_API_KEY: " WANDB_API_KEY
@@ -302,7 +273,6 @@ if ! [[ "${HASH_SEED}" =~ ^[0-9]+$ ]]; then
 fi
 export PYTHONHASHSEED="${PYTHONHASHSEED:-${HASH_SEED}}"
 export VLLM_SEED="${VLLM_SEED:-${SEED}}"
-export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG
 
 if is_true "${OFFLINE_DATASETS}"; then
   export HF_DATASETS_OFFLINE=1
@@ -311,78 +281,9 @@ else
 fi
 
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
-  SHARED_IMAGE_TOKEN_CACHE_DIR="${IMAGE_TOKEN_CACHE_DIR}"
-  LOCAL_JOB_CACHE_DIR="(not used)"
-
-  echo "IMAGE_TOKEN_CACHE_LOCAL_COPY=${IMAGE_TOKEN_CACHE_LOCAL_COPY}"
-  echo "Shared image-token cache dir: ${SHARED_IMAGE_TOKEN_CACHE_DIR}"
-
-  if is_true "${IMAGE_TOKEN_CACHE_LOCAL_COPY}"; then
-    LOCAL_JOB_CACHE_DIR="${IMAGE_TOKEN_CACHE_LOCAL_BASE}/${SLURM_JOB_ID:-manual}"
-    if ! [[ "${IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT}" =~ ^[0-9]+$ ]]; then
-      echo "Warning: invalid VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT=${IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT}; using 10."
-      IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT=10
-    fi
-    mkdir -p "${LOCAL_JOB_CACHE_DIR}"
-    echo "Node-local image-token cache dir: ${LOCAL_JOB_CACHE_DIR}"
-    du -sh "${SHARED_IMAGE_TOKEN_CACHE_DIR}" || true
-    if [[ -d "${SHARED_IMAGE_TOKEN_CACHE_DIR}" ]]; then
-      LOCAL_CACHE_CHECK_PATH="${IMAGE_TOKEN_CACHE_LOCAL_BASE}"
-      if [[ ! -e "${LOCAL_CACHE_CHECK_PATH}" ]]; then
-        LOCAL_CACHE_CHECK_PATH="/tmp"
-      fi
-      SRC_CACHE_BYTES="$(du -sb "${SHARED_IMAGE_TOKEN_CACHE_DIR}" | awk '{print $1}')"
-      LOCAL_CACHE_AVAIL_BYTES="$(df -B1 --output=avail "${LOCAL_CACHE_CHECK_PATH}" | tail -n1 | tr -d '[:space:]')"
-      LOCAL_CACHE_REQUIRED_BYTES=$((SRC_CACHE_BYTES + (SRC_CACHE_BYTES * IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT / 100)))
-      echo "Local-cache preflight: source_bytes=${SRC_CACHE_BYTES} available_bytes=${LOCAL_CACHE_AVAIL_BYTES} required_bytes=${LOCAL_CACHE_REQUIRED_BYTES} margin_pct=${IMAGE_TOKEN_CACHE_LOCAL_REQUIRED_MARGIN_PCT}"
-      if (( LOCAL_CACHE_AVAIL_BYTES < LOCAL_CACHE_REQUIRED_BYTES )); then
-        echo "ERROR: insufficient local space at ${LOCAL_CACHE_CHECK_PATH} for cache copy (need ${LOCAL_CACHE_REQUIRED_BYTES} bytes, have ${LOCAL_CACHE_AVAIL_BYTES})."
-        exit 1
-      fi
-      SQLITE_FILES=()
-      while IFS= read -r sqlite_file; do
-        SQLITE_FILES+=("${sqlite_file}")
-      done < <(find "${SHARED_IMAGE_TOKEN_CACHE_DIR}" -type f -name '*.sqlite3*')
-      if [[ "${#SQLITE_FILES[@]}" -gt 0 ]]; then
-        for sqlite_file in "${SQLITE_FILES[@]}"; do
-          rel_path="${sqlite_file#${SHARED_IMAGE_TOKEN_CACHE_DIR}/}"
-          rel_dir="$(dirname "${rel_path}")"
-          mkdir -p "${LOCAL_JOB_CACHE_DIR}/${rel_dir}"
-          cp -f "${sqlite_file}" "${LOCAL_JOB_CACHE_DIR}/${rel_dir}/"
-        done
-      else
-        echo "Warning: no SQLite cache files found in ${SHARED_IMAGE_TOKEN_CACHE_DIR}; local cache starts empty."
-      fi
-    else
-      echo "Warning: shared cache directory ${SHARED_IMAGE_TOKEN_CACHE_DIR} does not exist; local cache starts empty."
-    fi
-    du -sh "${LOCAL_JOB_CACHE_DIR}" || true
-    IMAGE_TOKEN_CACHE_DIR="${LOCAL_JOB_CACHE_DIR}"
-  else
-    echo "Node-local image-token cache dir: (disabled)"
-  fi
-
-  mkdir -p "${IMAGE_TOKEN_CACHE_DIR}"
-  echo "Final image-token cache dir: ${IMAGE_TOKEN_CACHE_DIR}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR="${IMAGE_TOKEN_CACHE_DIR}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD="${IMAGE_TOKEN_CACHE_COLLISION_GUARD}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD="${IMAGE_TOKEN_CACHE_PRELOAD}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY="${IMAGE_TOKEN_CACHE_READONLY}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES="${IMAGE_TOKEN_CACHE_WRITE_MISSES}"
-  export VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE="${IMAGE_TOKEN_MEMORY_CACHE_SIZE}"
-  export VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="${IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS}"
-  export VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE="${IMAGE_TOKEN_SQLITE_MMAP_SIZE}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG="${IMAGE_TOKEN_CACHE_DEBUG}"
+  source "${ORCH_REPO_ROOT}/slurm/shared/image_token_cache_env.sh"
 else
   unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG || true
 fi
 
 if [[ -z "${MODEL_PATH}" ]]; then
@@ -432,7 +333,7 @@ if [[ "${NUM_GPUS}" -lt "${NUM_PROCESSES}" ]]; then
   exit 1
 fi
 
-mkdir -p "${OUTPUT_PATH}" "${NLTK_DATA}" "${LOG_DIR}" "${HF_HOME}" "${XDG_CACHE_HOME}" "${VLLM_CACHE_ROOT}" "${LMMS_EVAL_MODELS_CACHE}"
+mkdir -p "${OUTPUT_PATH}" "${NLTK_DATA}" "${LOG_DIR}" "${HF_HOME}" "${XDG_CACHE_HOME}" "${VLLM_CACHE_ROOT}" "${LMMS_EVAL_MODELS_CACHE}" "${LMMS_EVAL_DATASETS_CACHE}"
 
 # Ensure ANTLR runtime version expected by OmegaConf/Emu3.5 tokenizer path.
 # This keeps jobs robust even if the base image has a newer incompatible ANTLR.
@@ -440,6 +341,8 @@ if [[ "${PIN_ANTLR_RUNTIME:-true}" == "true" ]]; then
   /opt/venv/bin/pip install --disable-pip-version-check --no-cache-dir --quiet --force-reinstall \
     "antlr4-python3-runtime==4.9.3"
 fi
+
+source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
 
 # Fail fast on known ANTLR/OmegaConf mismatch that otherwise appears late.
 python - <<'PY'
@@ -454,7 +357,7 @@ except Exception as exc:
     print(f"Root cause: {exc}", file=sys.stderr)
     sys.exit(2)
 
-emu35_root = os.getenv("VLLM_APERTUS_EMU35_CODEBASE", "/workspace/Emu3.5")
+emu35_root = os.environ["VLLM_APERTUS_EMU35_CODEBASE"]
 module_path = os.path.join(emu35_root, "src", "vision_tokenizer", "__init__.py")
 if not os.path.isfile(module_path):
     print(f"Preflight failed: missing Emu3.5 vision tokenizer module: {module_path}", file=sys.stderr)
@@ -495,10 +398,34 @@ PY
   fi
 fi
 
+if [[ "${MODEL_BACKEND}" != apertus* ]]; then
+  # Foreign backends (emu3, llava_hf, qwen3_vl, ...) own their own arg schema;
+  # the vLLM/Apertus-shaped string below would be rejected. Pass through only
+  # what the caller supplies (wrapper defaults cover the rest, e.g. emu3 ->
+  # BAAI/Emu3-Chat).
+  MODEL_ARGS="${EXTRA_MODEL_ARGS}"
+  EXTRA_MODEL_ARGS=""
+  # Without this the wrapper falls back to its own default checkpoint and the run
+  # silently evaluates a different model than --model-path names. vLLM-style
+  # and emu3 wrappers take model=; HF-style wrappers take pretrained=.
+  if [[ "${MODEL_ARGS}" != *model=* && "${MODEL_ARGS}" != *pretrained=* ]]; then
+    case "${MODEL_BACKEND}" in
+      emu3*|*vllm*) MODEL_ARGS="model=${MODEL_PATH}${MODEL_ARGS:+,${MODEL_ARGS}}" ;;
+      *)            MODEL_ARGS="pretrained=${MODEL_PATH}${MODEL_ARGS:+,${MODEL_ARGS}}" ;;
+    esac
+  fi
+  # Gemma 3's encoder is fixed at 896x896, so high-resolution pages are squashed
+  # until pan-and-scan tiles them; the shipped preprocessor leaves it off while
+  # the published scores assume it on (InfoVQA 52.6 -> 68.7 here).
+  if [[ "${MODEL_PATH}" == *gemma-3* && "${MODEL_ARGS}" != *do_pan_and_scan* ]]; then
+    MODEL_ARGS="${MODEL_ARGS:+${MODEL_ARGS},}mm_processor_kwargs={\"do_pan_and_scan\":true}"
+  fi
+else
 MODEL_ARGS="model=${MODEL_PATH},tokenizer=${TOKENIZER_PATH},tensor_parallel_size=1,gpu_memory_utilization=${GPU_MEMORY_UTILIZATION},trust_remote_code=${TRUST_REMOTE_CODE},max_model_len=${MAX_MODEL_LEN},hf_overrides=${HF_OVERRIDES}"
-MODEL_ARGS="${MODEL_ARGS},max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS},enable_prefix_caching=${ENABLE_PREFIX_CACHING},enforce_eager=${ENFORCE_EAGER},skip_mm_profiling=True"
+MODEL_ARGS="${MODEL_ARGS},max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS},enable_prefix_caching=${ENABLE_PREFIX_CACHING},enforce_eager=${ENFORCE_EAGER}"
+fi
 
-if [[ -n "${CHAT_TEMPLATE}" ]]; then
+if [[ -n "${CHAT_TEMPLATE}" && "${MODEL_BACKEND}" == apertus* ]]; then
   MODEL_ARGS="${MODEL_ARGS},chat_template=${CHAT_TEMPLATE}"
 fi
 if [[ -n "${EXTRA_MODEL_ARGS}" ]]; then
@@ -590,8 +517,8 @@ fi
 /opt/venv/bin/python -c "import nltk; nltk.download('wordnet')"
 
 echo "========== lmms-eval prod launch =========="
-echo "VLLM_REPO=${VLLM_REPO}"
-echo "LMMS_EVAL_REPO=${LMMS_EVAL_REPO}"
+echo "LMMS_EVAL_RESOLVED=$(python -c 'import lmms_eval,os;print(os.path.dirname(lmms_eval.__file__))' 2>/dev/null || echo '<import failed>')"
+echo "LMMS_EVAL_COMMIT=$(git -C "${LMMS_EVAL_DEV_PATH}" rev-parse --short HEAD 2>/dev/null || echo '<unknown>')"
 echo "MODEL_PATH=${MODEL_PATH}"
 echo "TOKENIZER_PATH=${TOKENIZER_PATH}"
 echo "CHAT_TEMPLATE=${CHAT_TEMPLATE:-<tokenizer default>}"
@@ -617,17 +544,15 @@ if is_true "${ENABLE_WANDB}"; then
 fi
 echo "ENABLE_IMAGE_TOKEN_CACHE=${ENABLE_IMAGE_TOKEN_CACHE}"
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
+  echo "IMAGE_TOKEN_CACHE_MODE=${IMAGE_TOKEN_CACHE_MODE}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD}"
+  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY}"
+  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES}"
+  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_STRICT=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_STRICT}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE=${VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS=${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE=${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_COPY=${IMAGE_TOKEN_CACHE_LOCAL_COPY}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_BASE=${IMAGE_TOKEN_CACHE_LOCAL_BASE}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES}"
 fi
 echo "HF_HOME=${HF_HOME}"
 echo "NLTK_DATA=${NLTK_DATA}"

@@ -4,10 +4,22 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG MAX_JOBS=8
 ARG CUDA_VERSION_PATH=cu130
 ARG PYTHON_VERSION=3.12
-ARG VLLM_VERSION=0.19.0
 ARG VLLM_MAIN_CUDA_VERSION=13.0
-ARG VLMEVALKIT_BRANCH=apertus-1p5-eval
-ARG LMMS_EVAL_BRANCH=apertus-1p5-eval
+# Eval runs upstream vLLM: image tokenization is harness-side, so the engine is
+# a commodity, and the fork lagged upstream twice (Apertus mm plugin, Gemma4
+# per-layer head_dim) in ways that broke evaluation.
+ARG VLLM_REPO_URL=https://github.com/vllm-project/vllm.git
+ARG VLLM_SRC_BRANCH=main
+# One source of truth for which vLLM this image is: the source checkout and the
+# precompiled wheel must be the same commit or the tree and the binary disagree.
+# VLLM_WHEEL_VERSION must match that commit's published wheel; verify with
+#   curl -s https://wheels.vllm.ai/<commit>/vllm/ | grep aarch64
+ARG VLLM_SRC_COMMIT=324f452f640015e9616b5ad5615fae6c25eb6353
+ARG TRANSFORMERS_BRANCH=add-apertus1p5
+ARG TRANSFORMERS_COMMIT=3596b056f73c7f44849c042cc02413c747636eab
+ARG VLMEVALKIT_BRANCH=main
+ARG LMMS_EVAL_BRANCH=main
+ARG VLLM_WHEEL_VERSION=0.26.1rc1.dev687
 
 # GH200 = Hopper SM90a
 ENV TORCH_CUDA_ARCH_LIST="9.0a" \
@@ -17,6 +29,7 @@ ENV TORCH_CUDA_ARCH_LIST="9.0a" \
     UV_HTTP_TIMEOUT=500 \
     UV_INDEX_STRATEGY=unsafe-best-match \
     UV_LINK_MODE=copy \
+    UV_HTTP_RETRIES=5 \
     VLLM_USE_PRECOMPILED=1 \
     VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 \
     VLLM_MAIN_CUDA_VERSION="${VLLM_MAIN_CUDA_VERSION}" \
@@ -39,10 +52,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jre-headless \
     python3 python3-dev python3-pip python3-venv \
  && rm -rf /var/lib/apt/lists/*
-RUN java -version
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-RUN python3 -m venv /opt/venv
+RUN java -version
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install "uv==0.11.30"
+
 ENV VIRTUAL_ENV="/opt/venv"
 ENV PATH="/opt/venv/bin:/root/.local/bin:${PATH}"
 
@@ -55,26 +69,22 @@ RUN python -m pip install --upgrade \
 
 RUN uv pip install --python /opt/venv/bin/python \
     --index-url https://download.pytorch.org/whl/${CUDA_VERSION_PATH} \
-    torch==2.10.0 \
-    torchvision==0.25.0 \
-    torchaudio==2.10.0
+    torch==2.13.0 \
+    torchvision==0.28.0 \
+    torchaudio==2.11.0
 
 RUN uv pip install --python /opt/venv/bin/python \
     "packaging>=24.2" \
     ninja \
     "cmake>=3.26.1" \
     "setuptools-scm>=8" \
+    setuptools_rust \
     "jinja2>=3.1.6" \
     regex \
     build \
     "protobuf>=5.29.6,<6.0.0dev" \
     "ray[default]"
 
-RUN python - <<'PY'
-import torch
-print("Torch:", torch.__version__)
-print("Torch CUDA:", torch.version.cuda)
-PY
 
 # CUDA 13 compatibility: expose cuDNN/NCCL headers where extension builds can find them.
 RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
@@ -84,13 +94,18 @@ RUN CUDNN_DIR=$(dirname "$(find /usr -name cudnn.h -print -quit)") && \
 
 WORKDIR /workspace
 
-RUN git clone https://github.com/swiss-ai/vllm.git /workspace/vllm && \
+RUN git clone "${VLLM_REPO_URL}" /workspace/vllm && \
     cd /workspace/vllm && \
-    git checkout apertus-lmms-eval && echo "vLLM commit: $(git rev-parse HEAD)"
-RUN git clone https://github.com/baaivision/Emu3.5.git /workspace/Emu3.5
-RUN git clone https://github.com/swiss-ai/benchmark-audio-tokenizer.git /workspace/benchmark-audio-tokenizer && \
-    cd /workspace/benchmark-audio-tokenizer && \
-    git submodule update --init --recursive
+    git fetch origin "${VLLM_SRC_COMMIT}" && \
+    git checkout "${VLLM_SRC_COMMIT}" && \
+    echo "vLLM branch: ${VLLM_SRC_BRANCH}" && \
+    echo "vLLM commit: $(git rev-parse HEAD)"
+RUN git clone --branch "${TRANSFORMERS_BRANCH}" https://github.com/swiss-ai/transformers.git /workspace/transformers && \
+    cd /workspace/transformers && \
+    git fetch origin "${TRANSFORMERS_COMMIT}" && \
+    git checkout "${TRANSFORMERS_COMMIT}" && \
+    echo "Transformers branch: ${TRANSFORMERS_BRANCH}" && \
+    echo "Transformers commit: $(git rev-parse HEAD)"
 RUN git clone https://github.com/swiss-ai/lmms-eval.git /workspace/lmms-eval && \
     cd /workspace/lmms-eval && \
     git checkout "${LMMS_EVAL_BRANCH}" && \
@@ -102,52 +117,46 @@ RUN git clone https://github.com/swiss-ai/VLMEvalKit.git /workspace/VLMEvalKit &
     echo "VLMEvalKit branch: ${VLMEVALKIT_BRANCH}" && \
     echo "VLMEvalKit commit: $(git rev-parse HEAD)"
 
-ENV VLLM_REPO=/workspace/vllm \
-    EMU35=/workspace/Emu3.5 \
-    WAVTOKENIZER=/workspace/benchmark-audio-tokenizer/src/repos/wavtokenizer \
-    VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE=/workspace/benchmark-audio-tokenizer \
-    PYTHONPATH=/workspace/VLMEvalKit:/workspace/vllm:/workspace/benchmark-audio-tokenizer:${PYTHONPATH} \
-    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python3.12/site-packages/torch/lib \
-    VLLM_APERTUS_EMU35_CODEBASE=/workspace/Emu3.5
 
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/venv/lib/python3.12/site-packages/torch/lib
+
+
+WORKDIR /workspace/vllm
+# Install vLLM  from source, with no dependencies to avoid compiling any sub-dependencies.
 RUN set -eu; \
-    export UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/uv-cache}"; \
-    mkdir -p "${UV_CACHE_DIR}"; \
     export VLLM_PRECOMPILED_WHEEL_VARIANT="${VLLM_PRECOMPILED_WHEEL_VARIANT:-cu130}"; \
     export VLLM_MAIN_CUDA_VERSION="${VLLM_MAIN_CUDA_VERSION:-13.0}"; \
-    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cu130-cp38-abi3-manylinux_2_35_aarch64.whl}"; \
-    if [ -z "${VLLM_PRECOMPILED_WHEEL_COMMIT:-}" ] && VLLM_GIT_COMMIT="$(git -C "${VLLM_REPO}" rev-parse HEAD 2>/dev/null)"; then \
-      export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_GIT_COMMIT}"; \
-    fi; \
-    cd "${VLLM_REPO}"; \
+    WHEEL_ARCH="aarch64"; \
+    export VLLM_PRECOMPILED_WHEEL_LOCATION="${VLLM_PRECOMPILED_WHEEL_LOCATION:-https://wheels.vllm.ai/${VLLM_SRC_COMMIT}/vllm-${VLLM_WHEEL_VERSION}%2Bg$(echo ${VLLM_SRC_COMMIT} | cut -c1-9)-cp38-abi3-manylinux_2_28_${WHEEL_ARCH}.whl}"; \
+    export VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_PRECOMPILED_WHEEL_COMMIT:-${VLLM_SRC_COMMIT}}"; \
     VLLM_USE_PRECOMPILED=1 uv pip install \
-      --python /opt/venv/bin/python \
-      --reinstall-package vllm \
-      --no-build-isolation \
-      --editable . \
-      --torch-backend=auto
+    --python /opt/venv/bin/python \
+    --reinstall-package vllm \
+    --no-build-isolation ".[audio]" \
+    --torch-backend="${VLLM_PRECOMPILED_WHEEL_VARIANT}";
+    # torch-backend must stay pinned to the image's CUDA variant: `auto`
+    # resolves against the BUILD node's driver, which can pull a newer-CUDA
+    # torch while the earlier-pinned torchaudio stays cu130 — torchaudio then
+    # refuses to import at runtime (mismatched CUDA versions).
 
-RUN /opt/venv/bin/python - <<'PY'
-import torch
+# Install the Transformers fork from source, with no dependencies to avoid compiling any sub-dependencies.
+RUN uv pip install --python /opt/venv/bin/python \
+    --no-deps \
+    /workspace/transformers
 
-print(f"Torch runtime: {torch.__version__} (CUDA {torch.version.cuda})")
-try:
-    import vllm._C  # noqa: F401
-except Exception as exc:
-    if "libcuda.so.1" in str(exc):
-        print("Skipping strict vllm._C import check during image build: libcuda.so.1 is unavailable in build environment.")
-    else:
-        raise
-else:
-    print("vLLM native extension import check passed.")
-PY
+# Install flashinfer precompiled cubin and Python wheel
+RUN uv pip uninstall flashinfer-cubin flashinfer-python || true && \
+    uv pip install flashinfer-python && \
+    uv pip install flashinfer-cubin --index-url https://flashinfer.ai/whl
 
+# Install lmms-eval from source
 RUN cd /workspace/lmms-eval && \
     uv pip install --python /opt/venv/bin/python \
     --no-build-isolation \
     --editable . \
     ".[all]"
 
+#install Additional lmms-eval dependencies
 RUN uv pip install --python /opt/venv/bin/python \
     scipy \
     ruff \
@@ -196,12 +205,10 @@ Path("/tmp/vlmevalkit-image-requirements.txt").write_text("\n".join(lines) + "\n
 print("Installing", len(lines), "VLMEvalKit dependency entries")
 PY
 
+# Install VLMEvalKit from source
 RUN uv pip install --python /opt/venv/bin/python \
       --no-build-isolation \
       -r /tmp/vlmevalkit-image-requirements.txt && \
-    uv pip install --python /opt/venv/bin/python \
-      --no-deps \
-      --editable /workspace/VLMEvalKit && \
     uv pip install --python /opt/venv/bin/python --reinstall \
       "protobuf>=5.29.6,<6.0.0dev" \
       antlr4-python3-runtime==4.9.3 && \
@@ -212,111 +219,32 @@ RUN uv pip install --python /opt/venv/bin/python \
       "einops>=0.6.1" \
       "beautifulsoup4>=4.12"
 
+# Download NLTK
 RUN /opt/venv/bin/python -c "import nltk; nltk.download('wordnet', download_dir='/usr/share/nltk_data', quiet=True)"
 
+# install torchcodec from source because of arm64 issues with precompiled wheels.
 RUN uv pip uninstall torchcodec || true && \
     uv pip install -U pybind11 cmake ninja && \
     cd /workspace && \
     rm -rf torchcodec && \
-    git clone --branch v0.10.0 https://github.com/pytorch/torchcodec.git && \
+    git clone --branch v0.15.0 https://github.com/pytorch/torchcodec.git && \
     cd /workspace/torchcodec && \
     I_CONFIRM_THIS_IS_NOT_A_LICENSE_VIOLATION=1 \
     BUILD_AGAINST_ALL_FFMPEG_FROM_S3=1 \
     CMAKE_PREFIX_PATH="/opt/venv/lib/python3.12/site-packages/pybind11/share/cmake/pybind11:${CMAKE_PREFIX_PATH:-}" \
     uv pip install -v --no-build-isolation .
-# Marker used by Apertus VLMEvalKit Slurm scripts to skip legacy runtime
-# overlays for bs4/nltk/wordnet.
-RUN echo "apertus-lmms-eval-vlmeval-cu130 $(date -u +%Y-%m-%dT%H:%M:%SZ)" > /etc/apertus_image_version
 
-RUN set -eu; \
-    /opt/venv/bin/python -m pip check > /tmp/pip-check.log 2>&1 || true; \
-    /opt/venv/bin/python - <<'PY'
-from pathlib import Path
-
-allowed = (
-    "vlmeval 0.1.0 requires cd-fvd, which is not installed.",
-    "vlmeval 0.1.0 requires decord, which is not installed.",
-    "vlmeval 0.1.0 requires dotenv, which is not installed.",
-    "vlmeval 0.1.0 has requirement antlr4-python3-runtime==4.11.1, but you have antlr4-python3-runtime 4.9.3.",
-    "latex2sympy2 1.9.1 has requirement antlr4-python3-runtime==4.7.2, but you have antlr4-python3-runtime 4.9.3.",
-    "nvidia-cusparselt-cu13 0.8.0 is not supported on this platform",
-)
-
-lines = [
-    line.strip()
-    for line in Path("/tmp/pip-check.log").read_text().splitlines()
-    if line.strip()
-]
-unexpected = [line for line in lines if line not in allowed]
-if unexpected:
-    print("Unexpected pip check failures:")
-    print("\n".join(unexpected))
-    raise SystemExit(1)
-if lines:
-    print("Ignored expected pip check metadata issues:")
-    print("\n".join(lines))
-else:
-    print("pip check passed")
-PY
-RUN /opt/venv/bin/python - <<'PY'
-import cv2
-import lmms_eval
-import torch
-import torchvision
-import transformers
-import vllm
-from google.protobuf import __version__ as protobuf_version
-from src.audio_tokenizers.implementations.wavtokenizer import WavTokenizer40
-from vlmeval.config import supported_VLM
-from vlmeval.dataset import SUPPORTED_DATASETS
-
-assert torch.__version__.startswith("2.10.0"), torch.__version__
-assert str(torch.version.cuda).startswith("13."), torch.version.cuda
-assert "Apertus-1p5-8B" in supported_VLM
-assert "3DSRBench" in SUPPORTED_DATASETS
-assert WavTokenizer40.name == "wavtokenizer-40"
-
-print("dependency preflight passed")
-print("torch:", torch.__version__, torch.version.cuda)
-print("torchvision:", torchvision.__version__)
-print("transformers:", transformers.__version__)
-print("vllm:", getattr(vllm, "__version__", "unknown"))
-print("protobuf:", protobuf_version)
-print("cv2:", cv2.__version__)
-print("lmms_eval:", getattr(lmms_eval, "__version__", "unknown"))
-PY
-# ENV CUDA_HOME=/usr/local/cuda
-# RUN uv pip install --python /opt/venv/bin/python --no-build-isolation \
-#       git+https://github.com/nickjbrowning/XIELU
-# Install Node.js 22.x
-# Install modern Node.js (includes npm)
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
- && apt-get install -y --no-install-recommends nodejs npm \
- && rm -rf /var/lib/apt/lists/*
-
-RUN node --version && npm --version
-RUN npm install -g @openai/codex
-RUN codex --version
-RUN /opt/venv/bin/python - <<'PY'
-import lmms_eval
-import vllm
-from vlmeval.config import supported_VLM
-from vlmeval.dataset import SUPPORTED_DATASETS
-from src.audio_tokenizers.implementations.wavtokenizer import WavTokenizer40
-
-print("lmms_eval:", getattr(lmms_eval, "__version__", "unknown"))
-print("vllm:", getattr(vllm, "__version__", "unknown"))
-assert "Apertus-1p5-8B" in supported_VLM
-assert "3DSRBench" in SUPPORTED_DATASETS
-print("wavtokenizer:", WavTokenizer40.name)
-PY
+# The image ships engine + dependencies only; harness code comes from the suite
+# checkouts prepended to PYTHONPATH at job time. Removing the build trees makes
+# a missing checkout fail loudly instead of silently running image-frozen code.
+RUN uv pip uninstall --python /opt/venv/bin/python lmms_eval && \
+    rm -rf /workspace/vllm /workspace/transformers /workspace/lmms-eval /workspace/VLMEvalKit /workspace/torchcodec
+WORKDIR /workspace
 
 RUN printf '%s\n' \
-    'Production CUDA 13 image with local vLLM source, lmms-eval, and VLMEvalKit Apertus dependencies.' \
-    'Included paths:' \
-    '  /workspace/VLMEvalKit' \
-    '  /workspace/vllm' \
-    '  /workspace/Emu3.5 (EMU35)' \
-    '  /workspace/benchmark-audio-tokenizer (VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE)' \
-    '  /workspace/benchmark-audio-tokenizer/src/repos/wavtokenizer (WAVTOKENIZER)' \
+    'Production CUDA 13 image: vLLM engine + lmms-eval/VLMEvalKit dependencies.' \
+    'No harness code is baked in; jobs prepend the suite checkouts to PYTHONPATH.' \
     > /etc/motd
+
+ARG BUILD_STAMP=unknown
+RUN echo "${BUILD_STAMP}" > /etc/apertus_image_version

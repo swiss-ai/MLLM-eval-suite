@@ -1,10 +1,11 @@
 #!/bin/bash
-#SBATCH --account=infra01
+# account / environment / reservation come from the launcher via
+# slurm/shared/sbatch_overrides.sh (EVAL_ACCOUNT / EVAL_ENVIRONMENT /
+# EVAL_RESERVATION). For direct submission: source that snippet and pass
+# "${SBATCH_OVERRIDES[@]}" to sbatch.
 #SBATCH --job-name=vlmeval-apertus
-#SBATCH --environment=/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/toml/shared/apertus-vllm-vision-eval-prod.toml
 #SBATCH --nodes=1
 #SBATCH --exclusive
-#SBATCH --reservation=SD-69241-apertus-1-5-0
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=285
 #SBATCH --time=04:00:00
@@ -12,6 +13,8 @@
 #SBATCH --error=logs/VLMEvalKit/vlmeval_%j.err
 
 set -euo pipefail
+# vLLM worker aborts otherwise dump multi-GB cores into the submodule cwd.
+ulimit -c 0
 
 SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 ORCH_REPO_ROOT="${ORCH_REPO_ROOT:-${SUBMIT_DIR}}"
@@ -31,15 +34,6 @@ NUM_PROCESSES=4
 BATCH_SIZE=512
 ENABLE_IMAGE_TOKEN_CACHE=true
 IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
-IMAGE_TOKEN_CACHE_COLLISION_GUARD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD:-0}"
-IMAGE_TOKEN_CACHE_LOCAL_COPY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_LOCAL_COPY:-0}"
-IMAGE_TOKEN_CACHE_PRELOAD="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD:-}"
-IMAGE_TOKEN_CACHE_READONLY="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY:-}"
-IMAGE_TOKEN_CACHE_WRITE_MISSES="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES:-}"
-IMAGE_TOKEN_MEMORY_CACHE_SIZE="${VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE:-131072}"
-IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS:-5000}"
-IMAGE_TOKEN_SQLITE_MMAP_SIZE="${VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE:-1073741824}"
-IMAGE_TOKEN_CACHE_DEBUG="${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG:-0}"
 MAIN_PROCESS_PORT=29541
 SEED=1234
 PYTHON_BIN="/opt/venv/bin/python"
@@ -59,22 +53,10 @@ Options:
   --enable-image-token-cache <true|false>
                                   Export Apertus image-token cache env. Default: true.
   --image-token-cache-mode <fill|readonly>
-                                  Accepted for compatibility. Both modes preload the
-                                  shared cache and write missing image tokens.
-                                  Default: fill.
+                                  fill builds the cache; readonly uses a sealed one. Default: fill.
   --image-token-cache-base <path> Base containing per-task SQLite caches.
   --image-token-cache-task <name> Cache task name under the base. Default: dataset-derived.
   --image-token-cache-dir <path>  Exact cache dir passed to vLLM; overrides base/task.
-  --image-token-cache-collision-guard <0|1|true|false>
-  --image-token-cache-local-copy <0|1|true|false>
-                                  Must be 0 in this VLMEvalKit wrapper.
-  --image-token-cache-preload <0|1|true|false>
-  --image-token-cache-readonly <0|1|true|false>
-  --image-token-cache-write-misses <0|1|true|false>
-  --image-token-memory-cache-size <int>
-  --image-token-sqlite-busy-timeout-ms <int>
-  --image-token-sqlite-mmap-size <bytes>
-  --image-token-cache-debug <0|1|true|false>
   --lmu-data <path>              LMUData root for datasets.
   --runtime-cache <path>         Root for HF/XDG/vLLM runtime caches.
   --num-processes <int>          torch.distributed workers. Default: 4.
@@ -99,18 +81,11 @@ while [[ $# -gt 0 ]]; do
     --image-token-cache-base) IMAGE_TOKEN_CACHE_BASE="$2"; shift 2 ;;
     --image-token-cache-task) IMAGE_TOKEN_CACHE_TASK="$2"; shift 2 ;;
     --image-token-cache-dir) IMAGE_TOKEN_CACHE_DIR="$2"; shift 2 ;;
-    --image-token-cache-collision-guard) IMAGE_TOKEN_CACHE_COLLISION_GUARD="$2"; shift 2 ;;
-    --image-token-cache-local-copy) IMAGE_TOKEN_CACHE_LOCAL_COPY="$2"; shift 2 ;;
-    --image-token-cache-preload) IMAGE_TOKEN_CACHE_PRELOAD="$2"; shift 2 ;;
-    --image-token-cache-readonly) IMAGE_TOKEN_CACHE_READONLY="$2"; shift 2 ;;
-    --image-token-cache-write-misses) IMAGE_TOKEN_CACHE_WRITE_MISSES="$2"; shift 2 ;;
-    --image-token-memory-cache-size) IMAGE_TOKEN_MEMORY_CACHE_SIZE="$2"; shift 2 ;;
-    --image-token-sqlite-busy-timeout-ms) IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="$2"; shift 2 ;;
-    --image-token-sqlite-mmap-size) IMAGE_TOKEN_SQLITE_MMAP_SIZE="$2"; shift 2 ;;
-    --image-token-cache-debug) IMAGE_TOKEN_CACHE_DEBUG="$2"; shift 2 ;;
     --lmu-data) LMU_DATA="$2"; shift 2 ;;
     --runtime-cache) RUNTIME_CACHE="$2"; shift 2 ;;
     --num-processes) NUM_PROCESSES="$2"; shift 2 ;;
+    --tensor-parallel-size) APERTUS_TENSOR_PARALLEL_SIZE="$2"; shift 2 ;;
+    --gpu-memory-utilization) APERTUS_GPU_MEMORY_UTILIZATION="$2"; shift 2 ;;
     --batch-size) BATCH_SIZE="$2"; shift 2 ;;
     --main-process-port) MAIN_PROCESS_PORT="$2"; shift 2 ;;
     --seed) SEED="$2"; shift 2 ;;
@@ -129,20 +104,6 @@ case "${MODE}" in
   *) echo "--mode must be all, infer, or eval (got: ${MODE})" >&2; exit 1 ;;
 esac
 
-case "${IMAGE_TOKEN_CACHE_MODE}" in
-  fill)
-    : "${IMAGE_TOKEN_CACHE_PRELOAD:=1}"
-    : "${IMAGE_TOKEN_CACHE_READONLY:=0}"
-    : "${IMAGE_TOKEN_CACHE_WRITE_MISSES:=1}"
-    ;;
-  readonly)
-    : "${IMAGE_TOKEN_CACHE_PRELOAD:=1}"
-    : "${IMAGE_TOKEN_CACHE_READONLY:=0}"
-    : "${IMAGE_TOKEN_CACHE_WRITE_MISSES:=1}"
-    ;;
-  *) echo "--image-token-cache-mode must be fill or readonly (got: ${IMAGE_TOKEN_CACHE_MODE})" >&2; exit 1 ;;
-esac
-
 is_true() {
   local value
   value="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
@@ -152,15 +113,10 @@ is_true() {
   esac
 }
 
-: "${WORK_DIR:=${WORK_BASE}/${MODEL}/${DATASET}}"
+: "${WORK_DIR:=${WORK_BASE}/$(basename "${MODEL}")/${DATASET}}"
 
 if [[ ! "${NUM_PROCESSES}" =~ ^[0-9]+$ || "${NUM_PROCESSES}" -lt 1 ]]; then
   echo "--num-processes must be a positive integer (got: ${NUM_PROCESSES})" >&2
-  exit 1
-fi
-
-if is_true "${IMAGE_TOKEN_CACHE_LOCAL_COPY}"; then
-  echo "--image-token-cache-local-copy is not implemented in this VLMEvalKit wrapper; use 0." >&2
   exit 1
 fi
 
@@ -171,12 +127,16 @@ fi
 
 cd "${REPO_DIR}"
 
-VLLM_REPO="${VLLM_REPO:-/workspace/vllm}"
 export PATH="/opt/venv/bin:${PATH}"
-if [[ -d "${VLLM_REPO}" ]]; then
-  export PYTHONPATH="${REPO_DIR}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
-else
-  export PYTHONPATH="${REPO_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
+# DP workers race on the shared torch.compile cache during CUDA-graph capture; compile independently.
+export VLLM_DISABLE_COMPILE_CACHE=1
+source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
+export PYTHONPATH="${REPO_DIR}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
+# The container image sets its own PYTHONPATH, so submission-env values are
+# lost; EXTRA_PYTHONPATH survives and is prepended (e.g. a staged newer
+# packages the container build predates).
+if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
+  export PYTHONPATH="${EXTRA_PYTHONPATH}:${PYTHONPATH}"
 fi
 # /capstor/.../MLLM/wheelhouse provides libjson-c.so.5 which the slurm
 # switch/hpe_slingshot plugin dlopen()s when srun runs inside this container
@@ -208,6 +168,34 @@ export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export TOKENIZERS_PARALLELISM=false
 export PYTHONHASHSEED="${PYTHONHASHSEED:-${SEED}}"
 export VLLM_SEED="${VLLM_SEED:-${SEED}}"
+
+# Path-driven Apertus identity for the config.py registry entry: APERTUS_RUN_NAME
+# is the supported_VLM key (matches --model); APERTUS_MODEL_PATH is the checkpoint
+# (defaults to --model when it is a path, else the wrapper default). Override knobs via env
+# (e.g. APERTUS_ENABLE_THINKING=1 APERTUS_TEMPERATURE=0.6) or edit the defaults
+# here; thinking needs APERTUS_TEMPERATURE > 0 and APERTUS_MAX_NEW_TOKENS ~16384.
+# FOREIGN_MODEL=1 skips the Apertus registry override so upstream
+# supported_VLM entries (molmo, llava_next, qwen, ...) resolve instead.
+# Unset (direct sbatch): derive from the model name like the launcher does,
+# so a foreign name never silently scores the Apertus default checkpoint.
+if [[ -z "${FOREIGN_MODEL:-}" ]]; then
+  case "${MODEL}" in [Aa]pertus*|/*) FOREIGN_MODEL=0 ;; *) FOREIGN_MODEL=1 ;; esac
+fi
+if [[ "${FOREIGN_MODEL}" != "1" ]]; then
+export APERTUS_RUN_NAME="${MODEL}"
+if [[ -z "${APERTUS_MODEL_PATH:-}" && "${MODEL}" == /* ]]; then
+  [[ -d "${MODEL}" ]] || { echo "ERROR: --model '${MODEL}' is path-shaped but not a directory; refusing to silently load the default checkpoint." >&2; exit 1; }
+  APERTUS_MODEL_PATH="${MODEL}"
+fi
+export APERTUS_MODEL_PATH="${APERTUS_MODEL_PATH:-}"
+export APERTUS_ENABLE_THINKING="${APERTUS_ENABLE_THINKING:-}"
+export APERTUS_TEMPERATURE="${APERTUS_TEMPERATURE:-}"
+export APERTUS_TOP_P="${APERTUS_TOP_P:-}"
+export APERTUS_REPETITION_PENALTY="${APERTUS_REPETITION_PENALTY:-}"
+export APERTUS_MAX_NEW_TOKENS="${APERTUS_MAX_NEW_TOKENS:-}"
+export APERTUS_TENSOR_PARALLEL_SIZE="${APERTUS_TENSOR_PARALLEL_SIZE:-}"
+export APERTUS_GPU_MEMORY_UTILIZATION="${APERTUS_GPU_MEMORY_UTILIZATION:-}"
+fi
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
@@ -217,26 +205,9 @@ if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
     fi
     IMAGE_TOKEN_CACHE_DIR="${IMAGE_TOKEN_CACHE_BASE}/${IMAGE_TOKEN_CACHE_TASK}"
   fi
-  mkdir -p "${IMAGE_TOKEN_CACHE_DIR}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR="${IMAGE_TOKEN_CACHE_DIR}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD="${IMAGE_TOKEN_CACHE_COLLISION_GUARD}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD="${IMAGE_TOKEN_CACHE_PRELOAD}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY="${IMAGE_TOKEN_CACHE_READONLY}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES="${IMAGE_TOKEN_CACHE_WRITE_MISSES}"
-  export VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE="${IMAGE_TOKEN_MEMORY_CACHE_SIZE}"
-  export VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS="${IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS}"
-  export VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE="${IMAGE_TOKEN_SQLITE_MMAP_SIZE}"
-  export VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG="${IMAGE_TOKEN_CACHE_DEBUG}"
+  source "${ORCH_REPO_ROOT}/slurm/shared/image_token_cache_env.sh"
 else
   unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_COLLISION_GUARD || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_MEMORY_CACHE_SIZE || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_SQLITE_BUSY_TIMEOUT_MS || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_SQLITE_MMAP_SIZE || true
-  unset VLLM_APERTUS_IMAGE_TOKEN_CACHE_DEBUG || true
 fi
 
 if [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]]; then
@@ -255,33 +226,20 @@ PY
   fi
 fi
 
-if [[ "${NUM_GPUS}" -lt "${NUM_PROCESSES}" ]]; then
-  echo "Need at least ${NUM_PROCESSES} visible GPUs, found ${NUM_GPUS}." >&2
+NEED_GPUS=$(( NUM_PROCESSES * ${APERTUS_TENSOR_PARALLEL_SIZE:-1} ))
+if [[ "${NUM_GPUS}" -lt "${NEED_GPUS}" ]]; then
+  echo "Need at least ${NEED_GPUS} visible GPUs (${NUM_PROCESSES} workers x TP=${APERTUS_TENSOR_PARALLEL_SIZE:-1}), found ${NUM_GPUS}." >&2
   exit 1
 fi
 
 # TODO(2026-08-01): drop this whole if/fi (and the marker check in the
-# Dockerfile) once /etc/apertus_image_version is baked into every cluster image
-# we run against. Tracked as "legacy-image overlay" cleanup.
-# Until then: pip install bs4/nltk and download wordnet at runtime because the
-# older container image is missing them. Persists to RUNTIME_CACHE so a job
-# that lands on a node with a warm cache skips the install + download.
-if [[ ! -f /etc/apertus_image_version ]]; then
-  PIP_OVERLAY="${RUNTIME_CACHE}/pip_pkgs"
-  export NLTK_DATA="${RUNTIME_CACHE}/nltk_data"
-  if [[ -d "${PIP_OVERLAY}/bs4" && -f "${NLTK_DATA}/corpora/wordnet.zip" ]]; then
-    echo "[preflight] legacy image detected; reusing cached bs4 + wordnet overlay" >&2
-    export PYTHONPATH="${PIP_OVERLAY}:${PYTHONPATH:-}"
-  else
-    echo "[preflight] legacy image detected; installing bs4 + wordnet overlay" >&2
-    mkdir -p "${PIP_OVERLAY}" "${NLTK_DATA}"
-    # Drop inherited PIP_CONSTRAINT from the base image (points at a non-existent
-    # /etc/pip/constraint.txt) for this isolated --target install only.
-    PIP_CONSTRAINT="" "${PYTHON_BIN}" -m pip install \
-      --quiet --target="${PIP_OVERLAY}" beautifulsoup4 nltk >&2
-    export PYTHONPATH="${PIP_OVERLAY}:${PYTHONPATH:-}"
-    "${PYTHON_BIN}" -c "import nltk; nltk.download('wordnet', download_dir='${NLTK_DATA}', quiet=True)" >&2
-  fi
+
+# Current images ship nltk but no tokenizer data; MM-IFEval's rule-based
+# verifiers need punkt_tab at judge time.
+export NLTK_DATA="${NLTK_DATA:-${RUNTIME_CACHE}/nltk_data}"
+if [[ ! -d "${NLTK_DATA}/tokenizers/punkt_tab" ]]; then
+  mkdir -p "${NLTK_DATA}"
+  "${PYTHON_BIN}" -c "import nltk; nltk.download('punkt_tab', download_dir='${NLTK_DATA}', quiet=True)" >&2 || true
 fi
 
 "${PYTHON_BIN}" - <<'PY'
@@ -316,11 +274,13 @@ import torch
 import vllm
 from vlmeval.config import supported_VLM
 from vlmeval.dataset import SUPPORTED_DATASETS
+from vlmeval.dataset.video_dataset_config import supported_video_datasets
 
 model = "${MODEL}"
 dataset = "${DATASET}"
 assert model in supported_VLM, f"unsupported model: {model}"
-assert dataset in SUPPORTED_DATASETS, f"unsupported dataset: {dataset}"
+assert dataset in SUPPORTED_DATASETS or dataset in supported_video_datasets, \
+    f"unsupported dataset: {dataset}"
 print("preflight repo", os.getcwd())
 print("preflight torch", torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.device_count())
 print("preflight vllm", getattr(vllm, "__version__", "unknown"))
@@ -333,22 +293,14 @@ PY
 # node, each runs torchrun which fans out NUM_PROCESSES local ranks. The
 # rendezvous endpoint is the first node from SLURM_JOB_NODELIST.
 NNODES="${SLURM_NNODES:-1}"
+
+# Build the python invocation (optional torchrun DP prefix + run.py + args),
+# shared by the single- and multi-node paths below.
+PY_CMD=("${PYTHON_BIN}")
 if [[ "${NNODES}" -gt 1 ]]; then
   MASTER_NODE="$(scontrol show hostnames "${SLURM_JOB_NODELIST}" | head -n1)"
   echo "MULTI_NODE=true NNODES=${NNODES} MASTER_NODE=${MASTER_NODE}"
-  # --chdir is critical: the apertus-vllm .toml sets workdir=/workspace/VLMEvalKit,
-  # so each srun-launched worker container starts there by default. Without
-  # --chdir, `import vlmeval` resolves to the stale baked-in /workspace copy
-  # instead of the live /iopsstor checkout, and new model names (e.g. -CoT-T6)
-  # show up as KeyError in supported_VLM. Single-node doesn't hit this because
-  # the head-node container's batch script does `cd ${REPO_DIR}` before launch.
-  RUN_CMD=(
-    srun
-    --chdir="${REPO_DIR}"
-    --ntasks="${NNODES}"
-    --ntasks-per-node=1
-    --kill-on-bad-exit=1
-    "${PYTHON_BIN}"
+  PY_CMD+=(
     -m torch.distributed.run
     --nnodes "${NNODES}"
     --nproc-per-node "${NUM_PROCESSES}"
@@ -356,18 +308,14 @@ if [[ "${NNODES}" -gt 1 ]]; then
     --rdzv-backend c10d
     --rdzv-endpoint "${MASTER_NODE}:${MAIN_PROCESS_PORT}"
   )
-else
-  RUN_CMD=("${PYTHON_BIN}")
-  if [[ "${NUM_PROCESSES}" -gt 1 ]]; then
-    RUN_CMD+=(
-      -m torch.distributed.run
-      --nproc-per-node "${NUM_PROCESSES}"
-      --master-port "${MAIN_PROCESS_PORT}"
-    )
-  fi
+elif [[ "${NUM_PROCESSES}" -gt 1 ]]; then
+  PY_CMD+=(
+    -m torch.distributed.run
+    --nproc-per-node "${NUM_PROCESSES}"
+    --master-port "${MAIN_PROCESS_PORT}"
+  )
 fi
-
-RUN_CMD+=(
+PY_CMD+=(
   run.py
   --data "${DATASET}"
   --model "${MODEL}"
@@ -375,6 +323,30 @@ RUN_CMD+=(
   --work-dir "${WORK_DIR}"
   --response-cache "${RESPONSE_CACHE}"
 )
+# run.py overrides registry kwargs for Llama-4/Qwen2-VL/Qwen2.5-VL names with
+# this CLI flag, so registry-level use_vllm=True is ignored without it.
+if [[ -n "${VLMEVAL_USE_VLLM:-}" ]]; then
+  PY_CMD+=(--use-vllm)
+fi
+
+if [[ "${NNODES}" -gt 1 ]]; then
+  # srun launches one worker container per node. The EDF .toml sets
+  # workdir=/workspace, which overrides `srun --chdir`, so each worker starts at
+  # /workspace and a bare `run.py` (or a leaked CWD) resolves to nothing / the
+  # stale baked-in copy. cd into REPO_DIR *inside* each container — exactly what
+  # the head-node batch script does at `cd ${REPO_DIR}` above — so both `run.py`
+  # and `import vlmeval` resolve to the live /iopsstor checkout.
+  RUN_CMD=(
+    srun
+    --ntasks="${NNODES}"
+    --ntasks-per-node=1
+    --kill-on-bad-exit=1
+    bash -c 'cd "$1"; shift; exec "$@"' _ "${REPO_DIR}"
+    "${PY_CMD[@]}"
+  )
+else
+  RUN_CMD=("${PY_CMD[@]}")
+fi
 
 echo "========== VLMEvalKit launch =========="
 echo "REPO_DIR=${REPO_DIR}"
@@ -389,9 +361,9 @@ echo "ENABLE_IMAGE_TOKEN_CACHE=${ENABLE_IMAGE_TOKEN_CACHE}"
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
   echo "IMAGE_TOKEN_CACHE_MODE=${IMAGE_TOKEN_CACHE_MODE}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR}"
-  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_PRELOAD}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_READONLY}"
   echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_WRITE_MISSES}"
+  echo "VLLM_APERTUS_IMAGE_TOKEN_CACHE_STRICT=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_STRICT}"
 fi
 echo "LMUData=${LMUData}"
 echo "HF_HOME=${HF_HOME}"
