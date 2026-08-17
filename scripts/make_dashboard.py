@@ -952,6 +952,8 @@ def main():
         key = (row["task"], row["metric"])
         if key in merged:
             merged[key]["cells"].update(row["cells"])
+            if row.get("cat") and not merged[key].get("cat"):
+                merged[key]["cat"] = row["cat"]
         else:
             merged[key] = dict(row)
     table = [merged[key] for key in sorted(merged)]

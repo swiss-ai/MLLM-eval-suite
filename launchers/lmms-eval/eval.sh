@@ -2,10 +2,11 @@
 # eval.sh — Apertus VLM eval CLI (per-task SQLite cache, single user entry point).
 #
 # Usage:
-#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval|geospatial-full|geospatial-smoke] [--mode fill|readonly] [--submit-mode batch|interactive] [--help]
+#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval|geospatial-full|geospatial-smoke] [--mode fill|readonly] [--size 8b|70b] [--num-processes N] [--gpu-memory-utilization F] [--extra-model-args KV] [--enable-image-token-cache true|false] [--submit-mode batch|interactive] [--help]
 #
 # <model> forms:
 #   /path/to/ckpt                       single path
+#   org/model-name                       Hugging Face model ID
 #   /a,/b,/c                            comma-separated paths
 #   @file.txt                           one path per line (comments # and blanks OK)
 #
@@ -14,6 +15,11 @@
 #           geospatial-full, geospatial-smoke.
 # --mode    fill|readonly. Both modes use the shared cache directly with preload
 #           on and writes enabled.
+# --size    8b|70b parallelism profile: 8b = 4 data-parallel workers (TP=1);
+#           70b = 1 worker, model sharded across 4 GPUs (TP=4). Default: 8b.
+# --num-processes, --gpu-memory-utilization, --max-num-batched-tokens, and --extra-model-args override the
+#           selected profile for advanced vLLM configurations.
+# --enable-image-token-cache  true|false. Default: true. Audio-only runs may disable it.
 # --submit-mode  batch|interactive. Batch submits one sbatch per task/model pair.
 #                Interactive runs the job script directly with bash so it uses
 #                the current shell's node allocation.
@@ -80,6 +86,12 @@ MODELS_RAW=""
 TASKS_RAW=""
 SUITE=""
 MODE="fill"
+SIZE="8b"
+NUM_PROCESSES_OVERRIDE=""
+GPU_MEMORY_UTILIZATION_OVERRIDE=""
+MAX_NUM_BATCHED_TOKENS_OVERRIDE=""
+EXTRA_MODEL_ARGS_OVERRIDE=""
+ENABLE_IMAGE_TOKEN_CACHE="true"
 SUBMIT_MODE="batch"
 ENABLE_THINKING=""
 GEN_KWARGS_OVERRIDE=""
@@ -91,6 +103,12 @@ while [[ $# -gt 0 ]]; do
     --tasks)    TASKS_RAW="$2"; shift 2 ;;
     --suite)    SUITE="$2"; shift 2 ;;
     --mode)     MODE="$2"; shift 2 ;;
+    --size)     SIZE="$2"; shift 2 ;;
+    --num-processes) NUM_PROCESSES_OVERRIDE="$2"; shift 2 ;;
+    --gpu-memory-utilization) GPU_MEMORY_UTILIZATION_OVERRIDE="$2"; shift 2 ;;
+    --max-num-batched-tokens) MAX_NUM_BATCHED_TOKENS_OVERRIDE="$2"; shift 2 ;;
+    --extra-model-args) EXTRA_MODEL_ARGS_OVERRIDE="$2"; shift 2 ;;
+    --enable-image-token-cache) ENABLE_IMAGE_TOKEN_CACHE="$2"; shift 2 ;;
     --submit-mode) SUBMIT_MODE="$2"; shift 2 ;;
     --enable-thinking) ENABLE_THINKING=1; shift ;;
     --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
@@ -108,6 +126,16 @@ done
 if [[ -z "$MODELS_RAW" ]]; then echo "missing <model> argument" >&2; usage; exit 1; fi
 
 case "$MODE" in fill|readonly) ;; *) echo "--mode must be fill|readonly (got: $MODE)" >&2; exit 1 ;; esac
+case "$SIZE" in
+  8b)  SIZE_NUM_PROCESSES=4; SIZE_EXTRA_MODEL_ARGS="";                       SIZE_GPU_MEM="" ;;
+  70b) SIZE_NUM_PROCESSES=1; SIZE_EXTRA_MODEL_ARGS="tensor_parallel_size=4"; SIZE_GPU_MEM="0.85" ;;
+  *) echo "--size must be 8b|70b (got: $SIZE)" >&2; exit 1 ;;
+esac
+case "$ENABLE_IMAGE_TOKEN_CACHE" in true|false) ;; *) echo "--enable-image-token-cache must be true|false (got: $ENABLE_IMAGE_TOKEN_CACHE)" >&2; exit 1 ;; esac
+EXTRA_MODEL_ARGS="${EXTRA_MODEL_ARGS_OVERRIDE:-${EXTRA_MODEL_ARGS:-$SIZE_EXTRA_MODEL_ARGS}}"
+if [[ -n "$ENABLE_THINKING" ]]; then
+  EXTRA_MODEL_ARGS="${EXTRA_MODEL_ARGS:+$EXTRA_MODEL_ARGS,}enable_thinking=True"
+fi
 case "$SUBMIT_MODE" in batch|interactive) ;; *) echo "--submit-mode must be batch|interactive (got: $SUBMIT_MODE)" >&2; exit 1 ;; esac
 
 # ------------------------------------------------------------------
@@ -185,13 +213,13 @@ CHAT_TEMPLATE="${CHAT_TEMPLATE:-}"
 if [[ -z "${CHAT_TEMPLATE}" && "${TOKENIZER_PATH}" == "${DEFAULT_TOKENIZER_PATH}" ]]; then
   CHAT_TEMPLATE="${TOKENIZER_PATH}/chat_template.jinja"
 fi
-# 16384 is the Artificial Analysis standard cap for non-thinking evals; MCQ hits
-# EOS well before this, so no cost for short-answer tasks.
-GEN_KWARGS="${GEN_KWARGS:-max_new_tokens=16384,temperature=0}"
+# Let each lmms-eval task apply its declared generation settings. In particular,
+# audio tasks use task-specific limits (OpenASR: 4096; most others: 256).
+GEN_KWARGS="${GEN_KWARGS:-}"
 if [[ -n "$GEN_KWARGS_OVERRIDE" ]]; then GEN_KWARGS="$GEN_KWARGS_OVERRIDE"; fi
-# 4 vLLM workers per node = 1 per GH200 GPU (4 GPUs). Per-task SQLite handles
-# 4 concurrent writers via WAL with sub-ms lock overhead.
-NUM_PROCESSES="${NUM_PROCESSES:-4}"
+# 8B uses four data-parallel workers; the 70B profile uses a single TP=4 worker.
+NUM_PROCESSES="${NUM_PROCESSES_OVERRIDE:-${NUM_PROCESSES:-$SIZE_NUM_PROCESSES}}"
+GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION_OVERRIDE:-${GPU_MEMORY_UTILIZATION:-$SIZE_GPU_MEM}}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
 
 # WandB config
@@ -218,6 +246,7 @@ cd "$REPO_ROOT"
 echo "========================================"
 echo "Apertus eval"
 echo "  mode:       $MODE"
+echo "  size:       $SIZE"
 echo "  models:     $(echo "$MODELS" | tr '\n' ',' | sed 's/,$//')"
 echo "  tasks:      $(echo "$TASKS"  | tr '\n' ',' | sed 's/,$//')"
 echo "  tokenizer:  $TOKENIZER_PATH"
@@ -242,7 +271,7 @@ while IFS= read -r TASK; do
 
   while IFS= read -r MODEL_PATH; do
     [[ -z "$MODEL_PATH" ]] && continue
-    if [[ ! -d "$MODEL_PATH" ]]; then
+    if [[ ! -d "$MODEL_PATH" && ! "$MODEL_PATH" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]]; then
       echo "WARNING: model path not found, skipping: $MODEL_PATH" >&2
       continue
     fi
@@ -288,7 +317,7 @@ while IFS= read -r TASK; do
       --num-processes "$NUM_PROCESSES"
       --batch-size "$BATCH_SIZE"
       --gen-kwargs "$GEN_KWARGS"
-      --enable-image-token-cache true
+      --enable-image-token-cache "$ENABLE_IMAGE_TOKEN_CACHE"
       --image-token-cache-dir "$TASK_CACHE_DIR"
       --image-token-cache-mode "$MODE"
       --enable-wandb "$ENABLE_WANDB"
@@ -299,8 +328,17 @@ while IFS= read -r TASK; do
       --wandb-api-key "${WANDB_API_KEY:-}"
     )
 
+    if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
+      JOB_ARGS+=(--extra-model-args "$EXTRA_MODEL_ARGS")
+    fi
+    if [[ -n "$GPU_MEMORY_UTILIZATION" ]]; then
+      JOB_ARGS+=(--gpu-memory-utilization "$GPU_MEMORY_UTILIZATION")
+    fi
+    if [[ -n "$MAX_NUM_BATCHED_TOKENS_OVERRIDE" ]]; then
+      JOB_ARGS+=(--max-num-batched-tokens "$MAX_NUM_BATCHED_TOKENS_OVERRIDE")
+    fi
     if [[ -n "$ENABLE_THINKING" ]]; then
-      JOB_ARGS+=(--extra-model-args "enable_thinking=True" --wandb-run-name "$MODEL_LABEL")
+      JOB_ARGS+=(--wandb-run-name "$MODEL_LABEL")
     fi
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
