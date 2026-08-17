@@ -48,6 +48,7 @@ RUN_ID_ARG=""
 THINKING=0
 DRY_ALL=0
 PASSTHROUGH=()
+EXTRA_JOB_ARGS=()
 
 # Thinking-mode config — single source for both harnesses' translation below.
 THINK_GEN_KWARGS="max_new_tokens=32768,temperature=0.6,top_p=0.95"
@@ -150,7 +151,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --)
       shift
-      PASSTHROUGH+=("$@")
+      EXTRA_JOB_ARGS+=("$@")
       break
       ;;
     -h|--help)
@@ -166,6 +167,13 @@ done
 
 if [[ -z "${EVAL_FRAMEWORK}" ]]; then
   EVAL_FRAMEWORK="all"
+fi
+
+# Post-`--` args go to the lmms-eval job script; the VLMEvalKit launcher has no
+# passthrough channel, so reject rather than silently drop them.
+if [[ ${#EXTRA_JOB_ARGS[@]} -gt 0 && "${EVAL_FRAMEWORK}" != "lmms-eval" ]]; then
+  echo "-- job args are wired for --eval-framework lmms-eval only" >&2
+  exit 2
 fi
 
 prefetch_emu35_vision_tokenizer
@@ -196,6 +204,9 @@ case "${EVAL_FRAMEWORK}" in
       ARGS+=(--enable-thinking --gen-kwargs "$THINK_GEN_KWARGS" --label-suffix "$THINK_SUFFIX")
     fi
     ARGS+=("${PASSTHROUGH[@]}")
+    if [[ ${#EXTRA_JOB_ARGS[@]} -gt 0 ]]; then
+      ARGS+=(-- "${EXTRA_JOB_ARGS[@]}")
+    fi
     exec "${ORCH_REPO_ROOT}/launchers/lmms-eval/eval.sh" "${ARGS[@]}"
     ;;
   VLMEvalKit|vlmevalkit)

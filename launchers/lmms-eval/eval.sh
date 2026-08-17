@@ -2,7 +2,7 @@
 # eval.sh — Apertus VLM eval CLI (per-task SQLite cache, single user entry point).
 #
 # Usage:
-#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval|visual-llm-judge|geospatial-full|geospatial-smoke] [--mode fill|readonly] [--submit-mode batch|interactive] [--help]
+#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval|visual-llm-judge|geospatial-full|geospatial-smoke] [--mode fill|readonly] [--submit-mode batch|interactive] [--help] [-- job args...]
 #
 # <model> forms:
 #   /path/to/ckpt                       single path
@@ -30,6 +30,7 @@
 #   bash eval.sh @models.txt --tasks @custom.txt
 #   bash eval.sh /path/to/ckpt --mode fill              # explicit default
 #   bash eval.sh /path/to/ckpt --submit-mode interactive --suite audio-smoke
+#   bash eval.sh /path/to/ckpt --tasks google_fleurs -- --gpu-memory-utilization 0.75
 #
 # Cache layout (per-task SQLite, bounded growth per file):
 #   $CACHE_BASE/{task}/image_tokens/apertus_image_token_cache.sqlite3
@@ -91,6 +92,8 @@ SUBMIT_MODE="batch"
 ENABLE_THINKING=""
 GEN_KWARGS_OVERRIDE=""
 LABEL_SUFFIX=""
+PASSTHROUGH=()
+DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -103,6 +106,8 @@ while [[ $# -gt 0 ]]; do
     --enable-thinking) ENABLE_THINKING=1; shift ;;
     --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
     --label-suffix) LABEL_SUFFIX="$2"; shift 2 ;;
+    --dry-run)  DRY_RUN=1; shift ;;
+    --)         shift; PASSTHROUGH+=("$@"); break ;;
     --*)        echo "unknown flag: $1" >&2; usage; exit 1 ;;
     *)
       # First positional = model(s)
@@ -272,6 +277,7 @@ echo "  models:     $(echo "$MODELS" | tr '\n' ',' | sed 's/,$//')"
 echo "  tasks:      $(echo "$TASKS"  | tr '\n' ',' | sed 's/,$//')"
 echo "  tokenizer:  $TOKENIZER_PATH"
 echo "  template:   ${CHAT_TEMPLATE:-<tokenizer default>}"
+echo "  gen kwargs: $GEN_KWARGS"
 echo "  cache base: $CACHE_BASE"
 echo "  output:     $OUTPUT_PATH"
 echo "  run id:     $RUN_ID"
@@ -366,6 +372,7 @@ while IFS= read -r TASK; do
       --wandb-log-samples "$WANDB_LOG_SAMPLES"
       --wandb-api-key "${WANDB_API_KEY:-}"
     )
+    JOB_ARGS+=("${PASSTHROUGH[@]}")
 
     if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
       JOB_ARGS+=(--extra-model-args "$EXTRA_MODEL_ARGS")
@@ -377,7 +384,14 @@ while IFS= read -r TASK; do
       JOB_ARGS+=(--wandb-run-name "$MODEL_LABEL")
     fi
 
-    if [[ "$SUBMIT_MODE" == "interactive" ]]; then
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      REDACTED=(); MASK_NEXT=0
+      for a in "$SLURM_TEMPLATE" "${JOB_ARGS[@]}"; do
+        if [[ "$MASK_NEXT" -eq 1 ]]; then REDACTED+=("***"); MASK_NEXT=0
+        else REDACTED+=("$a"); [[ "$a" == "--wandb-api-key" ]] && MASK_NEXT=1; fi
+      done
+      printf '    dry-run:'; printf ' %q' "${REDACTED[@]}"; printf '\n'
+    elif [[ "$SUBMIT_MODE" == "interactive" ]]; then
       echo "    submit: interactive bash ${SLURM_TEMPLATE}"
       bash "$SLURM_TEMPLATE" "${JOB_ARGS[@]}" >"$JOB_OUTPUT" 2>"$JOB_ERROR"
     else
