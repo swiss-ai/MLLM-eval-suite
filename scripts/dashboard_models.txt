@@ -35,5 +35,4 @@ gemma4-26b-a4b-it|gemma-4-26b-a4b-it=Gemma4-26B-A4B
 pixtral-12b=Pixtral-12B
 eurovlm-9b-preview=EuroVLM-9B
 emu3-chat=Emu3-Chat
-apertus-v1.5-8b=Apertus-1.5-8B (HF release)
-sft-rl-dpo-sdpo-low-less-refuse-feedback-final=Apertus-1.5-8B-Final
+sft-rl-dpo-sdpo-low-less-refuse-feedback-final|apertus-v1.5-8b=Apertus-1.5-8B-Final
