@@ -48,20 +48,36 @@ def main(repo_id: str, out_dir: str) -> None:
     )
 
     full = json.loads((src / "config.json").read_text())
+    index = json.loads((src / "model.safetensors.index.json").read_text())
+
+    # The release understands the full multimodal vocab but generates text
+    # only: embed_tokens covers ~267k ids while lm_head outputs the 131k text
+    # ids. Softmax is already computed over the head's rows, so the exact text
+    # view truncates the embedding to match; text prompts never use ids above
+    # the text vocab (chat special tokens sit at the bottom of the table).
+    head_shard = index["weight_map"]["lm_head.weight"]
+    with safe_open(src / head_shard, framework="pt") as f:
+        text_vocab = f.get_slice("lm_head.weight").get_shape()[0]
+    print(f"text vocab (lm_head rows): {text_vocab}")
+
     cfg = dict(full["text_config"])
     cfg["architectures"] = ["ApertusForCausalLM"]
     cfg["model_type"] = "apertus"
+    cfg["vocab_size"] = text_vocab
     cfg.setdefault("tie_word_embeddings", full.get("tie_word_embeddings", False))
     (out / "config.json").write_text(json.dumps(cfg, indent=2) + "\n")
 
-    index = json.loads((src / "model.safetensors.index.json").read_text())
     weight_map = {}
     for shard in sorted(set(index["weight_map"].values())):
         kept = {}
         with safe_open(src / shard, framework="pt") as f:
             for key in f.keys():
                 if key.startswith(LM_PREFIX):
-                    kept["model." + key[len(LM_PREFIX):]] = f.get_tensor(key)
+                    tensor = f.get_tensor(key)
+                    new_key = "model." + key[len(LM_PREFIX):]
+                    if new_key == "model.embed_tokens.weight":
+                        tensor = tensor[:text_vocab].contiguous()
+                    kept[new_key] = tensor
                 elif key.startswith(KEEP_FLAT):
                     kept[key] = f.get_tensor(key)
         if kept:
