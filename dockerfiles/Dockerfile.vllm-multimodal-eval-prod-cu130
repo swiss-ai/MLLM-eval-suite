@@ -238,11 +238,16 @@ RUN uv pip uninstall torchcodec || true && \
 # submodule on PYTHONPATH, same contract as the other two. math-verify goes in
 # --no-deps: its real deps (latex2sympy2_extended, sympy) are already present,
 # and resolving it normally would move the antlr4 pin VLMEvalKit relies on.
+# latex2sympy2_extended is pinned to the exact version math-verify==0.9.0
+# requires; langdetect/immutabledict serve ifeval (in text_full.txt).
 RUN uv pip install --python /opt/venv/bin/python \
     rouge-score \
     sqlitedict \
-    word2number && \
-    uv pip install --python /opt/venv/bin/python --no-deps math-verify
+    word2number \
+    langdetect \
+    immutabledict \
+    latex2sympy2_extended==1.11.0 && \
+    uv pip install --python /opt/venv/bin/python --no-deps math-verify==0.9.0
 
 # The image ships engine + dependencies only; harness code comes from the suite
 # checkouts prepended to PYTHONPATH at job time. Removing the build trees makes
@@ -250,6 +255,10 @@ RUN uv pip install --python /opt/venv/bin/python \
 RUN uv pip uninstall --python /opt/venv/bin/python lmms_eval && \
     rm -rf /workspace/vllm /workspace/transformers /workspace/lmms-eval /workspace/VLMEvalKit /workspace/torchcodec
 WORKDIR /workspace
+
+# Advisory only: the venv holds three harnesses' dependency sets, and the
+# resolver's consistency verdict belongs in the build log.
+RUN uv pip check --python /opt/venv/bin/python || true
 
 RUN printf '%s\n' \
     'Production CUDA 13 image: vLLM engine + lmms-eval/VLMEvalKit dependencies.' \
