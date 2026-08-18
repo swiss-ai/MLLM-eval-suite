@@ -224,6 +224,18 @@ fi
 # Dummy judge by default so fleet jobs never spend API budget by accident;
 # judge-intended submissions opt in with API_TYPE=openai.
 export API_TYPE="${API_TYPE:-dummy}"
+# Tasks that build their own OpenAI client (charxiv) read these directly and
+# fall back to placeholder strings, so an unset key spends the whole run
+# retrying a bogus endpoint. The key lives in one place for both lanes.
+JUDGE_ENV_FILE="${JUDGE_ENV_FILE:-${ORCH_REPO_ROOT}/third_party/VLMEvalKit/.env}"
+if [[ "${API_TYPE}" == "openai" ]]; then
+  if [[ -z "${OPENAI_API_KEY:-}" && -f "${JUDGE_ENV_FILE}" ]]; then
+    export OPENAI_API_KEY="$(sed -n 's/^OPENAI_API_KEY=//p' "${JUDGE_ENV_FILE}" | head -1)"
+  fi
+  export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+  export MODEL_VERSION="${MODEL_VERSION:-gpt-4o-mini}"
+  [[ -n "${OPENAI_API_KEY:-}" ]] || { echo "ERROR: API_TYPE=openai but no OPENAI_API_KEY (looked in ${JUDGE_ENV_FILE})" >&2; exit 1; }
+fi
 export PATH="/opt/venv/bin:${PATH}"
 # The submodule checkout is the only code source; the image carries engine and
 # dependencies but no harness code.
