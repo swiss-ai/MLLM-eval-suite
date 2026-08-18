@@ -1,0 +1,14 @@
+# Upstream gsm8k with one change: the builtin sets no max_gen_toks, so the
+# harness default of 256 silently truncated ~2% of CoT chains mid-answer.
+# include_path registration overrides the builtin task of the same name;
+# generation_kwargs is re-declared whole because the merge is shallow.
+include: ../../../third_party/lm-eval-harness/lm_eval/tasks/gsm8k/gsm8k.yaml
+task: gsm8k
+generation_kwargs:
+  until:
+    - "Question:"
+    - "</s>"
+    - "<|im_end|>"
+  do_sample: false
+  temperature: 0.0
+  max_gen_toks: 16384

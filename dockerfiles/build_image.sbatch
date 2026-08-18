@@ -12,18 +12,21 @@ set -euo pipefail
 # CSCS-documented build setup: podman storage in /dev/shm (in-memory, slurm-cleaned);
 # enroot import must happen in this same allocation before /dev/shm vanishes.
 export XDG_CONFIG_HOME=/dev/shm/$USER/xdg-config
+# A cancelled build leaves half-written layers in the node's /dev/shm store,
+# and the next build on that node fails mid-extract ("File exists" on dirs).
+# Every build starts from empty node-local storage; the persistent caches
+# (uv downloads, enroot blobs) live elsewhere and are unaffected.
+rm -rf /dev/shm/$USER/root /dev/shm/$USER/runroot /dev/shm/$USER/enroot-tmp
 mkdir -p "$XDG_CONFIG_HOME/containers" /dev/shm/$USER/{root,runroot}
-# mount_program="" forces the kernel overlay mount: auto-detection has been
-# falling back to fuse-overlayfs, which spent ~45 min extracting the flashinfer
-# cubin layer. If storage init fails here, the kernel refused rootless overlay
-# on tmpfs — drop the [storage.options.overlay] block to accept fuse again.
+# Builds run on fuse-overlayfs: rootless podman here does not take the kernel
+# overlay path (mount_program="" is treated as unset), and the flashinfer cubin
+# layer is the slow extract. The real build-time lever is the persistent uv
+# download cache on capstor, not the storage driver.
 cat > "$XDG_CONFIG_HOME/containers/storage.conf" <<CONF
 [storage]
   driver = "overlay"
   runroot = "/dev/shm/$USER/runroot"
   graphroot = "/dev/shm/$USER/root"
-[storage.options.overlay]
-  mount_program = ""
 CONF
 podman info 2>/dev/null | grep -iE "graphDriverName|Native Overlay|mount_program|Backing Filesystem" || true
 # enroot's overlay mount needs a local filesystem (Lustre gives EINVAL), so

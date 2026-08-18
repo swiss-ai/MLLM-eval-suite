@@ -1,0 +1,4 @@
+include: _math_verify_template_yaml
+task: hmmt_feb_2025
+dataset_path: MathArena/hmmt_feb_2025
+test_split: train

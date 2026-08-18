@@ -33,6 +33,24 @@ from metric_selection import iter_headline_metrics, normalize_score
 # structures below are derived views of this table; edit the table, not them.
 # ---------------------------------------------------------------------------
 BENCHMARKS = {
+    # lm-eval text lane: "lm_metric" marks ownership and names the headline
+    # metric key inside lm_eval's results json (metric,filter).
+    "arc_easy": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
+    "gsm8k": {"cat": "Math (Text)", "lm_metric": "exact_match,flexible-extract"},
+    "math500_verify": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
+    "math_lvl5_verify": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
+    "hmmt_feb_2025": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
+    "aime24": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
+    "aime25": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
+    "mmlu": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
+    "mmlu_pro": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "exact_match,custom-extract"},
+    "gpqa_diamond_zeroshot": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
+    "arc_challenge": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
+    "hellaswag": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
+    "winogrande": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
+    "truthfulqa_mc2": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
+    "ifeval": {"cat": "Instruction Following (Text)", "lm_metric": "prompt_level_strict_acc,none"},
+    "ifbench": {"cat": "Instruction Following (Text)", "lm_metric": "prompt_level_strict_acc,none"},
     "3dsrbench": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk": "3DSRBench", "vk_prefix": True},
     "ai2d": {"cat": "STEM & Knowledge"},
     "babyvision": {"cat": "Math & Logic"},
@@ -132,7 +150,7 @@ BENCHMARKS = {
 
 
 # Categories in display order, with modality.
-CATEGORIES = [('General VQA & Perception', 'vision'), ('Robustness & Bias', 'vision'), ('Spatial & Embodied', 'vision'), ('Multi-Image', 'vision'), ('Instruction Following', 'vision'), ('Counting & Grounding', 'vision'), ('Docs, Charts & OCR', 'vision'), ('Math & Logic', 'vision'), ('STEM & Knowledge', 'vision'), ('Remote Sensing', 'vision'), ('Alignment', 'vision'), ('Medical VQA', 'vision'), ('Medical', 'text')]
+CATEGORIES = [('General VQA & Perception', 'vision'), ('Robustness & Bias', 'vision'), ('Spatial & Embodied', 'vision'), ('Multi-Image', 'vision'), ('Instruction Following', 'vision'), ('Counting & Grounding', 'vision'), ('Docs, Charts & OCR', 'vision'), ('Math & Logic', 'vision'), ('STEM & Knowledge', 'vision'), ('Remote Sensing', 'vision'), ('Alignment', 'vision'), ('Medical VQA', 'vision'), ('Medical', 'text'), ('Math (Text)', 'text'), ('Knowledge & Reasoning (Text)', 'text'), ('Instruction Following (Text)', 'text')]
 
 EXTRA_VK_PREFIXES = ('muirbench', 'mm_ifeval', 'mia_bench')
 
@@ -144,7 +162,12 @@ EASI_SPATIAL_PREFIXES = tuple(k for k, b in BENCHMARKS.items() if b.get("vk_pref
 VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + EXTRA_VK_PREFIXES
 
 
+LM_EVAL_TASKS = tuple(k for k, b in BENCHMARKS.items() if b.get("lm_metric"))
+
+
 def framework_for(task: str) -> str:
+    if task in LM_EVAL_TASKS:
+        return "lm-eval"
     return "VLMEvalKit" if task.lower().startswith(VLMEVALKIT_PREFIXES) else "lmms-eval"
 
 
@@ -470,6 +493,52 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
     return models, table
 
 
+def collect_lm_eval(lm_root: Path, model_filters: list[str] | None):
+    """results/lm-eval/<model>/<run-id>/<task>/.../results_*.json → cells.
+
+    lm_eval nests its json under a sanitized model dir, so rglob; only tasks
+    registered with an lm_metric are ingested (this also drops per-subject
+    subtask rows that share the results dict with their aggregate)."""
+    if not lm_root.is_dir():
+        return [], []
+    model_dirs = sorted(d for d in lm_root.iterdir() if d.is_dir())
+    if model_filters:
+        model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
+    rows: dict[tuple[str, str], dict[str, dict]] = {}
+    cell_mtimes: dict = {}
+    for mdir in model_dirs:
+        canon = canonical_model_key(mdir.name)
+        for path in mdir.rglob("results_*.json"):
+            try:
+                data = json.loads(path.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            run_id = path.relative_to(mdir).parts[0]
+            for task, metrics in data.get("results", {}).items():
+                rec = BENCHMARKS.get(task, {})
+                metric = rec.get("lm_metric")
+                if not metric:
+                    continue
+                value = metrics.get(metric)
+                if not isinstance(value, (int, float)):
+                    continue
+                score = normalize_score(metric, float(value))
+                if score is None:
+                    continue
+                cell = {"v": round(score * 100, 2), "raw": score, "run": run_id}
+                mt = path.stat().st_mtime
+                key = (task, metric, canon)
+                if cell_mtimes.get(key, -1) <= mt:
+                    rows.setdefault((task, metric), {})[canon] = cell
+                    cell_mtimes[key] = mt
+    models = sorted({canonical_model_key(d.name) for d in model_dirs})
+    table = [
+        {"task": task, "metric": metric.replace(",none", ""), "framework": "lm-eval", "cells": cells}
+        for (task, metric), cells in sorted(rows.items())
+    ]
+    return models, table
+
+
 # Benchmark taxonomy for the matrix band grouping. Bands follow the category
 # conventions of recent VLM reports (Qwen3-VL, InternVL3.5): pure-text evals get
 # their own top-level band instead of mixing into multimodal domains. One
@@ -600,6 +669,7 @@ input[type=search]:focus, select:focus { border-bottom-color: var(--red); }
 .hbadge { display: inline-block; font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; letter-spacing: .03em; font-weight: 600; padding: 1px 5px; border-radius: 2px; vertical-align: middle; margin-left: 7px; }
 .hbadge.lmms { color: #2c5f7a; background: #dceaf1; }
 .hbadge.vlme { color: #7a3d1e; background: #f1e2d6; }
+.hbadge.lme  { color: #3e6b2e; background: #e2eed9; }
 
 /* matrix */
 .matrix-wrap { overflow: auto; max-height: 76vh; border: 1px solid var(--hair); background: var(--paper); }
@@ -670,9 +740,9 @@ footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
   <span class="viewtab"><button id="tab-vision" class="on">Vision</button><button id="tab-audio">Audio</button><button id="tab-text">Text</button></span>
   <span><label>filter&nbsp;</label><input id="q" type="search" placeholder="benchmark substring…" spellcheck="false"></span>
   <span><label>category&nbsp;</label><select id="cfilter"><option value="">all</option></select></span>
-  <span><label>harness&nbsp;</label><select id="hfilter"><option value="">all</option><option value="lmms-eval">lmms-eval</option><option value="VLMEvalKit">VLMEvalKit</option></select></span>
+  <span><label>harness&nbsp;</label><select id="hfilter"><option value="">all</option><option value="lmms-eval">lmms-eval</option><option value="VLMEvalKit">VLMEvalKit</option><option value="lm-eval">lm-eval</option></select></span>
   <span><label>baseline&nbsp;</label><select id="base"><option value="">none</option></select></span>
-  <span class="hint" style="margin-left:auto"><span class="hbadge lmms">lmms-eval</span> <span class="hbadge vlme">VLMEvalKit</span></span>
+  <span class="hint" style="margin-left:auto"><span class="hbadge lmms">lmms-eval</span> <span class="hbadge vlme">VLMEvalKit</span> <span class="hbadge lme">lm-eval</span></span>
 </div>
 
 <div class="matrix-wrap" id="matrix-view"><table id="matrix"></table></div>
@@ -699,6 +769,8 @@ const fmt = v => v.toFixed(1);
 const avg = vs => vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
 const hbadge = fw => fw === "VLMEvalKit"
   ? '<span class="hbadge vlme">VLMEvalKit</span>'
+  : fw === "lm-eval"
+  ? '<span class="hbadge lme">lm-eval</span>'
   : '<span class="hbadge lmms">lmms-eval</span>';
 const selModels = () => D.models.filter(m => state.sel.has(m));
 const visRows = () => {
@@ -889,6 +961,7 @@ def main():
     p.add_argument("--only", nargs="*", help="curate to these exact canonical checkpoint keys (drops all others)")
     p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
+    p.add_argument("--lm-eval-root", type=Path, help="results/lm-eval tree; ingests lm-eval-owned text benchmarks, merged by checkpoint identity")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
     p.add_argument("--models-file", type=Path,
                    help="column manifest (key[|alias]=Label per line); overrides --only/--label")
@@ -912,22 +985,26 @@ def main():
     models_v, table_v = ([], [])
     if args.vlmeval_root:
         models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
+    models_t, table_t = ([], [])
+    if args.lm_eval_root:
+        models_t, table_t = collect_lm_eval(args.lm_eval_root.resolve(), args.models)
     if aliases:
         models_l = [aliases.get(m, m) for m in models_l]
         models_v = [aliases.get(m, m) for m in models_v]
-        for row in table_l + table_v:
+        models_t = [aliases.get(m, m) for m in models_t]
+        for row in table_l + table_v + table_t:
             cells = {}
             for k, v in row["cells"].items():
                 cells.setdefault(aliases.get(k, k), v)
             row["cells"] = cells
-    models = sorted(set(models_l) | set(models_v))
+    models = sorted(set(models_l) | set(models_v) | set(models_t))
     if args.only:
         present = set(models)
         models = [m for m in args.only if m in present]
     # Ownership partitions benchmarks, so no (task, metric) appears in both
     # harnesses; cells merge defensively if one ever does.
     merged: dict[tuple[str, str], dict] = {}
-    for row in table_l + table_v:
+    for row in table_l + table_v + table_t:
         key = (row["task"], row["metric"])
         if key in merged:
             merged[key]["cells"].update(row["cells"])
@@ -966,7 +1043,10 @@ def main():
         "groups": {m: model_groups.get(m, "Models") for m in models},
     }
     n_vk = sum(1 for r in cells_rows if r["framework"] == "VLMEvalKit")
-    sources = f"lmms-eval ({len(cells_rows) - n_vk} rows)" + (f" · VLMEvalKit ({n_vk} rows)" if n_vk else "")
+    n_lm = sum(1 for r in cells_rows if r["framework"] == "lm-eval")
+    sources = (f"lmms-eval ({len(cells_rows) - n_vk - n_lm} rows)"
+               + (f" · VLMEvalKit ({n_vk} rows)" if n_vk else "")
+               + (f" · lm-eval ({n_lm} rows)" if n_lm else ""))
     meta = (
         f"<b>{len(models)}</b> checkpoints · <b>{len(cells_rows)}</b> metric rows · "
         f"{sources} · generated {datetime.datetime.now():%Y-%m-%d %H:%M}"

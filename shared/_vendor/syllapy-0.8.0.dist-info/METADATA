@@ -1,0 +1,46 @@
+Metadata-Version: 2.4
+Name: syllapy
+Version: 0.8.0
+Summary: Calculate syllable counts for English words.
+Project-URL: Homepage, https://github.com/mholtzscher/syllapy
+Author-email: Michael Holtzscher <michael.holtzscher@gmail.com>
+License-Expression: MIT
+License-File: LICENSE
+Keywords: nlp,syllables
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Text Processing :: Linguistic
+Requires-Python: >=3.10
+Provides-Extra: dev
+Requires-Dist: build; extra == 'dev'
+Requires-Dist: mypy; extra == 'dev'
+Requires-Dist: pytest; extra == 'dev'
+Requires-Dist: ruff; extra == 'dev'
+Description-Content-Type: text/markdown
+
+SyllaPy
+=======
+
+<p>
+  <a href="https://badge.fury.io/py/syllapy"><img src="https://badge.fury.io/py/syllapy.svg" alt="PyPI version"></a>
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
+</p>
+
+Calculate syllable counts for English words.
+
+
+Installation
+------------
+
+``` {.sourceCode .python}
+pip install syllapy
+```
+
+Usage
+-----
+
+``` {.sourceCode .python}
+import syllapy
+count = syllapy.count('additional')
+```
+

@@ -1,0 +1,11 @@
+syllapy-0.8.0.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+syllapy-0.8.0.dist-info/METADATA,sha256=SD9eCf-_SH15fKcQ7n5GBQEnderHXqohnwkms0ixmOM,1227
+syllapy-0.8.0.dist-info/RECORD,,
+syllapy-0.8.0.dist-info/REQUESTED,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0
+syllapy-0.8.0.dist-info/WHEEL,sha256=lCkmxWfQsSc9CfIClYeavTdQeEX2toPqufh9gI35EQA,87
+syllapy-0.8.0.dist-info/licenses/LICENSE,sha256=V7lCM3lOnRPtt7GYXPsSLSBqyReeCSIWYZD_I42SCUI,1077
+syllapy/__init__.py,sha256=16FXeZtR99nBjkX-y42WahKAwtVgXFv6W4f0Kd1uhNU,2321
+syllapy/__pycache__/__init__.cpython-312.pyc,,
+syllapy/__pycache__/data_loader.cpython-312.pyc,,
+syllapy/data.csv,sha256=FdvGBfSwNpDM9Pv-FPY0tS786oZsITEGZCU_rbcYvA0,61478
+syllapy/data_loader.py,sha256=y_TK56JFLeHzTuAB-bwm3zAIAyuUZYez_78IEwl7LBI,437

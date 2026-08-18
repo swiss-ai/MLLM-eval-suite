@@ -224,19 +224,16 @@ fi
 # Dummy judge by default so fleet jobs never spend API budget by accident;
 # judge-intended submissions opt in with API_TYPE=openai.
 export API_TYPE="${API_TYPE:-dummy}"
+source "${ORCH_REPO_ROOT}/slurm/shared/job_env.sh"
+resolve_judge_key
 export PATH="/opt/venv/bin:${PATH}"
 # The submodule checkout is the only code source; the image carries engine and
 # dependencies but no harness code.
 LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH:-${ORCH_REPO_ROOT}/third_party/lmms-eval}"
-export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
-# Same hook as slurm/VLMEvalKit/eval_job.slurm: the container image sets its own
-# PYTHONPATH, so submission-env values are lost; EXTRA_PYTHONPATH survives and is
-# prepended (e.g. a staged package the container build predates).
-if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
-  export PYTHONPATH="${EXTRA_PYTHONPATH}:${PYTHONPATH}"
-fi
+suite_pythonpath "${LMMS_EVAL_DEV_PATH}"
 export LD_LIBRARY_PATH="/opt/venv/lib/python3.12/site-packages/torch/lib:${LD_LIBRARY_PATH:-}"
 export HF_HOME="${HF_HOME_PATH}"
+resolve_hf_token
 export NLTK_DATA="${NLTK_DATA_PATH}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME_PATH}"
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT_PATH}"

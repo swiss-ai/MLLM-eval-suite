@@ -1,0 +1,4 @@
+include: _math_verify_template_yaml
+task: math500_verify
+dataset_path: HuggingFaceH4/MATH-500
+test_split: test

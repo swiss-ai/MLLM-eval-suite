@@ -1,0 +1,6 @@
+include: _math_verify_template_yaml
+task: math_lvl5_verify
+dataset_path: DigitalLearningGmbH/MATH-lighteval
+dataset_name: default
+test_split: test
+process_docs: !function utils.process_docs_math_lvl5

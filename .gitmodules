@@ -6,3 +6,7 @@
 	path = third_party/VLMEvalKit
 	url = https://github.com/swiss-ai/VLMEvalKit.git
 	branch = main
+[submodule "third_party/lm-eval-harness"]
+	path = third_party/lm-eval-harness
+	url = https://github.com/EleutherAI/lm-evaluation-harness.git
+	branch = main

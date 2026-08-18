@@ -131,13 +131,8 @@ export PATH="/opt/venv/bin:${PATH}"
 # DP workers race on the shared torch.compile cache during CUDA-graph capture; compile independently.
 export VLLM_DISABLE_COMPILE_CACHE=1
 source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
-export PYTHONPATH="${REPO_DIR}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
-# The container image sets its own PYTHONPATH, so submission-env values are
-# lost; EXTRA_PYTHONPATH survives and is prepended (e.g. a staged newer
-# packages the container build predates).
-if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
-  export PYTHONPATH="${EXTRA_PYTHONPATH}:${PYTHONPATH}"
-fi
+source "${ORCH_REPO_ROOT}/slurm/shared/job_env.sh"
+suite_pythonpath "${REPO_DIR}"
 # /capstor/.../MLLM/wheelhouse provides libjson-c.so.5 which the slurm
 # switch/hpe_slingshot plugin dlopen()s when srun runs inside this container
 # (the container itself lacks libjson-c5). Without this path, multi-node
@@ -157,6 +152,7 @@ mkdir -p \
 export LMUData="${LMU_DATA}"
 export VLMEVAL_RESPONSE_CACHE="${RESPONSE_CACHE}"
 export HF_HOME="${HF_HOME:-${RUNTIME_CACHE}/hf}"
+resolve_hf_token
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${RUNTIME_CACHE}/xdg}"
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT:-${RUNTIME_CACHE}/vllm}"
 export VLLM_APERTUS_MODELS_CACHE="${VLLM_APERTUS_MODELS_CACHE:-${RUNTIME_CACHE}/models}"
