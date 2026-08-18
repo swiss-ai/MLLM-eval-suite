@@ -4,6 +4,5 @@ mmlu
 arc_challenge
 hellaswag
 winogrande
-gsm8k
 truthfulqa_mc2
 ifeval
