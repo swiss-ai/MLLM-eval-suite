@@ -7,7 +7,8 @@
 #SBATCH --exclusive
 set -euo pipefail
 
-ORCH_REPO_ROOT="${ORCH_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel 2>/dev/null)}"
+ORCH_REPO_ROOT="${ORCH_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel 2>/dev/null || true)}"
+[[ -n "$ORCH_REPO_ROOT" ]] || { echo "ORCH_REPO_ROOT is not set and cannot be derived (sbatch runs the script from the slurmd spool dir); export it in the submission environment" >&2; exit 1; }
 
 MODEL_PATH=""
 TASKS=""
