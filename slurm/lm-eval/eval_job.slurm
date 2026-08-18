@@ -77,8 +77,12 @@ if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
   MODEL_ARGS="${MODEL_ARGS},${EXTRA_MODEL_ARGS}"
 fi
 
-CMD=(python -m lm_eval
-  --model vllm
+LM_EVAL_MODEL=vllm
+if [[ -n "${APERTUS_TEXT_ONLY_OUTPUT_VOCAB:-}" ]]; then
+  LM_EVAL_MODEL=vllm_apertus
+fi
+CMD=(python -m apertus_lm_eval_ext
+  --model "$LM_EVAL_MODEL"
   --model_args "$MODEL_ARGS"
   --tasks "$TASKS"
   --batch_size auto
