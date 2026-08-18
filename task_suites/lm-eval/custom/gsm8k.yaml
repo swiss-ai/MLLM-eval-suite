@@ -1,28 +1,9 @@
-# Upstream gsm8k verbatim except max_gen_toks: the builtin sets none, so the
+# Upstream gsm8k with one change: the builtin sets no max_gen_toks, so the
 # harness default of 256 silently truncated ~2% of CoT chains mid-answer.
-# include_path registration overrides the builtin task of the same name.
-tag:
-  - math_word_problems
+# include_path registration overrides the builtin task of the same name;
+# generation_kwargs is re-declared whole because the merge is shallow.
+include: ../../../third_party/lm-eval-harness/lm_eval/tasks/gsm8k/gsm8k.yaml
 task: gsm8k
-dataset_path: openai/gsm8k
-dataset_name: main
-output_type: generate_until
-training_split: train
-fewshot_split: train
-test_split: test
-doc_to_text: "Question: {{question}}\nAnswer:"
-doc_to_target: "{{answer}}"
-metric_list:
-  - metric: exact_match
-    aggregation: mean
-    higher_is_better: true
-    ignore_case: true
-    ignore_punctuation: false
-    regexes_to_ignore:
-      - ","
-      - "\\$"
-      - "(?s).*#### "
-      - "\\.$"
 generation_kwargs:
   until:
     - "Question:"
@@ -31,19 +12,3 @@ generation_kwargs:
   do_sample: false
   temperature: 0.0
   max_gen_toks: 16384
-repeats: 1
-num_fewshot: 5
-filter_list:
-  - name: "strict-match"
-    filter:
-      - function: "regex"
-        regex_pattern: "#### (\\-?[0-9\\.\\,]+)"
-      - function: "take_first"
-  - name: "flexible-extract"
-    filter:
-      - function: "regex"
-        group_select: -1
-        regex_pattern: "(-?[$0-9.,]{2,})|(-?[0-9]+)"
-      - function: "take_first"
-metadata:
-  version: 3.0
