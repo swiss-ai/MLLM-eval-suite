@@ -42,6 +42,15 @@ BENCHMARKS = {
     "hmmt_feb_2025": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
     "aime24": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
     "aime25": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
+    "mmlu": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
+    "mmlu_pro": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "exact_match,custom-extract"},
+    "gpqa_diamond_zeroshot": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
+    "arc_challenge": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
+    "hellaswag": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
+    "winogrande": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
+    "truthfulqa_mc2": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
+    "ifeval": {"cat": "Instruction Following (Text)", "lm_metric": "prompt_level_strict_acc,none"},
+    "ifbench": {"cat": "Instruction Following (Text)", "lm_metric": "prompt_level_strict_acc,none"},
     "3dsrbench": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk": "3DSRBench", "vk_prefix": True},
     "ai2d": {"cat": "STEM & Knowledge"},
     "babyvision": {"cat": "Math & Logic"},
@@ -141,7 +150,7 @@ BENCHMARKS = {
 
 
 # Categories in display order, with modality.
-CATEGORIES = [('General VQA & Perception', 'vision'), ('Robustness & Bias', 'vision'), ('Spatial & Embodied', 'vision'), ('Multi-Image', 'vision'), ('Instruction Following', 'vision'), ('Counting & Grounding', 'vision'), ('Docs, Charts & OCR', 'vision'), ('Math & Logic', 'vision'), ('STEM & Knowledge', 'vision'), ('Remote Sensing', 'vision'), ('Alignment', 'vision'), ('Medical VQA', 'vision'), ('Medical', 'text'), ('Math (Text)', 'text'), ('Knowledge & Reasoning (Text)', 'text')]
+CATEGORIES = [('General VQA & Perception', 'vision'), ('Robustness & Bias', 'vision'), ('Spatial & Embodied', 'vision'), ('Multi-Image', 'vision'), ('Instruction Following', 'vision'), ('Counting & Grounding', 'vision'), ('Docs, Charts & OCR', 'vision'), ('Math & Logic', 'vision'), ('STEM & Knowledge', 'vision'), ('Remote Sensing', 'vision'), ('Alignment', 'vision'), ('Medical VQA', 'vision'), ('Medical', 'text'), ('Math (Text)', 'text'), ('Knowledge & Reasoning (Text)', 'text'), ('Instruction Following (Text)', 'text')]
 
 EXTRA_VK_PREFIXES = ('muirbench', 'mm_ifeval', 'mia_bench')
 
