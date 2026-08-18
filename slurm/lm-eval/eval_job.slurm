@@ -70,7 +70,7 @@ DIST_INFO="${META_DIR}/lm_eval-0.dist-info"
 mkdir -p "$DIST_INFO"
 LM_EVAL_COMMIT="$(git -C "$LM_EVAL_DEV_PATH" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 printf 'Metadata-Version: 2.1\nName: lm_eval\nVersion: 0+g%s\n' "$LM_EVAL_COMMIT" > "$DIST_INFO/METADATA"
-export PYTHONPATH="${LM_EVAL_DEV_PATH}:${ORCH_REPO_ROOT}/shared:${META_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
+export PYTHONPATH="${LM_EVAL_DEV_PATH}:${ORCH_REPO_ROOT}/shared:${ORCH_REPO_ROOT}/shared/_vendor:${META_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
 
 MODEL_ARGS="pretrained=${MODEL_PATH},tensor_parallel_size=1,data_parallel_size=${NUM_PROCESSES},gpu_memory_utilization=${GPU_MEMORY_UTILIZATION},max_model_len=${MAX_MODEL_LEN}"
 if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
