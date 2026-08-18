@@ -237,6 +237,11 @@ if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
 fi
 export LD_LIBRARY_PATH="/opt/venv/lib/python3.12/site-packages/torch/lib:${LD_LIBRARY_PATH:-}"
 export HF_HOME="${HF_HOME_PATH}"
+# Submission-env tokens don't survive into the container; the file under the
+# repo-mounted HF_HOME does (same contract as the other two lanes).
+if [[ -z "${HF_TOKEN:-}" && -f "${HF_HOME}/token" ]]; then
+  export HF_TOKEN="$(<"${HF_HOME}/token")"
+fi
 export NLTK_DATA="${NLTK_DATA_PATH}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME_PATH}"
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT_PATH}"
