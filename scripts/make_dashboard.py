@@ -513,7 +513,10 @@ def collect_lm_eval(lm_root: Path, model_filters: list[str] | None):
                 value = metrics.get(metric)
                 if not isinstance(value, (int, float)):
                     continue
-                cell = {"v": round(float(value) * 100, 2), "raw": value, "run": run_id}
+                score = normalize_score(metric, float(value))
+                if score is None:
+                    continue
+                cell = {"v": round(score * 100, 2), "raw": score, "run": run_id}
                 mt = path.stat().st_mtime
                 key = (task, metric, canon)
                 if cell_mtimes.get(key, -1) <= mt:
