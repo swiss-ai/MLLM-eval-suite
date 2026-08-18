@@ -40,15 +40,23 @@ def main(repo_id: str, out_dir: str) -> None:
         return
     out.mkdir(parents=True, exist_ok=True)
 
+    # The index is JSON, so fetch metadata first and pull only the shards that
+    # actually carry text-backbone weights (the vision and audio tokenizer
+    # shards contribute nothing and are over a gigabyte between them).
+    src = Path(snapshot_download(repo_id, allow_patterns=["*.json", "*.jinja"]))
+    index = json.loads((src / "model.safetensors.index.json").read_text())
+    shards = sorted(
+        {
+            shard
+            for key, shard in index["weight_map"].items()
+            if key.startswith(LM_PREFIX) or key.startswith(KEEP_FLAT)
+        }
+    )
     src = Path(
-        snapshot_download(
-            repo_id,
-            allow_patterns=["*.json", "*.safetensors", "*.jinja"],
-        )
+        snapshot_download(repo_id, allow_patterns=["*.json", "*.jinja", *shards])
     )
 
     full = json.loads((src / "config.json").read_text())
-    index = json.loads((src / "model.safetensors.index.json").read_text())
 
     # The release understands the full multimodal vocab but generates text
     # only: embed_tokens covers ~267k ids while lm_head outputs the 131k text
@@ -68,16 +76,18 @@ def main(repo_id: str, out_dir: str) -> None:
     (out / "config.json").write_text(json.dumps(cfg, indent=2) + "\n")
 
     weight_map = {}
-    for shard in sorted(set(index["weight_map"].values())):
+    for shard in shards:
         kept = {}
         with safe_open(src / shard, framework="pt") as f:
             for key in f.keys():
                 if key.startswith(LM_PREFIX):
-                    tensor = f.get_tensor(key)
                     new_key = "model." + key[len(LM_PREFIX):]
                     if new_key == "model.embed_tokens.weight":
-                        tensor = tensor[:text_vocab].contiguous()
-                    kept[new_key] = tensor
+                        # Slice on the file so the discarded multimodal rows are
+                        # never read, let alone kept alive by the saved view.
+                        kept[new_key] = f.get_slice(key)[:text_vocab]
+                    else:
+                        kept[new_key] = f.get_tensor(key)
                 elif key.startswith(KEEP_FLAT):
                     kept[key] = f.get_tensor(key)
         if kept:
