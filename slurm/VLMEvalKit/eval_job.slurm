@@ -324,6 +324,12 @@ PY_CMD+=(
 if [[ -n "${VLMEVAL_USE_VLLM:-}" ]]; then
   PY_CMD+=(--use-vllm)
 fi
+# Resume a cancelled/timed-out run: run.py copies the newest prior prediction
+# file for this model+dataset into the fresh eval dir, and inference skips the
+# indices it already holds. Without it a killed job re-infers from zero.
+if [[ -n "${VLMEVAL_REUSE:-}" ]]; then
+  PY_CMD+=(--reuse)
+fi
 
 if [[ "${NNODES}" -gt 1 ]]; then
   # srun launches one worker container per node. The EDF .toml sets

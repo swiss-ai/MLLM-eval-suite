@@ -40,6 +40,14 @@ resolve_judge_key() {
   fi
   export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}"
   export MODEL_VERSION="${MODEL_VERSION:-gpt-4o-mini}"
+  # Several tasks build their own client from a task-specific variable and
+  # fail their whole judge stage when it is unset (babyvision returned a 100%
+  # grader-failure rate this way). Fan the one key out to those names.
+  local _alias
+  for _alias in BABYVISION VIESCORE WISE STRUCTEDITBENCH MEGABENCH_OPEN; do
+    export "${_alias}_API_KEY=${OPENAI_API_KEY}"
+  done
+  export BABYVISION_BASE_URL="${BABYVISION_BASE_URL:-${OPENAI_BASE_URL}}"
   [[ -n "${OPENAI_API_KEY:-}" ]] || {
     echo "ERROR: API_TYPE=openai but no OPENAI_API_KEY (looked in ${_file})" >&2
     exit 1
