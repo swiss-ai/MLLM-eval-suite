@@ -8,6 +8,8 @@ fleet already in flight did not have to wait for an image rebuild.
 |---|---|
 | `emoji`, `syllapy` | `shared/ifbench_verifiers/instructions.py` |
 | `func_timeout` | VLMEvalKit `OmniDocBench`, lmms-eval `mdpbench` |
+| `langdetect`, `immutabledict` | lm-eval `ifeval` |
+| `rouge_score`, `absl-py` | lm-eval `truthfulqa_gen`, `math_verify` family |
 
 **This directory is temporary.** All three are installed by
 `dockerfiles/Dockerfile.vllm-multimodal-eval-prod-cu130`. Once an image built
