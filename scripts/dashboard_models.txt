@@ -36,3 +36,6 @@ gemma4-26b-a4b-it|gemma-4-26b-a4b-it=Gemma4-26B-A4B
 pixtral-12b=Pixtral-12B
 eurovlm-9b-preview=EuroVLM-9B
 emu3-chat=Emu3-Chat
+70b-final-fast|70b-final-correct-rope=Apertus-1.5-70B
+70b-final-fast [thinking-32k]|70b-final-correct-rope [thinking-32k]=Apertus-1.5-70B (think)
+cab33fb7f1a40091911f81165f8481920621948f=Molmo-7B-D (rerun)
