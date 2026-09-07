@@ -125,7 +125,7 @@ case "$MODE" in fill|readonly) ;; *) echo "--mode must be fill|readonly (got: $M
 # node; 70b = one worker with the model tensor-sharded across all 4 GPUs.
 case "$SIZE" in
   8b)  SIZE_NUM_PROCESSES=4; SIZE_EXTRA_MODEL_ARGS="";                       SIZE_GPU_MEM="" ;;
-  70b) SIZE_NUM_PROCESSES=1; SIZE_EXTRA_MODEL_ARGS="tensor_parallel_size=4"; SIZE_GPU_MEM="0.85" ;;
+  70b) SIZE_NUM_PROCESSES=1; SIZE_EXTRA_MODEL_ARGS="tensor_parallel_size=4"; SIZE_GPU_MEM="0.75" ;;
   *) echo "--size must be 8b|70b (got: $SIZE)" >&2; exit 1 ;;
 esac
 EXTRA_MODEL_ARGS="${EXTRA_MODEL_ARGS:-$SIZE_EXTRA_MODEL_ARGS}"
