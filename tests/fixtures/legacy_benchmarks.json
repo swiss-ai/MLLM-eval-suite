@@ -1,0 +1,412 @@
+{
+ "3dsrbench": {
+  "cat": "Spatial & Embodied",
+  "cat_prefix": true,
+  "vk": "3DSRBench",
+  "vk_prefix": true
+ },
+ "ai2d": {
+  "cat": "STEM & Knowledge"
+ },
+ "aime24": {
+  "cat": "Math (Text)",
+  "lm_metric": "exact_match,none"
+ },
+ "aime25": {
+  "cat": "Math (Text)",
+  "lm_metric": "exact_match,none"
+ },
+ "arc_challenge": {
+  "cat": "Knowledge & Reasoning (Text)",
+  "lm_metric": "acc_norm,none"
+ },
+ "arc_easy": {
+  "cat": "Knowledge & Reasoning (Text)",
+  "lm_metric": "acc_norm,none"
+ },
+ "babyvision": {
+  "cat": "Math & Logic"
+ },
+ "bigearth": {
+  "cat": "Remote Sensing",
+  "cat_prefix": true
+ },
+ "blink": {
+  "cat": "Multi-Image",
+  "vk": "BLINK",
+  "vk_prefix": true
+ },
+ "cc_ocr_doc_parsing": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "cc_ocr_kie": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "cc_ocr_multi_lan_ocr": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "cc_ocr_multi_scene_ocr": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "chartqa": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "charxiv_descriptive": {
+  "cat": "Docs, Charts & OCR",
+  "vk": "CharXiv_descriptive_val"
+ },
+ "charxiv_reasoning": {
+  "cat": "Docs, Charts & OCR",
+  "vk": "CharXiv_reasoning_val"
+ },
+ "countbench": {
+  "cat": "Counting & Grounding"
+ },
+ "cv_bench": {
+  "vk_prefix": true
+ },
+ "cv_bench_2d": {
+  "cat": "Spatial & Embodied",
+  "vk": "CV-Bench-2D"
+ },
+ "cv_bench_3d": {
+  "cat": "Spatial & Embodied",
+  "vk": "CV-Bench-3D"
+ },
+ "docvqa_val": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "embspatial": {
+  "cat": "Spatial & Embodied",
+  "vk": "EmbSpatialBench",
+  "vk_prefix": true
+ },
+ "erqa": {
+  "cat": "Spatial & Embodied",
+  "vk": "ERQA",
+  "vk_prefix": true
+ },
+ "frieda": {
+  "cat": "Remote Sensing"
+ },
+ "geobench": {
+  "cat": "Remote Sensing",
+  "cat_prefix": true
+ },
+ "gpqa_diamond_zeroshot": {
+  "cat": "Knowledge & Reasoning (Text)",
+  "lm_metric": "acc,none"
+ },
+ "gqa": {
+  "cat": "General VQA & Perception"
+ },
+ "gsm8k": {
+  "cat": "Math (Text)",
+  "lm_metric": "exact_match,flexible-extract"
+ },
+ "hallusionbench": {
+  "cat": "Alignment",
+  "vk": "HallusionBench"
+ },
+ "healthbench": {
+  "cat": "Medical",
+  "cat_prefix": true
+ },
+ "hellaswag": {
+  "cat": "Knowledge & Reasoning (Text)",
+  "lm_metric": "acc_norm,none"
+ },
+ "hmmt_feb_2025": {
+  "cat": "Math (Text)",
+  "lm_metric": "exact_match,none"
+ },
+ "iconqa_val": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "ifbench": {
+  "cat": "Instruction Following (Text)",
+  "lm_metric": "prompt_level_strict_acc,none"
+ },
+ "ifeval": {
+  "cat": "Instruction Following (Text)",
+  "lm_metric": "prompt_level_strict_acc,none"
+ },
+ "infovqa_val": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "logicvista": {
+  "cat": "Math & Logic",
+  "vk": "LogicVista"
+ },
+ "math500_verify": {
+  "cat": "Math (Text)",
+  "lm_metric": "exact_match,none"
+ },
+ "math_lvl5_verify": {
+  "cat": "Math (Text)",
+  "lm_metric": "exact_match,none"
+ },
+ "mathverse": {
+  "cat": "Math & Logic",
+  "vk": "MathVerse_MINI"
+ },
+ "mathvision": {
+  "cat": "Math & Logic",
+  "cat_prefix": true
+ },
+ "mathvista_mini": {
+  "cat": "Math & Logic",
+  "vk": "MathVista_MINI"
+ },
+ "medmcqa": {
+  "cat": "Medical"
+ },
+ "medqa": {
+  "cat": "Medical"
+ },
+ "medxpertqa_mm": {
+  "cat": "Medical VQA"
+ },
+ "medxpertqa_text": {
+  "cat": "Medical"
+ },
+ "mia_bench": {
+  "cat": "Alignment",
+  "vk": "MIA-Bench"
+ },
+ "mindcube": {
+  "cat": "Spatial & Embodied",
+  "vk": "MindCubeBench_tiny_raw_qa",
+  "vk_prefix": true
+ },
+ "mm_ifeval": {
+  "cat": "Instruction Following",
+  "vk": "MM-IFEval"
+ },
+ "mm_safetybench": {
+  "cat": "Alignment",
+  "headline": [
+   "safety_rate"
+  ],
+  "vk": "MMSafetyBench"
+ },
+ "mmbench_en_dev": {
+  "cat": "General VQA & Perception"
+ },
+ "mme": {
+  "cat": "General VQA & Perception"
+ },
+ "mme_cognition": {
+  "cat": "General VQA & Perception"
+ },
+ "mme_perception": {
+  "cat": "General VQA & Perception"
+ },
+ "mmerealworld": {
+  "cat": "General VQA & Perception"
+ },
+ "mmlu": {
+  "cat": "Knowledge & Reasoning (Text)",
+  "lm_metric": "acc,none"
+ },
+ "mmlu_medical": {
+  "cat": "Medical"
+ },
+ "mmlu_pro": {
+  "cat": "Knowledge & Reasoning (Text)",
+  "lm_metric": "exact_match,custom-extract"
+ },
+ "mmmu_pro_standard": {
+  "cat": "STEM & Knowledge"
+ },
+ "mmmu_pro_vision": {
+  "cat": "STEM & Knowledge"
+ },
+ "mmmu_val": {
+  "cat": "STEM & Knowledge"
+ },
+ "mmsi_bench": {
+  "cat": "Spatial & Embodied",
+  "vk": "MMSIBench_wo_circular",
+  "vk_prefix": true
+ },
+ "mmstar": {
+  "cat": "General VQA & Perception"
+ },
+ "mmvet": {
+  "cat": "General VQA & Perception",
+  "vk": "MMVet"
+ },
+ "mmvp": {
+  "cat": "Robustness & Bias"
+ },
+ "mmvp_pair": {
+  "cat": "Robustness & Bias"
+ },
+ "mtvqa": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "muirbench": {
+  "cat": "Multi-Image",
+  "vk": "MUIRBench"
+ },
+ "ocrbench": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "ocrbench_v2": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "omnidocbench": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "omnispatial": {
+  "cat": "Spatial & Embodied",
+  "cat_prefix": true,
+  "vk_prefix": true
+ },
+ "omnispatial_manual_cot": {
+  "vk": "OmniSpatialBench_manual_cot"
+ },
+ "osworld": {
+  "vk": "OSWorld_G",
+  "vk_prefix": true
+ },
+ "path_mmu": {
+  "cat": "Medical VQA",
+  "cat_prefix": true
+ },
+ "path_mmu_test": {
+  "cat": "Medical VQA"
+ },
+ "path_vqa": {
+  "cat": "Medical VQA"
+ },
+ "pixmo_count": {
+  "cat": "Counting & Grounding"
+ },
+ "pmc_vqa": {
+  "cat": "Medical VQA"
+ },
+ "pope": {
+  "cat": "Alignment"
+ },
+ "pubmedqa": {
+  "cat": "Medical"
+ },
+ "realworldqa": {
+  "cat": "General VQA & Perception"
+ },
+ "refcoco": {
+  "cat": "Counting & Grounding",
+  "cat_prefix": true
+ },
+ "refspatial": {
+  "cat": "Spatial & Embodied",
+  "vk": "RefSpatial_wo_unseen",
+  "vk_prefix": true
+ },
+ "robospatial": {
+  "cat": "Spatial & Embodied",
+  "vk": "RoboSpatialHome"
+ },
+ "rsrcc": {
+  "cat": "Remote Sensing",
+  "cat_prefix": true
+ },
+ "scienceqa": {
+  "cat": "STEM & Knowledge"
+ },
+ "screenspot": {
+  "vk": "ScreenSpot",
+  "vk_prefix": true
+ },
+ "screenspot_pro": {
+  "vk": "ScreenSpot_Pro"
+ },
+ "screenspot_v2": {
+  "vk": "ScreenSpot_v2"
+ },
+ "seedbench": {
+  "cat": "General VQA & Perception"
+ },
+ "seedbench_2_plus": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "site_bench": {
+  "cat": "Spatial & Embodied",
+  "headline": [
+   "overall_caa",
+   "overall_accuracy",
+   "accuracy"
+  ],
+  "vk": "SiteBenchImage",
+  "vk_prefix": true
+ },
+ "slake": {
+  "cat": "Medical VQA"
+ },
+ "sparbench": {
+  "cat": "Spatial & Embodied",
+  "vk": "SparBench",
+  "vk_prefix": true
+ },
+ "spatial_dise": {
+  "cat": "Spatial & Embodied",
+  "vk": "Spatial-DISE_BENCH",
+  "vk_prefix": true
+ },
+ "textvqa_val": {
+  "cat": "Docs, Charts & OCR"
+ },
+ "truthfulqa_mc2": {
+  "cat": "Knowledge & Reasoning (Text)",
+  "lm_metric": "acc,none"
+ },
+ "viewspatial": {
+  "cat": "Spatial & Embodied",
+  "vk": "ViewSpatialBench",
+  "vk_prefix": true
+ },
+ "visualpuzzles_direct": {
+  "cat": "Math & Logic"
+ },
+ "visulogic": {
+  "cat": "Math & Logic"
+ },
+ "vlms_are_biased": {
+  "cat": "Robustness & Bias"
+ },
+ "vlmsareblind": {
+  "cat": "Robustness & Bias"
+ },
+ "vqa_rad": {
+  "cat": "Medical VQA"
+ },
+ "vqav2_val": {
+  "cat": "General VQA & Perception"
+ },
+ "vrsbench": {
+  "cat": "Remote Sensing",
+  "cat_prefix": true
+ },
+ "vsibench": {
+  "vk_prefix": true
+ },
+ "vsibench_debiased": {
+  "cat": "Spatial & Embodied",
+  "vk": [
+   "VSI-Bench-Debiased",
+   "VSI-Bench-Debiased_32frame"
+  ]
+ },
+ "vstar_bench": {
+  "cat": "General VQA & Perception"
+ },
+ "where2place": {
+  "vk_prefix": true
+ },
+ "winogrande": {
+  "cat": "Knowledge & Reasoning (Text)",
+  "lm_metric": "acc,none"
+ }
+}

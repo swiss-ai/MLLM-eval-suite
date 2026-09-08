@@ -1,0 +1,1054 @@
+# Task registry: the single source for what the suite runs and reports.
+#
+# [dashboard.*] reproduces the former BENCHMARKS dict of scripts/make_dashboard.py
+# verbatim (families with cat_prefix, VLMEvalKit dataset names, headline metrics,
+# lm-eval metric names). [tasks.*] declares launchable tasks and their policy:
+# owning harness, judge requirement, local assets, context length, and whether
+# the task is in the HF model-card set (card) or the report table (report).
+
+version = 1
+
+[defaults]
+max_model_len = 131072
+
+[dashboard.3dsrbench]
+cat = "Spatial & Embodied"
+cat_prefix = true
+vk = "3DSRBench"
+vk_prefix = true
+
+[dashboard.ai2d]
+cat = "STEM & Knowledge"
+
+[dashboard.aime24]
+cat = "Math (Text)"
+lm_metric = "exact_match,none"
+
+[dashboard.aime25]
+cat = "Math (Text)"
+lm_metric = "exact_match,none"
+
+[dashboard.arc_challenge]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc_norm,none"
+
+[dashboard.arc_easy]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc_norm,none"
+
+[dashboard.babyvision]
+cat = "Math & Logic"
+
+[dashboard.bigearth]
+cat = "Remote Sensing"
+cat_prefix = true
+
+[dashboard.blink]
+cat = "Multi-Image"
+vk = "BLINK"
+vk_prefix = true
+
+[dashboard.cc_ocr_doc_parsing]
+cat = "Docs, Charts & OCR"
+
+[dashboard.cc_ocr_kie]
+cat = "Docs, Charts & OCR"
+
+[dashboard.cc_ocr_multi_lan_ocr]
+cat = "Docs, Charts & OCR"
+
+[dashboard.cc_ocr_multi_scene_ocr]
+cat = "Docs, Charts & OCR"
+
+[dashboard.chartqa]
+cat = "Docs, Charts & OCR"
+
+[dashboard.charxiv_descriptive]
+cat = "Docs, Charts & OCR"
+vk = "CharXiv_descriptive_val"
+
+[dashboard.charxiv_reasoning]
+cat = "Docs, Charts & OCR"
+vk = "CharXiv_reasoning_val"
+
+[dashboard.countbench]
+cat = "Counting & Grounding"
+
+[dashboard.cv_bench]
+vk_prefix = true
+
+[dashboard.cv_bench_2d]
+cat = "Spatial & Embodied"
+vk = "CV-Bench-2D"
+
+[dashboard.cv_bench_3d]
+cat = "Spatial & Embodied"
+vk = "CV-Bench-3D"
+
+[dashboard.docvqa_val]
+cat = "Docs, Charts & OCR"
+
+[dashboard.embspatial]
+cat = "Spatial & Embodied"
+vk = "EmbSpatialBench"
+vk_prefix = true
+
+[dashboard.erqa]
+cat = "Spatial & Embodied"
+vk = "ERQA"
+vk_prefix = true
+
+[dashboard.frieda]
+cat = "Remote Sensing"
+
+[dashboard.geobench]
+cat = "Remote Sensing"
+cat_prefix = true
+
+[dashboard.gpqa_diamond_zeroshot]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[dashboard.gqa]
+cat = "General VQA & Perception"
+
+[dashboard.gsm8k]
+cat = "Math (Text)"
+lm_metric = "exact_match,flexible-extract"
+
+[dashboard.hallusionbench]
+cat = "Alignment"
+vk = "HallusionBench"
+
+[dashboard.healthbench]
+cat = "Medical"
+cat_prefix = true
+
+[dashboard.hellaswag]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc_norm,none"
+
+[dashboard.hmmt_feb_2025]
+cat = "Math (Text)"
+lm_metric = "exact_match,none"
+
+[dashboard.iconqa_val]
+cat = "Docs, Charts & OCR"
+
+[dashboard.ifbench]
+cat = "Instruction Following (Text)"
+lm_metric = "prompt_level_strict_acc,none"
+
+[dashboard.ifeval]
+cat = "Instruction Following (Text)"
+lm_metric = "prompt_level_strict_acc,none"
+
+[dashboard.infovqa_val]
+cat = "Docs, Charts & OCR"
+
+[dashboard.logicvista]
+cat = "Math & Logic"
+vk = "LogicVista"
+
+[dashboard.math500_verify]
+cat = "Math (Text)"
+lm_metric = "exact_match,none"
+
+[dashboard.math_lvl5_verify]
+cat = "Math (Text)"
+lm_metric = "exact_match,none"
+
+[dashboard.mathverse]
+cat = "Math & Logic"
+vk = "MathVerse_MINI"
+
+[dashboard.mathvision]
+cat = "Math & Logic"
+cat_prefix = true
+
+[dashboard.mathvista_mini]
+cat = "Math & Logic"
+vk = "MathVista_MINI"
+
+[dashboard.medmcqa]
+cat = "Medical"
+
+[dashboard.medqa]
+cat = "Medical"
+
+[dashboard.medxpertqa_mm]
+cat = "Medical VQA"
+
+[dashboard.medxpertqa_text]
+cat = "Medical"
+
+[dashboard.mia_bench]
+cat = "Alignment"
+vk = "MIA-Bench"
+
+[dashboard.mindcube]
+cat = "Spatial & Embodied"
+vk = "MindCubeBench_tiny_raw_qa"
+vk_prefix = true
+
+[dashboard.mm_ifeval]
+cat = "Instruction Following"
+vk = "MM-IFEval"
+
+[dashboard.mm_safetybench]
+cat = "Alignment"
+vk = "MMSafetyBench"
+headline = ["safety_rate"]
+
+[dashboard.mmbench_en_dev]
+cat = "General VQA & Perception"
+
+[dashboard.mme]
+cat = "General VQA & Perception"
+
+[dashboard.mme_cognition]
+cat = "General VQA & Perception"
+
+[dashboard.mme_perception]
+cat = "General VQA & Perception"
+
+[dashboard.mmerealworld]
+cat = "General VQA & Perception"
+
+[dashboard.mmlu]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[dashboard.mmlu_medical]
+cat = "Medical"
+
+[dashboard.mmlu_pro]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,custom-extract"
+
+[dashboard.mmmu_pro_standard]
+cat = "STEM & Knowledge"
+
+[dashboard.mmmu_pro_vision]
+cat = "STEM & Knowledge"
+
+[dashboard.mmmu_val]
+cat = "STEM & Knowledge"
+
+[dashboard.mmsi_bench]
+cat = "Spatial & Embodied"
+vk = "MMSIBench_wo_circular"
+vk_prefix = true
+
+[dashboard.mmstar]
+cat = "General VQA & Perception"
+
+[dashboard.mmvet]
+cat = "General VQA & Perception"
+vk = "MMVet"
+
+[dashboard.mmvp]
+cat = "Robustness & Bias"
+
+[dashboard.mmvp_pair]
+cat = "Robustness & Bias"
+
+[dashboard.mtvqa]
+cat = "Docs, Charts & OCR"
+
+[dashboard.muirbench]
+cat = "Multi-Image"
+vk = "MUIRBench"
+
+[dashboard.ocrbench]
+cat = "Docs, Charts & OCR"
+
+[dashboard.ocrbench_v2]
+cat = "Docs, Charts & OCR"
+
+[dashboard.omnidocbench]
+cat = "Docs, Charts & OCR"
+
+[dashboard.omnispatial]
+cat = "Spatial & Embodied"
+cat_prefix = true
+vk_prefix = true
+
+[dashboard.omnispatial_manual_cot]
+vk = "OmniSpatialBench_manual_cot"
+
+[dashboard.osworld]
+vk = "OSWorld_G"
+vk_prefix = true
+
+[dashboard.path_mmu]
+cat = "Medical VQA"
+cat_prefix = true
+
+[dashboard.path_mmu_test]
+cat = "Medical VQA"
+
+[dashboard.path_vqa]
+cat = "Medical VQA"
+
+[dashboard.pixmo_count]
+cat = "Counting & Grounding"
+
+[dashboard.pmc_vqa]
+cat = "Medical VQA"
+
+[dashboard.pope]
+cat = "Alignment"
+
+[dashboard.pubmedqa]
+cat = "Medical"
+
+[dashboard.realworldqa]
+cat = "General VQA & Perception"
+
+[dashboard.refcoco]
+cat = "Counting & Grounding"
+cat_prefix = true
+
+[dashboard.refspatial]
+cat = "Spatial & Embodied"
+vk = "RefSpatial_wo_unseen"
+vk_prefix = true
+
+[dashboard.robospatial]
+cat = "Spatial & Embodied"
+vk = "RoboSpatialHome"
+
+[dashboard.rsrcc]
+cat = "Remote Sensing"
+cat_prefix = true
+
+[dashboard.scienceqa]
+cat = "STEM & Knowledge"
+
+[dashboard.screenspot]
+vk = "ScreenSpot"
+vk_prefix = true
+
+[dashboard.screenspot_pro]
+vk = "ScreenSpot_Pro"
+
+[dashboard.screenspot_v2]
+vk = "ScreenSpot_v2"
+
+[dashboard.seedbench]
+cat = "General VQA & Perception"
+
+[dashboard.seedbench_2_plus]
+cat = "Docs, Charts & OCR"
+
+[dashboard.site_bench]
+cat = "Spatial & Embodied"
+vk = "SiteBenchImage"
+vk_prefix = true
+headline = ["overall_caa", "overall_accuracy", "accuracy"]
+
+[dashboard.slake]
+cat = "Medical VQA"
+
+[dashboard.sparbench]
+cat = "Spatial & Embodied"
+vk = "SparBench"
+vk_prefix = true
+
+[dashboard.spatial_dise]
+cat = "Spatial & Embodied"
+vk = "Spatial-DISE_BENCH"
+vk_prefix = true
+
+[dashboard.textvqa_val]
+cat = "Docs, Charts & OCR"
+
+[dashboard.truthfulqa_mc2]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[dashboard.viewspatial]
+cat = "Spatial & Embodied"
+vk = "ViewSpatialBench"
+vk_prefix = true
+
+[dashboard.visualpuzzles_direct]
+cat = "Math & Logic"
+
+[dashboard.visulogic]
+cat = "Math & Logic"
+
+[dashboard.vlms_are_biased]
+cat = "Robustness & Bias"
+
+[dashboard.vlmsareblind]
+cat = "Robustness & Bias"
+
+[dashboard.vqa_rad]
+cat = "Medical VQA"
+
+[dashboard.vqav2_val]
+cat = "General VQA & Perception"
+
+[dashboard.vrsbench]
+cat = "Remote Sensing"
+cat_prefix = true
+
+[dashboard.vsibench]
+vk_prefix = true
+
+[dashboard.vsibench_debiased]
+cat = "Spatial & Embodied"
+vk = ["VSI-Bench-Debiased", "VSI-Bench-Debiased_32frame"]
+
+[dashboard.vstar_bench]
+cat = "General VQA & Perception"
+
+[dashboard.where2place]
+vk_prefix = true
+
+[dashboard.winogrande]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+# Launchable tasks.
+
+[tasks.gqa]
+framework = "lmms-eval"
+harness_task = "gqa"
+card = true
+report = true
+
+[tasks.realworldqa]
+framework = "lmms-eval"
+harness_task = "realworldqa"
+card = true
+report = true
+
+[tasks.seedbench]
+framework = "lmms-eval"
+harness_task = "seedbench"
+
+[tasks.ocrbench]
+framework = "lmms-eval"
+harness_task = "ocrbench"
+report = true
+
+[tasks.ocrbench_v2]
+framework = "lmms-eval"
+harness_task = "ocrbench_v2"
+
+[tasks.textvqa_val]
+framework = "lmms-eval"
+harness_task = "textvqa_val"
+report = true
+
+[tasks.docvqa_val]
+framework = "lmms-eval"
+harness_task = "docvqa_val"
+card = true
+report = true
+
+[tasks.vqav2_val]
+framework = "lmms-eval"
+harness_task = "vqav2_val"
+card = true
+
+[tasks.infovqa_val]
+framework = "lmms-eval"
+harness_task = "infovqa_val"
+card = true
+report = true
+
+[tasks.chartqa]
+framework = "lmms-eval"
+harness_task = "chartqa"
+card = true
+report = true
+
+[tasks.mme]
+framework = "lmms-eval"
+harness_task = "mme"
+
+[tasks.ai2d]
+framework = "lmms-eval"
+harness_task = "ai2d"
+card = true
+report = true
+
+[tasks.mmmu_val]
+framework = "lmms-eval"
+harness_task = "mmmu_val"
+card = true
+report = true
+
+[tasks.mathvision_test]
+framework = "lmms-eval"
+harness_task = "mathvision_test"
+card = true
+report = true
+
+[tasks.mathvision_testmini]
+framework = "lmms-eval"
+harness_task = "mathvision_testmini"
+
+[tasks.VisualPuzzles_direct]
+framework = "lmms-eval"
+harness_task = "VisualPuzzles_direct"
+
+[tasks.countbench]
+framework = "lmms-eval"
+harness_task = "countbench"
+card = true
+report = true
+
+[tasks.pixmo_count]
+framework = "lmms-eval"
+harness_task = "pixmo_count"
+
+[tasks.screenspot]
+framework = "lmms-eval"
+harness_task = "screenspot"
+
+[tasks.osworld_g]
+framework = "lmms-eval"
+harness_task = "osworld_g"
+
+[tasks.refcoco]
+framework = "lmms-eval"
+harness_task = "refcoco"
+
+[tasks."refcoco+"]
+framework = "lmms-eval"
+harness_task = "refcoco+"
+
+[tasks.refcocog]
+framework = "lmms-eval"
+harness_task = "refcocog"
+
+[tasks.mmmu_pro]
+framework = "lmms-eval"
+harness_task = "mmmu_pro"
+
+[tasks.mmmu_pro_standard]
+framework = "lmms-eval"
+harness_task = "mmmu_pro_standard"
+card = true
+
+[tasks.mmmu_pro_vision]
+framework = "lmms-eval"
+harness_task = "mmmu_pro_vision"
+
+[tasks.cv_bench]
+framework = "lmms-eval"
+harness_task = "cv_bench"
+
+[tasks.site_bench_image]
+framework = "lmms-eval"
+harness_task = "site_bench_image"
+
+[tasks.mindcube_tiny]
+framework = "lmms-eval"
+harness_task = "mindcube_tiny"
+
+[tasks.mmvp]
+framework = "lmms-eval"
+harness_task = "mmvp"
+card = true
+report = true
+
+[tasks.vlmsareblind]
+framework = "lmms-eval"
+harness_task = "vlmsareblind"
+card = true
+
+[tasks.vlms_are_biased]
+framework = "lmms-eval"
+harness_task = "vlms_are_biased"
+card = true
+
+[tasks.scienceqa]
+framework = "lmms-eval"
+harness_task = "scienceqa"
+card = true
+report = true
+
+[tasks.iconqa_val]
+framework = "lmms-eval"
+harness_task = "iconqa_val"
+
+[tasks.omnidocbench]
+framework = "lmms-eval"
+harness_task = "omnidocbench"
+card = true
+
+[tasks.visulogic]
+framework = "lmms-eval"
+harness_task = "visulogic"
+
+[tasks.vstar_bench]
+framework = "lmms-eval"
+harness_task = "vstar_bench"
+card = true
+
+[tasks.screenspot_v2]
+framework = "lmms-eval"
+harness_task = "screenspot_v2"
+
+[tasks.screenspot_pro]
+framework = "lmms-eval"
+harness_task = "screenspot_pro"
+
+[tasks.seedbench_2_plus]
+framework = "lmms-eval"
+harness_task = "seedbench_2_plus"
+card = true
+
+[tasks.mmbench_en_dev]
+framework = "lmms-eval"
+harness_task = "mmbench_en_dev"
+report = true
+
+[tasks.mmstar]
+framework = "lmms-eval"
+harness_task = "mmstar"
+card = true
+report = true
+
+[tasks.pope]
+framework = "lmms-eval"
+harness_task = "pope"
+card = true
+report = true
+
+[tasks.charxiv]
+framework = "lmms-eval"
+harness_task = "charxiv"
+
+[tasks.rsrcc_test]
+framework = "lmms-eval"
+harness_task = "rsrcc_test"
+
+[tasks.rsrcc_val]
+framework = "lmms-eval"
+harness_task = "rsrcc_val"
+
+[tasks.vrsbench_vqa]
+framework = "lmms-eval"
+harness_task = "vrsbench_vqa"
+card = true
+[[tasks.vrsbench_vqa.assets]]
+env = "VRSBENCH_DIR"
+relative = "Images_val"
+source = "hf://datasets/xiang709/VRSBench/Images_val.zip"
+extract = "zip"
+min_files = 1000
+
+[tasks.vrsbench_ref]
+framework = "lmms-eval"
+harness_task = "vrsbench_ref"
+[[tasks.vrsbench_ref.assets]]
+env = "VRSBENCH_DIR"
+relative = "Images_val"
+source = "hf://datasets/xiang709/VRSBench/Images_val.zip"
+extract = "zip"
+min_files = 1000
+
+[tasks.bigearth_binary]
+framework = "lmms-eval"
+harness_task = "bigearth_binary"
+
+[tasks.bigearth_mcq]
+framework = "lmms-eval"
+harness_task = "bigearth_mcq"
+
+[tasks.bigearth_bbox]
+framework = "lmms-eval"
+harness_task = "bigearth_bbox"
+
+[tasks.geobench_single]
+framework = "lmms-eval"
+harness_task = "geobench_single"
+card = true
+[[tasks.geobench_single.assets]]
+env = "GEOBENCH_DIR"
+relative = "Single/images"
+source = "hf://datasets/aialliance/GEOBench-VLM/Single.zip"
+extract = "zip"
+min_files = 2000
+
+[tasks.geobench_temporal]
+framework = "lmms-eval"
+harness_task = "geobench_temporal"
+[[tasks.geobench_temporal.assets]]
+env = "GEOBENCH_DIR"
+relative = "Temporal"
+source = "hf://datasets/aialliance/GEOBench-VLM/Temporal.zip"
+extract = "zip"
+min_files = 100
+
+[tasks.geobench_ref]
+framework = "lmms-eval"
+harness_task = "geobench_ref"
+[[tasks.geobench_ref.assets]]
+env = "GEOBENCH_DIR"
+relative = "Ref-Det"
+source = "hf://datasets/aialliance/GEOBench-VLM/Ref-Det.zip"
+extract = "zip"
+min_files = 100
+
+[tasks.frieda]
+framework = "lmms-eval"
+harness_task = "frieda"
+card = true
+[[tasks.frieda.assets]]
+env = "FRIEDA_DIR"
+relative = "images"
+source = "hf://datasets/knowledge-computing/FRIEDA/images.tar"
+extract = "tar"
+min_files = 1000
+
+[tasks.babyvision]
+framework = "lmms-eval"
+harness_task = "babyvision"
+judge = "openai"
+judge_env = "BABYVISION_API_KEY"
+card = true
+
+[tasks.mathvision_reason_test]
+framework = "lmms-eval"
+harness_task = "mathvision_reason_test"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+
+[tasks.mathvision_reason_testmini]
+framework = "lmms-eval"
+harness_task = "mathvision_reason_testmini"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+
+[tasks.healthbench]
+framework = "lmms-eval"
+harness_task = "healthbench"
+judge = "openai"
+judge_env = "HEALTHBENCH_GRADER_BASE_URL"
+
+[tasks.slake]
+framework = "lmms-eval"
+harness_task = "slake"
+card = true
+
+[tasks.path_vqa]
+framework = "lmms-eval"
+harness_task = "path_vqa"
+card = true
+
+[tasks.pmc_vqa]
+framework = "lmms-eval"
+harness_task = "pmc_vqa"
+card = true
+
+[tasks.vqa_rad]
+framework = "lmms-eval"
+harness_task = "vqa_rad"
+card = true
+
+[tasks.path_mmu_test]
+framework = "lmms-eval"
+harness_task = "path_mmu_test"
+
+[tasks.medxpertqa_mm]
+framework = "lmms-eval"
+harness_task = "medxpertqa_mm"
+
+[tasks.mtvqa]
+framework = "lmms-eval"
+harness_task = "mtvqa"
+
+[tasks.blink]
+framework = "VLMEvalKit"
+harness_task = "BLINK"
+lmms_task = "blink"
+multi_image = true
+max_model_len = 262144
+report = true
+
+[tasks.muirbench]
+framework = "VLMEvalKit"
+harness_task = "MUIRBench"
+lmms_task = "muirbench"
+multi_image = true
+max_model_len = 262144
+
+[tasks.embspatial]
+framework = "VLMEvalKit"
+harness_task = "EmbSpatialBench"
+lmms_task = "embspatial"
+card = true
+report = true
+
+[tasks.mmsi_bench]
+framework = "VLMEvalKit"
+harness_task = "MMSIBench_wo_circular"
+lmms_task = "mmsi_bench"
+multi_image = true
+max_model_len = 262144
+card = true
+
+[tasks.mindcube]
+framework = "VLMEvalKit"
+harness_task = "MindCubeBench_tiny_raw_qa"
+lmms_task = "mindcube_tiny"
+multi_image = true
+max_model_len = 262144
+card = true
+
+[tasks.viewspatial]
+framework = "VLMEvalKit"
+harness_task = "ViewSpatialBench"
+multi_image = true
+max_model_len = 262144
+card = true
+
+[tasks.cv_bench_2d]
+framework = "VLMEvalKit"
+harness_task = "CV-Bench-2D"
+
+[tasks.cv_bench_3d]
+framework = "VLMEvalKit"
+harness_task = "CV-Bench-3D"
+
+[tasks.erqa]
+framework = "VLMEvalKit"
+harness_task = "ERQA"
+lmms_task = "erqa"
+multi_image = true
+max_model_len = 262144
+
+[tasks.sparbench]
+framework = "VLMEvalKit"
+harness_task = "SparBench"
+
+[tasks.site_bench]
+framework = "VLMEvalKit"
+harness_task = "SiteBenchImage"
+lmms_task = "site_bench_image"
+
+[tasks.omnispatial_manual_cot]
+framework = "VLMEvalKit"
+harness_task = "OmniSpatialBench_manual_cot"
+
+[tasks.spatial_dise]
+framework = "VLMEvalKit"
+harness_task = "Spatial-DISE_BENCH"
+multi_image = true
+max_model_len = 262144
+
+[tasks.robospatial]
+framework = "VLMEvalKit"
+harness_task = "RoboSpatialHome"
+
+[tasks.refspatial]
+framework = "VLMEvalKit"
+harness_task = "RefSpatial_wo_unseen"
+
+[tasks.3dsrbench]
+framework = "VLMEvalKit"
+harness_task = "3DSRBench"
+lmms_task = "3dsrbench"
+multi_image = true
+max_model_len = 262144
+
+[tasks.vsibench_debiased]
+framework = "VLMEvalKit"
+harness_task = "VSI-Bench-Debiased"
+multi_image = true
+max_model_len = 262144
+
+[tasks.mathvista_mini]
+framework = "VLMEvalKit"
+harness_task = "MathVista_MINI"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+card = true
+
+[tasks.mathverse]
+framework = "VLMEvalKit"
+harness_task = "MathVerse_MINI"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+lmms_task = "mathverse"
+
+[tasks.charxiv_descriptive]
+framework = "VLMEvalKit"
+harness_task = "CharXiv_descriptive_val"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+
+[tasks.charxiv_reasoning]
+framework = "VLMEvalKit"
+harness_task = "CharXiv_reasoning_val"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+
+[tasks.mmvet]
+framework = "VLMEvalKit"
+harness_task = "MMVet"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+
+[tasks.hallusionbench]
+framework = "VLMEvalKit"
+harness_task = "HallusionBench"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+
+[tasks.mia_bench]
+framework = "VLMEvalKit"
+harness_task = "MIA-Bench"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+
+[tasks.logicvista]
+framework = "VLMEvalKit"
+harness_task = "LogicVista"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+
+[tasks.mm_safetybench]
+framework = "VLMEvalKit"
+harness_task = "MMSafetyBench"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+report = true
+
+[tasks.mm_ifeval]
+framework = "VLMEvalKit"
+harness_task = "MM-IFEval"
+judge = "openai"
+judge_env = "OPENAI_API_KEY"
+
+[tasks.GQA_TestDev_Balanced]
+framework = "VLMEvalKit"
+harness_task = "GQA_TestDev_Balanced"
+
+[tasks.RealWorldQA]
+framework = "VLMEvalKit"
+harness_task = "RealWorldQA"
+
+[tasks.SEEDBench_IMG]
+framework = "VLMEvalKit"
+harness_task = "SEEDBench_IMG"
+
+[tasks.SEEDBench2_Plus]
+framework = "VLMEvalKit"
+harness_task = "SEEDBench2_Plus"
+
+[tasks.TextVQA_VAL]
+framework = "VLMEvalKit"
+harness_task = "TextVQA_VAL"
+
+[tasks.DocVQA_VAL]
+framework = "VLMEvalKit"
+harness_task = "DocVQA_VAL"
+
+[tasks.InfoVQA_VAL]
+framework = "VLMEvalKit"
+harness_task = "InfoVQA_VAL"
+
+[tasks.ChartQA_TEST]
+framework = "VLMEvalKit"
+harness_task = "ChartQA_TEST"
+
+[tasks.MME]
+framework = "VLMEvalKit"
+harness_task = "MME"
+
+[tasks.AI2D_TEST]
+framework = "VLMEvalKit"
+harness_task = "AI2D_TEST"
+
+[tasks.MMMU_DEV_VAL]
+framework = "VLMEvalKit"
+harness_task = "MMMU_DEV_VAL"
+
+[tasks.MMMU_Pro_10c]
+framework = "VLMEvalKit"
+harness_task = "MMMU_Pro_10c"
+
+[tasks.MMVP]
+framework = "VLMEvalKit"
+harness_task = "MMVP"
+
+[tasks.MMBench_DEV_EN_V11]
+framework = "VLMEvalKit"
+harness_task = "MMBench_DEV_EN_V11"
+
+[tasks.MMStar]
+framework = "VLMEvalKit"
+harness_task = "MMStar"
+
+[tasks.POPE]
+framework = "VLMEvalKit"
+harness_task = "POPE"
+
+[tasks.A-OKVQA]
+framework = "VLMEvalKit"
+harness_task = "A-OKVQA"
+
+[tasks.VStarBench]
+framework = "VLMEvalKit"
+harness_task = "VStarBench"
+
+[tasks.vlms_are_biased_main]
+framework = "VLMEvalKit"
+harness_task = "vlms_are_biased_main"
+
+[tasks.MME-RealWorld]
+framework = "VLMEvalKit"
+harness_task = "MME-RealWorld"
+
+[tasks.VisualPuzzles]
+framework = "VLMEvalKit"
+harness_task = "VisualPuzzles"
+
+[tasks.VisuLogic]
+framework = "VLMEvalKit"
+harness_task = "VisuLogic"
+
+[tasks.CountBenchQA]
+framework = "VLMEvalKit"
+harness_task = "CountBenchQA"
+
+[tasks.OCRBench]
+framework = "VLMEvalKit"
+harness_task = "OCRBench"
+
+[tasks.OCRBench_v2]
+framework = "VLMEvalKit"
+harness_task = "OCRBench_v2"
+
+[tasks.OmniDocBench]
+framework = "VLMEvalKit"
+harness_task = "OmniDocBench"
+
+[tasks.ScienceQA_TEST]
+framework = "VLMEvalKit"
+harness_task = "ScienceQA_TEST"
+
+[tasks.RefCOCO]
+framework = "VLMEvalKit"
+harness_task = "RefCOCO"
+
+[tasks.PathVQA_VAL]
+framework = "VLMEvalKit"
+harness_task = "PathVQA_VAL"
+
+[tasks.PathMMU_TEST]
+framework = "VLMEvalKit"
+harness_task = "PathMMU_TEST"
+
+[tasks.VLMBlind]
+framework = "VLMEvalKit"
+harness_task = "VLMBlind"
