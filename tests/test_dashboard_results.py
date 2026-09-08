@@ -49,6 +49,8 @@ def result(root, run, score, stamp, *, task="gqa", framework="lmms-eval",
     path = directory / ("results_x.json" if text else "x_results.json")
     metric = "exact_match,flexible-extract" if text else "exact_match,none"
     data = {"results": {task: {metric: score}}, "config": {"limit": limit}}
+    if text:
+        data["chat_template"] = "{{ messages }}"
     if counts:
         data["n-samples"] = {task: counts}
     path.write_text(json.dumps(data))

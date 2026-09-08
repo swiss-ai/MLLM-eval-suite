@@ -6481,7 +6481,7 @@
      "run": "CharXiv_descriptive_val__20260630T062015Z_243390",
      "source": {
       "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/VLMEvalKit/20260630T062015Z_243390/ap1p5-70b-sft-262k-2700/CharXiv_descriptive_val/derived_acc.csv",
-      "mtime_ns": 1788891024000000000
+      "mtime_ns": 1788892789000000000
      },
      "legacy": true
     },
@@ -14352,26 +14352,6 @@
    "framework": "lm-eval",
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
-    "sft-rl-dpo-sdpo-less-refuse-feedback": {
-     "v": 85.19,
-     "raw": 0.8518518518518519,
-     "run": "20260817T200437Z_21810",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-1.5-8B-SFT-RL-DPO-SDPO-Less-Refuse-Feedback/20260817T200437Z_21810/arc_easy/__capstor__store__cscs__swissai__infra01__models__Alignment__constitutional_ai__final_8b__Apertus-1.5-8B-SFT-RL-DPO-SDPO-Less-Refuse-Feedback/results_2026-08-17T22-11-50.574056.json",
-      "mtime_ns": 1786997510000000000
-     },
-     "legacy": true
-    },
-    "sdpo-mix-less-refuse-feedback": {
-     "v": 85.14,
-     "raw": 0.8514309764309764,
-     "run": "20260817T200521Z_2890",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-1.5-8B-SFT-RL-DPO-SDPO-Mix-Less-Refuse-Feedback/20260817T200521Z_2890/arc_easy/__capstor__store__cscs__swissai__infra01__models__Alignment__constitutional_ai__final_8b__Apertus-1.5-8B-SFT-RL-DPO-SDPO-Mix-Less-Refuse-Feedback/results_2026-08-17T22-10-47.796042.json",
-      "mtime_ns": 1786997447000000000
-     },
-     "legacy": true
-    },
     "8b-final-correct-rope": {
      "v": 80.6,
      "raw": 0.805976430976431,
@@ -14679,7 +14659,7 @@
  },
  "evidence": {
   "manifest": 9,
-  "legacy": 1760
+  "legacy": 1758
  },
  "coverage": {
   "cells": 1140,
