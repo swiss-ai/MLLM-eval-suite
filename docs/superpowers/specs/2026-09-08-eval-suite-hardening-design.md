@@ -111,3 +111,15 @@ After the contracts land: merge upstream `EvolvingLMMs-Lab/lmms-eval` and `open-
 
 - Whether the xBD portion of GEOBench should be restored from the xView2 download or permanently excluded with the drop count recorded in the manifest.
 - Whether TP4 remains the 70B default given the measured TP2xPP2 slowdown (11 percent prefill, 17 percent decode), which this design assumes.
+
+## 12. Harness sync record (phase 6, started 2026-09-08 late)
+
+Measured distance before the sync: lmms-eval fork 45 commits behind `EvolvingLMMs-Lab/lmms-eval` main (3b72e104, 2026-09-07) and 75 ahead; VLMEvalKit fork 20 behind `open-compass/VLMEvalKit` main (d21c5e9, 2026-09-07) and 75 ahead; lm-eval-harness pinned at 8a07e111 (2026-08-14), latest tag v0.4.13 (2026-09-01).
+
+Merges live on `yxu/sync-upstream-2026-09-08` in both forks, built in worktrees so the pinned checkouts stayed untouched during validation.
+
+- lmms-eval conflicts: the vLLM base's sampling-parameter handling and video decoding follow upstream (`read_video` with a selectable backend replaces the decord path); the base's batched chat loop keeps the fork's version, which carries the chat-template and tokenization kwargs that foreign models need; the evaluator's sample logging follows upstream, which now records `token_counts` itself, with the fork's oversized-string guard re-applied; MMMU and VLMsAreBlind scoring follow upstream; `logging_utils.py` stays removed; `tools/batch_watchdog.py` follows upstream. New declared dependencies: jieba, distance, editdistance, Levenshtein, apted, ruff, pytest; only task modules import the first five.
+- VLMEvalKit conflicts: `run.py` follows upstream's per-dataset judge resolver; the fork's 3DSRBench exact-matching override moves onto its dataset class as `DEFAULT_JUDGE_MODEL`, MMSafetyBench already declared gpt-4o-mini. New declared dependency: rdkit (chemistry datasets only).
+- lm-eval-harness: candidate is the v0.4.13 tag; the only change touching the suite's path is 23 lines in `vllm_causallms.py`.
+
+Gate: the merged harnesses must reproduce the pinned harnesses' numbers on deterministic (temperature 0) runs of the released 8B, MMVP and POPE at 96 samples on lmms-eval, MMVP on VLMEvalKit, GSM8K at 32 samples on lm-eval, and the thinking canary must pass on the merged lmms-eval. Pointer bumps land only after the gate, on a branch stacked on the hardening branch.
