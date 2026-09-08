@@ -1,0 +1,21 @@
+VLMEval: skipped 778 benchmark(s) with no parseable acc.csv (e.g. 70B-Final-correct-rope/BLINK, 70B-Final-correct-rope/CharXiv_descriptive_val, 70B-Final-correct-rope/CharXiv_reasoning_val, 70B-Final-correct-rope/CV-Bench-2D)
+COLLISION  key '8b-final-correct-rope'  <-  4 dirs:
+             /capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lmms-eval/8B-Final-correct-rope
+             /capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/cache/vlmeval_bridge/8B-Final-correct-rope
+             /capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B
+             /capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope
+           5 conflicting benchmark(s), e.g.:
+             arc_challenge: ults/lm-eval/Apertus-v1.5-8B=64.4, m-eval/8B-Final-correct-rope=57.8
+             arc_easy: ults/lm-eval/Apertus-v1.5-8B=85.0, m-eval/8B-Final-correct-rope=80.6
+             ifeval: ults/lm-eval/Apertus-v1.5-8B=69.3, m-eval/8B-Final-correct-rope=86.3
+COLLISION  key 'sdpo-mix-less-refuse-feedback'  <-  5 dirs:
+             /capstor/store/cscs/swissai/infra01/users/xyixuan/apertus-1p5-eval/runs/SDPO-Mix-Less-Refuse-Feedback
+             /capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/cache/vlmeval_bridge/SDPO-Mix-Less-Refuse-Feedback
+             /capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/cache/vlmeval_bridge/Apertus-1.5-8B-SFT-RL-DPO-SDPO-Less-Refuse-Feedback
+             /capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-1.5-8B-SFT-RL-DPO-SDPO-Mix-Less-Refuse-Feedback
+             /capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-1.5-8B-SFT-RL-DPO-SDPO-Less-Refuse-Feedback
+           2 conflicting benchmark(s), e.g.:
+             arc_easy: DPO-Mix-Less-Refuse-Feedback=85.1, PO-SDPO-Less-Refuse-Feedback=85.2
+             gsm8k: DPO-Mix-Less-Refuse-Feedback=78.2, PO-SDPO-Less-Refuse-Feedback=77.7
+
+FAIL — 2 colliding key(s)

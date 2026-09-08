@@ -1,4 +1,13 @@
 run.py  3DSRBench exact_matching rule moved to image_mcq.py DEFAULT_JUDGE_MODEL; one cosmetic indentation hunk dropped
+vlmeval/api/doubao_vl_api.py  the missing nested-quote f-string was replaced with a Python 3.10-compatible masked_key local; the first-three/last-four masking expression, empty-key fallback, API base, endpoint, and log text are preserved
+vlmeval/api/hunyuan.py  the missing nested-quote f-string was split into adjacent f-strings using masked_key for Python 3.10; secret-key masking, empty-key fallback, endpoint, secret ID, and log text are preserved
+vlmeval/api/kimivl_api.py  the missing nested-quote f-string now uses a Python 3.10-compatible masked_key local with identical first-three/last-four masking, empty-key fallback, API base, and log text
+vlmeval/api/sensechat_vision.py  the missing nested-quote f-string now uses a Python 3.10-compatible masked_key local; self.logger, first-three/last-four masking, empty-key fallback, API base, and log text are preserved
+vlmeval/api/taiyi.py  the missing nested-quote f-string now uses a Python 3.10-compatible masked_key local with identical first-three/last-four masking, empty-key fallback, URL, and log text
+vlmeval/dataset/charxiv.py  the missing import re was unused and removed for lint; response parsing continues through misc.extract_json_objects, with the fork's score validation and extracted_answer normalization intact
+vlmeval/dataset/image_mcq.py  the missing value_match lambda was replaced by a local function with the same parameters and self._extract_value(p) == g expression; scorer mapping and evaluation aggregation are unchanged
 vlmeval/dataset/mmlongbench.py  fork change was import reordering only; upstream kept
 vlmeval/dataset/utils/mmlongbench_judge_prompt.py  fork change was a trailing newline; upstream kept
 vlmeval/dataset/utils/mmlongbench_metrics.py  reset to upstream's formatting; the fork's lazy rouge_score import re-applied
+vlmeval/vlm/apertus_1p5.py  both missing default-path assignment lines were wrapped with implicit string concatenation; model and tokenizer paths and the full wrapper AST remain unchanged by the lint repair
+vlmeval/vlm/llava/llava.py  the missing standalone LlavaForConditionalGeneration import line was joined with LlavaNextProcessor by isort; the class remains imported and used for interleave models, while only the unused LlavaNextForConditionalGeneration import was removed

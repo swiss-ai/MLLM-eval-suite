@@ -1,5 +1,7 @@
 lmms_eval/evaluator.py  oversized-string guard re-applied inside upstream's saved_doc comprehension
+lmms_eval/logging_utils.py  obsolete module intentionally removed; upstream's CLI uses lmms_eval.loggers.WandbLogger and loggers/utils.py, and loggers/wandb_logger.py retains the fork's allow_val_change=True setting (the audit still prints this deletion)
 lmms_eval/models/chat/aero_realtime_vllm.py  formatting-only fork change; upstream's reformat kept
+lmms_eval/models/chat/apertus_1p5_vllm.py  the three missing thinking-canary raise/message lines were joined by formatting; the full wrapper AST is identical to the fork, preserving the RuntimeError condition and text
 lmms_eval/models/simple/vllm.py  rebuilt as upstream plus the fork's deltas; sampling-key passthrough and decord guard are upstream's now
 lmms_eval/tasks/covost2/_default_template_en_zh_yaml  whitespace-only fork change; upstream kept
 lmms_eval/tasks/covost2/covost2_en_zh_dev.yaml  whitespace-only fork change; upstream kept

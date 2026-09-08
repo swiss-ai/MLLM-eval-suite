@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -39,6 +40,18 @@ def check_model(model_path: Path) -> list[Check]:
     out.append(Check("model:config", _readable_file(model_path / "config.json"), "config.json"))
     shards = sorted(model_path.glob("*.safetensors"))
     bad = [s.name for s in shards if not _readable_file(s) or s.resolve().stat().st_size == 0]
+    index = model_path / "model.safetensors.index.json"
+    if index.exists() or index.is_symlink():
+        try:
+            weight_map = json.loads(index.read_text())["weight_map"]
+            if not isinstance(weight_map, dict) or not weight_map or not all(isinstance(name, str) for name in weight_map.values()):
+                raise ValueError("weight_map must be a nonempty mapping of tensors to shard names")
+            for name in sorted(set(weight_map.values())):
+                shard = model_path / name
+                if Path(name).name != name or not _readable_file(shard) or shard.resolve().stat().st_size == 0:
+                    bad.append(name)
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            bad.append(f"invalid index ({exc})")
     out.append(Check("model:weights", bool(shards) and not bad,
                      f"{len(shards)} shards" + (f", unreadable: {bad}" if bad else "")))
     return out

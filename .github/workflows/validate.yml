@@ -1,0 +1,26 @@
+name: Suite validation
+on:
+  pull_request:
+  push:
+    branches: [main, 'yxu/hardening-*', 'yxu/harness-sync-*']
+permissions:
+  contents: read
+jobs:
+  cpu-regressions:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '${{ matrix.python }}'
+      - run: python -m pip install 'pytest>=8,<10' 'packaging>=24,<27' 'PyYAML>=6,<7'
+      - run: python -m pytest tests dockerfiles/test_image_requirements.py dockerfiles/test_verify_image.py -q
+      - run: python -m suite.tasks --check
+      - name: Shell syntax
+        run: |
+          while IFS= read -r -d '' file; do
+            bash -n "$file"
+          done < <(find launchers slurm dockerfiles -type f \( -name '*.sh' -o -name '*.slurm' -o -name '*.sbatch' \) -print0)

@@ -15,10 +15,12 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from metric_selection import pick_headline_metric
+from metric_selection import normalize_score, pick_headline_metric
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from suite.tasks import load_registry  # noqa: E402
+from suite.coverage import Manifests  # noqa: E402
+from suite.result_selection import ineligible_reason  # noqa: E402
 
 REGISTRY = load_registry()
 
@@ -31,24 +33,34 @@ def pick_headline(task: str, metrics: dict) -> tuple[str, float] | None:
 
     Strategy: use shared task-aware policy, then skip non-numeric metrics.
     """
+    if not isinstance(metrics, dict):
+        return None
     metric, value = pick_headline_metric(task, metrics, *REGISTRY.headline_for("lmms-eval", task))
-    if metric is None or value is None:
+    if metric is None or value is None or normalize_score(metric, value) is None:
         return None
     return metric, value
 
 
-def newest_per_task(model_dir: Path) -> dict[str, tuple[Path, dict]]:
-    """For each task in this model dir, the newest *_results.json and its parsed content."""
-    by_task: dict[str, tuple[float, Path, dict]] = {}
+def newest_per_task(model_dir: Path, eligible=None, on_invalid=None) -> dict[str, tuple[Path, dict]]:
+    """Newest eligible result per task, with deterministic ties between artifacts."""
+    by_task = {}
     for path in model_dir.rglob("*_results.json"):
         try:
             data = json.loads(path.read_text())
-            mtime = path.stat().st_mtime
-        except (OSError, json.JSONDecodeError):
+            stamp = (path.stat().st_mtime_ns, str(path.resolve()))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            if on_invalid is not None:
+                on_invalid(path)
             continue
-        for task in data.get("results", {}):
-            if task not in by_task or mtime > by_task[task][0]:
-                by_task[task] = (mtime, path, data)
+        if not isinstance(data, dict) or not isinstance(data.get("results"), dict) or not data["results"]:
+            if on_invalid is not None:
+                on_invalid(path)
+            continue
+        for task in data["results"]:
+            if eligible is not None and not eligible(task, path, data):
+                continue
+            if task not in by_task or stamp > by_task[task][0]:
+                by_task[task] = (stamp, path, data)
     return {task: (path, data) for task, (_, path, data) in by_task.items()}
 
 
@@ -73,9 +85,14 @@ def main():
     # table[task][model] = (metric_name, value)
     table: dict[str, dict[str, tuple[str, float]]] = defaultdict(dict)
     metric_name_per_task: dict[str, str] = {}
+    manifests = Manifests([root])
+
+    def eligible(task, path, data):
+        return (ineligible_reason(manifests.for_result(path), data, task) is None
+                and pick_headline(task, data["results"].get(task, {})) is not None)
 
     for mdir in model_dirs:
-        for task, (path, data) in newest_per_task(mdir).items():
+        for task, (path, data) in newest_per_task(mdir, eligible).items():
             metrics = data["results"].get(task, {})
             headline = pick_headline(task, metrics)
             if headline is None:
