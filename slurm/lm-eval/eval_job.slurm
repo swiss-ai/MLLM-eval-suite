@@ -106,4 +106,25 @@ echo "LM_EVAL_RESOLVED=$(python -c 'import lm_eval,os;print(os.path.dirname(lm_e
 echo "MODEL_PATH=${MODEL_PATH}"
 echo "TASKS=${TASKS}"
 printf 'CMD:'; printf ' %q' "${CMD[@]}"; printf '\n'
+# Preflight and run manifest (suite/preflight.py, suite/manifest.py).
+SUITE_PY="${SUITE_PY:-/opt/venv/bin/python}"
+export PYTHONPATH="${ORCH_REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
+  "${SUITE_PY}" -m suite.preflight --framework lm-eval --model "${MODEL_PATH}" --tasks "${TASKS}" --tokenizer "${MODEL_PATH}" \
+    --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}" || exit 2
+fi
+MANIFEST_RUN_ID="$(basename "$(dirname "${OUTPUT_PATH}")")"
+"${SUITE_PY}" -m suite.manifest start --out "${OUTPUT_PATH}" --framework lm-eval --task "${TASKS}" --run-id "${MANIFEST_RUN_ID}" \
+  --model "${MODEL_PATH}" --tokenizer "${MODEL_PATH}" --model-args "${MODEL_ARGS}" --gen-kwargs "${GEN_KWARGS}" \
+  --extra-json "$(printf '{"generation": {"tp": 1, "dp": %s, "gpu_memory_utilization": %s, "max_model_len": %s, "limit": "%s"}}' "${NUM_PROCESSES}" "${GPU_MEMORY_UTILIZATION}" "${MAX_MODEL_LEN}" "${LIMIT}")"
+set +e
 "${CMD[@]}"
+HARNESS_RC=$?
+set -e
+MANIFEST_LOGS=()
+for pattern in "${SUITE_JOB_OUTPUT:-}" "${SUITE_JOB_ERROR:-}"; do
+  [[ -n "${pattern}" ]] && MANIFEST_LOGS+=(--log "${pattern//%j/${SLURM_JOB_ID:-interactive}}")
+done
+"${SUITE_PY}" -m suite.manifest finalize --manifest "${OUTPUT_PATH}/run_meta.json" "${MANIFEST_LOGS[@]}" \
+  --results-dir "${OUTPUT_PATH}" --harness-rc "${HARNESS_RC}"
+exit $?

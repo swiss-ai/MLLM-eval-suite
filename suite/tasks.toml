@@ -1044,3 +1044,84 @@ harness_task = "PathMMU_TEST"
 [tasks.VLMBlind]
 framework = "VLMEvalKit"
 harness_task = "VLMBlind"
+
+# Text tasks (lm-eval-harness); judge-free.
+[tasks.aime24]
+framework = "lm-eval"
+harness_task = "aime24"
+max_model_len = 65536
+
+[tasks.aime25]
+framework = "lm-eval"
+harness_task = "aime25"
+max_model_len = 65536
+
+[tasks.arc_challenge]
+framework = "lm-eval"
+harness_task = "arc_challenge"
+max_model_len = 65536
+
+[tasks.arc_easy]
+framework = "lm-eval"
+harness_task = "arc_easy"
+max_model_len = 65536
+
+[tasks.gpqa_diamond_zeroshot]
+framework = "lm-eval"
+harness_task = "gpqa_diamond_zeroshot"
+max_model_len = 65536
+
+[tasks.gsm8k]
+framework = "lm-eval"
+harness_task = "gsm8k"
+max_model_len = 65536
+
+[tasks.hellaswag]
+framework = "lm-eval"
+harness_task = "hellaswag"
+max_model_len = 65536
+
+[tasks.hmmt_feb_2025]
+framework = "lm-eval"
+harness_task = "hmmt_feb_2025"
+max_model_len = 65536
+
+[tasks.ifbench]
+framework = "lm-eval"
+harness_task = "ifbench"
+max_model_len = 65536
+
+[tasks.ifeval]
+framework = "lm-eval"
+harness_task = "ifeval"
+max_model_len = 65536
+
+[tasks.math500_verify]
+framework = "lm-eval"
+harness_task = "math500_verify"
+max_model_len = 65536
+
+[tasks.math_lvl5_verify]
+framework = "lm-eval"
+harness_task = "math_lvl5_verify"
+max_model_len = 65536
+
+[tasks.mmlu]
+framework = "lm-eval"
+harness_task = "mmlu"
+max_model_len = 65536
+
+[tasks.mmlu_pro]
+framework = "lm-eval"
+harness_task = "mmlu_pro"
+max_model_len = 65536
+
+[tasks.truthfulqa_mc2]
+framework = "lm-eval"
+harness_task = "truthfulqa_mc2"
+max_model_len = 65536
+
+[tasks.winogrande]
+framework = "lm-eval"
+harness_task = "winogrande"
+max_model_len = 65536

@@ -86,3 +86,17 @@ def test_cli_exit_codes(tmp_path):
     log.write_text("Error during evaluation: x\n")
     assert main(["finalize", "--manifest", str(out / "run_meta.json"), "--log", str(log),
                  "--results-dir", str(out), "--harness-rc", "0"]) == EXIT_FAILED
+
+
+def test_finalize_finds_lm_eval_results(tmp_path):
+    m, t = _model_dir(tmp_path)
+    out = tmp_path / "out"
+    start(out, framework="lm-eval", task="gsm8k", run_id="r1", model_path=m, tokenizer_path=t,
+          chat_template=None, model_args="", gen_kwargs="", thinking=False, extra={})
+    sub = out / "model"
+    sub.mkdir()
+    (sub / "results_2026-09-08T00-00-00.json").write_text(json.dumps({"results": {"gsm8k": {"exact_match,flexible-extract": 0.81}}}))
+    log = tmp_path / "job.out"
+    log.write_text("")
+    status, man = finalize(out / "run_meta.json", [log], out, harness_rc=0)
+    assert status == "ok" and man["results"]["file"].endswith("results_2026-09-08T00-00-00.json")

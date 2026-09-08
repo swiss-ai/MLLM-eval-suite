@@ -149,7 +149,10 @@ def _find_results(results_dir: Path, framework: str) -> tuple[Path | None, list[
     if framework == "VLMEvalKit":
         files = sorted(results_dir.rglob("*_acc.csv")) + sorted(results_dir.rglob("*_score.csv"))
         return (files[-1] if files else None), []
-    files = sorted(results_dir.rglob("*_results.json"), key=lambda p: p.stat().st_mtime)
+    if framework == "lm-eval":
+        files = sorted(results_dir.rglob("results_*.json"), key=lambda p: p.stat().st_mtime)
+    else:
+        files = sorted(results_dir.rglob("*_results.json"), key=lambda p: p.stat().st_mtime)
     samples = sorted(results_dir.rglob("*samples_*.jsonl"))
     return (files[-1] if files else None), samples
 
