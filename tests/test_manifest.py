@@ -476,3 +476,13 @@ def test_finalize_finds_lm_eval_results(tmp_path):
     log.write_text("")
     status, man = finalize(out / "run_meta.json", [log], out, harness_rc=0)
     assert status == "ok" and man["results"]["file"].endswith("results_2026-09-08T00-00-00.json")
+
+
+def test_sample_record_count_survives_unicode_line_separators(tmp_path):
+    from suite.manifest import sample_record_count
+    s = tmp_path / "samples_gsm8k_2026-09-08T18-02-33.jsonl"
+    records = [json.dumps({"doc_id": 0, "resps": [["line\u2028break"]]}),
+               json.dumps({"doc_id": 1, "resps": [["next\x85line"]]}),
+               json.dumps({"doc_id": 2, "resps": [["plain"]]})]
+    s.write_text("\n".join(records) + "\n")
+    assert sample_record_count([s]) == 3

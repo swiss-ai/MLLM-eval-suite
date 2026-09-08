@@ -198,7 +198,8 @@ def sample_record_count(sample_files) -> int | None:
     for path in sample_files:
         fallback_task = _sample_task(Path(path))
         try:
-            lines = Path(path).read_text().splitlines()
+            # JSON strings may carry raw U+2028 or U+0085, which splitlines() treats as line ends.
+            lines = Path(path).read_text().split("\n")
         except OSError:
             continue
         for line_no, line in enumerate(lines):
