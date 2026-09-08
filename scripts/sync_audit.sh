@@ -15,12 +15,13 @@ W=${1:?worktree}; M=${2:-}; A=${3:-}
 [ -n "$A" ] && A=$(readlink -f "$A")
 cd "$W" || exit 2
 [ -n "$M" ] || M=$(git log --merges -1 --format=%H)
-accepted() { [ -n "$A" ] && grep -qE "^$1([[:space:]]|$)" "$A"; }
-reason() { grep -E "^$1([[:space:]]|$)" "$A" | sed -E 's/^[^[:space:]]+[[:space:]]*//'; }
+accepted() { [ -n "$A" ] && awk -v p="$1" '$1 == p { found = 1 } END { exit !found }' "$A"; }
+reason() { awk -v p="$1" '$1 == p { $1 = ""; sub(/^[ \t]+/, ""); print; exit }' "$A"; }
 P1=$(git rev-parse "$M^1"); P2=$(git rev-parse "$M^2"); B=$(git merge-base "$P1" "$P2")
 echo "worktree=$W merge=$(git rev-parse --short "$M") fork=$(git rev-parse --short "$P1") upstream=$(git rev-parse --short "$P2") base=$(git rev-parse --short "$B")"
 n=0; d=0; m=0
-for f in $(git diff --name-only "$B" "$P1"); do
+mapfile -d '' -t changed < <(git diff -z --name-only "$B" "$P1")
+for f in "${changed[@]}"; do
   n=$((n+1))
   if ! git cat-file -e HEAD:"$f" 2>/dev/null; then
     if git cat-file -e "$P2":"$f" 2>/dev/null; then echo "DELETED-IN-MERGE $f"; else echo "DELETED-UPSTREAM-TOO $f"; fi

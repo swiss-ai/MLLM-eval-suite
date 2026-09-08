@@ -45,7 +45,6 @@ fi
 REPO_ROOT="${ORCH_REPO_ROOT}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/lmms-eval/eval_job.slurm}"
 source "${ORCH_REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
-export SUITE_CONTAINER_IMAGE="$(sed -n 's/^image *= *"\(.*\)"/\1/p' "${EVAL_ENVIRONMENT}")"
 LMMS_CACHE_ROOT="${LMMS_CACHE_ROOT:-${REPO_ROOT}/cache/lmms-eval}"
 CACHE_BASE="${CACHE_BASE:-${LMMS_CACHE_ROOT}/image_token_cache}"
 declare -A HF_AUTH_CHECKED
@@ -57,7 +56,6 @@ XDG_CACHE_HOME_PATH="${XDG_CACHE_HOME:-${REPO_ROOT}/cache/xdg}"
 VLLM_CACHE_ROOT_PATH="${VLLM_CACHE_ROOT:-${REPO_ROOT}/cache/vllm}"
 LMMS_EVAL_MODELS_CACHE_PATH="${LMMS_EVAL_MODELS_CACHE:-${REPO_ROOT}/cache/models}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)_$$}"
-declare -A PREFLIGHTED
 OUTPUT_BASE="${OUTPUT_PATH}"
 OUTPUT_PATH="${OUTPUT_BASE}/${RUN_ID}"
 LOG_DIR="${LOG_BASE}/${RUN_ID}"
@@ -231,7 +229,7 @@ fi
 # ------------------------------------------------------------------
 # Eval defaults (override via env if needed)
 # ------------------------------------------------------------------
-DEFAULT_TOKENIZER_PATH="/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed"
+DEFAULT_TOKENIZER_PATH="${DEFAULT_APERTUS_TOKENIZER}"
 TOKENIZER_PATH="${TOKENIZER_PATH:-${DEFAULT_TOKENIZER_PATH}}"
 CHAT_TEMPLATE="${CHAT_TEMPLATE:-}"
 if [[ -z "${CHAT_TEMPLATE}" && "${TOKENIZER_PATH}" == "${DEFAULT_TOKENIZER_PATH}" ]]; then
@@ -310,7 +308,6 @@ echo "========================================"
 while IFS= read -r TASK; do
   [[ -z "$TASK" ]] && continue
   TASK_MAX_MODEL_LEN="$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lmms-eval --max-model-len "$TASK")"
-  [[ -z "$TASK" ]] && continue
   TASK_CACHE_DIR="$CACHE_BASE/$TASK"
   mkdir -p "$TASK_CACHE_DIR"
 
@@ -339,15 +336,10 @@ while IFS= read -r TASK; do
       continue
     fi
 
-    # Preflight (suite/preflight.py): refuse to submit what cannot succeed.
-    if [[ "${SKIP_PREFLIGHT:-0}" != "1" && -z "${PREFLIGHTED[$MODEL_PATH]:-}" ]]; then
-      PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m suite.preflight --framework lmms-eval --harness-root "${LMMS_EVAL_DEV_PATH:-${REPO_ROOT}/third_party/lmms-eval}" \
-        --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" ${ENABLE_THINKING:+--thinking} \
-        --tokenizer "$TOKENIZER_PATH" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
-        --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "$TASK_MAX_MODEL_LEN" \
-        || { echo "preflight failed for $MODEL_PATH; not submitting (SKIP_PREFLIGHT=1 overrides)" >&2; exit 2; }
-      PREFLIGHTED[$MODEL_PATH]=1
-    fi
+    preflight_or_die lmms-eval "$MODEL_PATH" --harness-root "${LMMS_EVAL_DEV_PATH:-${REPO_ROOT}/third_party/lmms-eval}" \
+      --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" ${ENABLE_THINKING:+--thinking} \
+      --tokenizer "$TOKENIZER_PATH" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
+      --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "$TASK_MAX_MODEL_LEN"
 
     # Derive a stable model label: parent dir name if path ends in /HF, else basename.
     MODEL_LABEL="$(basename "$MODEL_PATH")"

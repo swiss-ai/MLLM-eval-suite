@@ -7,6 +7,10 @@
 #   EVAL_RESERVATION  reservation; set EVAL_RESERVATION= (empty) to submit
 #                     without one                        (default: SD-69241-apertus-1-5-0)
 #   EVAL_ENVIRONMENT  pyxis EDF toml                     (default: this repo's toml/shared/)
+#
+# Also exports SUITE_CONTAINER_IMAGE (the toml's image, for preflight and the
+# run manifest) and DEFAULT_APERTUS_TOKENIZER, and defines preflight_or_die,
+# the launcher-side gate around suite/preflight.py.
 
 _EVAL_ROOT="${ORCH_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel 2>/dev/null)}"
 
@@ -23,3 +27,19 @@ SBATCH_OVERRIDES=(--account="${EVAL_ACCOUNT}" --environment="${EVAL_ENVIRONMENT}
 if [[ -n "${EVAL_RESERVATION}" ]]; then
   SBATCH_OVERRIDES+=(--reservation="${EVAL_RESERVATION}")
 fi
+
+export SUITE_CONTAINER_IMAGE="$(sed -n 's/^image *= *"\(.*\)"/\1/p' "${EVAL_ENVIRONMENT}")"
+export DEFAULT_APERTUS_TOKENIZER="/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed"
+
+# preflight_or_die <framework> <memo-key> [preflight-arg ...]
+# Runs suite/preflight.py once per memo key (a model path, or model:dataset)
+# and refuses to submit on failure; SKIP_PREFLIGHT=1 bypasses it.
+declare -A _PREFLIGHTED=()
+preflight_or_die() {
+  local framework="$1" key="$2"
+  shift 2
+  [[ "${SKIP_PREFLIGHT:-0}" == "1" || -n "${_PREFLIGHTED[$key]:-}" ]] && return 0
+  PYTHONPATH="${REPO_ROOT:-${_EVAL_ROOT}}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m suite.preflight --framework "${framework}" "$@" \
+    || { echo "preflight failed for ${key}; not submitting (SKIP_PREFLIGHT=1 overrides)" >&2; exit 2; }
+  _PREFLIGHTED[$key]=1
+}

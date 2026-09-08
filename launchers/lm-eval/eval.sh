@@ -22,8 +22,6 @@ set -euo pipefail
 
 REPO_ROOT="${ORCH_REPO_ROOT:?ORCH_REPO_ROOT must be set (or launch via launchers/eval.sh)}"
 source "${REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
-export SUITE_CONTAINER_IMAGE="$(sed -n 's/^image *= *"\(.*\)"/\1/p' "${EVAL_ENVIRONMENT}")"
-declare -A PREFLIGHTED
 
 MODELS_RAW=""
 TASKS_RAW=""
@@ -92,14 +90,9 @@ while IFS= read -r TASK; do
   while IFS= read -r MODEL_PATH; do
     MODEL_LABEL="$(basename "$MODEL_PATH")"
     OUT_DIR="${OUTPUT_BASE}/${MODEL_LABEL}/${RUN_ID}/${TASK}"
-    # Preflight (suite/preflight.py): refuse to submit what cannot succeed.
-    if [[ "${SKIP_PREFLIGHT:-0}" != "1" && -z "${PREFLIGHTED[$MODEL_PATH]:-}" ]]; then
-      PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m suite.preflight --framework lm-eval \
-        --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" --tokenizer "$MODEL_PATH" \
-        --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN:-65536}" \
-        || { echo "preflight failed for $MODEL_PATH; not submitting (SKIP_PREFLIGHT=1 overrides)" >&2; exit 2; }
-      PREFLIGHTED[$MODEL_PATH]=1
-    fi
+    preflight_or_die lm-eval "$MODEL_PATH" \
+      --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" --tokenizer "$MODEL_PATH" \
+      --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN:-65536}"
     export SUITE_JOB_OUTPUT="${LOG_DIR}/eval_${TASK}_%j.out" SUITE_JOB_ERROR="${LOG_DIR}/eval_${TASK}_%j.err"
     [[ "$SUBMIT_MODE" == "interactive" ]] && export SUITE_JOB_OUTPUT="${LOG_DIR}/eval_${TASK}_interactive.out" SUITE_JOB_ERROR=""
     JOB_ARGS=(

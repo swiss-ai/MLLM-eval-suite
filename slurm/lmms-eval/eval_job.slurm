@@ -39,7 +39,7 @@ CACHE_ROOT="${CACHE_ROOT:-${ORCH_REPO_ROOT}/cache/lmms-eval}"
 ########################################
 # Required runtime configuration
 ########################################
-DEFAULT_TOKENIZER_PATH="/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed"
+DEFAULT_TOKENIZER_PATH="${DEFAULT_APERTUS_TOKENIZER:?exported by slurm/shared/sbatch_overrides.sh}"
 MODEL_PATH="/path/to/apertus/model-or-hf-id"
 TOKENIZER_PATH="${DEFAULT_TOKENIZER_PATH}"
 MODEL_BACKEND="${MODEL_BACKEND:-apertus_1p5_vllm}"
@@ -565,17 +565,15 @@ if [[ -n "${GEN_KWARGS}" ]]; then
 fi
 echo "==========================================="
 
-# Run manifest (suite/manifest.py): identity before inference, status after.
+# Preflight, run manifest, harness, finalize: suite_run in slurm/shared/job_env.sh.
 SUITE_PY="${SUITE_PY:-/opt/venv/bin/python}"
-export PYTHONPATH="${ORCH_REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
-if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
-  PREFLIGHT_THINKING=()
-  case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) PREFLIGHT_THINKING=(--thinking) ;; esac
-  "${SUITE_PY}" -m suite.preflight --framework lmms-eval --harness-root "${LMMS_EVAL_DEV_PATH}" --model "${MODEL_PATH}" --tasks "${TASKS}" "${PREFLIGHT_THINKING[@]}" \
-    --tokenizer "${TOKENIZER_PATH}" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
-    --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}" || exit 2
-fi
+THINKING_FLAG=()
+case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) THINKING_FLAG=(--thinking) ;; esac
+PREFLIGHT_ARGS=(--model "${MODEL_PATH}" "${THINKING_FLAG[@]}" --tokenizer "${TOKENIZER_PATH}"
+                --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer"
+                --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}")
 if [[ "${TOKENIZE_ONLY}" == "1" ]]; then
+  suite_preflight lmms-eval "${TASKS}" "${LMMS_EVAL_DEV_PATH}" "${PREFLIGHT_ARGS[@]}"
   # Tokenize-only pass (suite/tokenize_cache.py): fill the image-token cache
   # with the VQ encoder alone, one shard per GPU, and never load the LLM.
   echo "tokenize-only: tasks=${TASKS} shards=${NUM_PROCESSES} cache=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR:-<disabled>}"
@@ -591,24 +589,11 @@ if [[ "${TOKENIZE_ONLY}" == "1" ]]; then
   [[ "${TOKENIZE_RC}" != "0" ]] && { echo "tokenize-only pass failed; see ${OUTPUT_PATH}/tokenize_shard*.log" >&2; tail -n 20 "${OUTPUT_PATH}"/tokenize_shard*.log >&2; }
   exit "${TOKENIZE_RC}"
 fi
-MANIFEST_RUN_ID="$(basename "$(dirname "${OUTPUT_PATH}")")"
 MANIFEST_TP="$(sed -n 's/.*tensor_parallel_size=\([0-9]*\).*/\1/p' <<<"${MODEL_ARGS}" | tail -n1)"
-MANIFEST_THINKING=()
-case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) MANIFEST_THINKING=(--thinking) ;; esac
-MANIFEST_EXTRA="$(printf '{"generation": {"tp": %s, "dp": %s, "batch_size": %s, "gpu_memory_utilization": %s, "max_model_len": %s}}' \
-  "${MANIFEST_TP:-1}" "${NUM_PROCESSES}" "${BATCH_SIZE}" "${GPU_MEMORY_UTILIZATION}" "${MAX_MODEL_LEN}")"
-"${SUITE_PY}" -m suite.manifest start --out "${OUTPUT_PATH}" --framework lmms-eval --task "${TASKS}" \
-  --run-id "${MANIFEST_RUN_ID}" --model "${MODEL_PATH}" --tokenizer "${TOKENIZER_PATH}" \
-  ${CHAT_TEMPLATE:+--chat-template "${CHAT_TEMPLATE}"} --model-args "${MODEL_ARGS}" --gen-kwargs "${GEN_KWARGS}" \
-  "${MANIFEST_THINKING[@]}" --extra-json "${MANIFEST_EXTRA}"
-set +e
-"${CMD[@]}"
-HARNESS_RC=$?
-set -e
-MANIFEST_LOGS=()
-for pattern in "${SUITE_JOB_OUTPUT:-}" "${SUITE_JOB_ERROR:-}"; do
-  [[ -n "${pattern}" ]] && MANIFEST_LOGS+=(--log "${pattern//%j/${SLURM_JOB_ID:-interactive}}")
-done
-"${SUITE_PY}" -m suite.manifest finalize --manifest "${OUTPUT_PATH}/run_meta.json" "${MANIFEST_LOGS[@]}" \
-  --results-dir "${OUTPUT_PATH}" --harness-rc "${HARNESS_RC}"
-exit $?
+suite_run "${OUTPUT_PATH}" lmms-eval "${TASKS}" "${LMMS_EVAL_DEV_PATH}" "$(basename "$(dirname "${OUTPUT_PATH}")")" \
+  "${PREFLIGHT_ARGS[@]}" -- \
+  --model "${MODEL_PATH}" --tokenizer "${TOKENIZER_PATH}" ${CHAT_TEMPLATE:+--chat-template "${CHAT_TEMPLATE}"} \
+  --model-args "${MODEL_ARGS}" --gen-kwargs "${GEN_KWARGS}" "${THINKING_FLAG[@]}" \
+  --tp "${MANIFEST_TP:-1}" --dp "${NUM_PROCESSES}" --batch-size "${BATCH_SIZE}" \
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" --max-model-len "${MAX_MODEL_LEN}" --limit "${LIMIT}" -- \
+  "${CMD[@]}"
