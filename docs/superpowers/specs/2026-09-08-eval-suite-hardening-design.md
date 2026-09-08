@@ -147,7 +147,7 @@ Every remaining fork-versus-upstream difference was classified: fork-only files 
 
 ### 12.3 SLAKE name collision
 
-Upstream lmms-eval added a `slake` group (slake_en + slake_zh, overall accuracy) with the same name as the fork's MedEvalKit task (English test split, closed-question accuracy, the card's number). lmms-eval registered one as `slake-1`, so which definition `slake` resolved to depended on directory order; the 2026-09-08 runs of both corrected checkpoints measured the upstream group. The fork task is renamed `slake_medevalkit`, the registry points `slake` at it, dashboard rows are keyed by registry name, and preflight now fails a launch whose harness id is declared in two files or in none. Both corrected checkpoints need a `slake` rerun.
+Upstream lmms-eval added a `slake` group (slake_en + slake_zh, overall accuracy) with the same name as the fork's MedEvalKit task (English test split, closed-question accuracy, the card's number). lmms-eval registered one as `slake-1`, so which definition `slake` resolved to depended on directory order; the 2026-09-08 runs of both corrected checkpoints measured the upstream group. The fork task is renamed `slake_medevalkit`, the registry points `slake` at it, dashboard rows are keyed by registry name, and preflight now fails a launch whose harness id is declared in two files or in none. Both corrected checkpoints were rerun on the MedEvalKit definition on 2026-09-08 ~06:10 (run ids `20260908T_8b_slake_medevalkit`, `20260908T_70b_slake_medevalkit`): released 8B closed-question accuracy 77.4, corrected 70B 70.9. The first rerun attempt had measured the upstream group again because the launcher handed the registry name to the harness; it now passes the harness id the registry declares.
 
 ### 12.4 Validation record (deterministic, released 8B, temperature 0)
 
@@ -173,3 +173,14 @@ Wall-clock seconds per run on one node of the coding allocation, the same 8B and
 | VLMEvalKit MMVP, fresh response cache | 442 (cold) / 185 | 363 | 309 | |
 | lm-eval gsm8k, 32 samples (whole job) | 375 | 146 | 484 | 496 |
 | lm-eval gsm8k, generation phase only | 1:59 | 1:29 | 2:03 | 1:26 |
+
+### 12.6 Does the vLLM 0.28 trial image change inference speed or numbers?
+
+Sbatch jobs on the reservation, released 8B, 4-way data parallel on one node each, two repetitions per image, the production image (vLLM 0.26.1) against the trial image (`cache/image-builds/vllm-51da0ca66-20260907`, vLLM 0.28.1). Seconds from `run_meta.json` started to finished, which spans model load and generation inside the container.
+
+| Task | Production r1 | Production r2 | Trial r1 | Trial r2 |
+|---|---|---|---|---|
+| mmvp, 300 samples | 168 | 191 | 125 | 141 |
+| mmstar, 1500 samples | 306 | outlier, see below | 271 | 270 |
+
+The trial image is faster in every completed pair: about a quarter less on MMVP and about a tenth less on MMStar. The second production MMStar job ran roughly three times longer than its sibling on a different node and is excluded as a node outlier rather than an image effect. Headline scores agree within 0.3 points (mmvp 68.67 versus 69.0; mmstar 44.83 versus 44.83 and 44.87), and the two trial repetitions of mmstar differ by one sample, so run-to-run variation exists at that level on either image. The trial image stays unpromoted until a full sweep reproduces the production numbers; these runs live under `cache/validation`.
