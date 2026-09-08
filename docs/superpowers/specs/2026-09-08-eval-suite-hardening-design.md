@@ -123,3 +123,32 @@ Merges live on `yxu/sync-upstream-2026-09-08` in both forks, built in worktrees 
 - lm-eval-harness: candidate is the v0.4.13 tag; the only change touching the suite's path is 23 lines in `vllm_causallms.py`.
 
 Gate: the merged harnesses must reproduce the pinned harnesses' numbers on deterministic (temperature 0) runs of the released 8B, MMVP and POPE at 96 samples on lmms-eval, MMVP on VLMEvalKit, GSM8K at 32 samples on lm-eval, and the thinking canary must pass on the merged lmms-eval. Pointer bumps land only after the gate, on a branch stacked on the hardening branch.
+
+### 12.1 Dropped-change audit (2026-09-08, 03:00 to 03:40)
+
+A merge that builds is not a merge that kept the fork. `scripts/sync_audit.sh` compares every file the fork changed since the merge base against the merged tree: byte-identical to upstream means the fork's change was dropped; fork-added lines absent from the merge means partial. Findings and their resolution live in `docs/sync/2026-09-08-{lmms-eval,vlmevalkit}.accept`; the gate exits non-zero on any finding not in the list.
+
+| Harness | Fork-changed files | Dropped | Partial | Resolution |
+|---|---|---|---|---|
+| lmms-eval | 169 | 4 | 2 | `vlmsareblind/utils.py` answer normalization restored on top of upstream's aggregation; `mmmu/utils.py` and `aero_realtime_vllm.py` superseded by equivalent upstream changes; upstream's `tools/batch_watchdog.py` kept and its test restored |
+| VLMEvalKit | 61 | 2 | 0 | `run.py` had been taken from upstream wholesale, losing `--response-cache` and its pass-through, the rank-to-GPU split, the absolute-model-path work_dir fix, the shadow-file filter, and the removal of `--use-vllm` forwarding to the judge; all restored by a three-way apply, judge resolver kept upstream's; `mmlongbench_metrics.py` reset to upstream with only the lazy `rouge_score` import re-applied |
+
+### 12.2 Residual triage (fork over upstream after the merge)
+
+Every remaining fork-versus-upstream difference was classified: fork-only files (Apertus wrappers, tokenizer bridge, our tasks: 109 in lmms-eval, 20 in VLMEvalKit), whitespace-only churn (reset to upstream: the three covost2 yamls), useless (removed: a duplicated `ocrbench_v2` block under `[tool.setuptools.package-data]`; import reordering and a trailing newline in mmlongbench files; a cosmetic indentation hunk in `run.py`), and real residual fixes. `simple/vllm.py` is rebuilt as upstream plus the fork's deltas (per-request sampling params through the TP gather, `chat_template_kwargs` and `tokenization_kwargs` pass-through, `enable_thinking`, `_format_context`), which also stops deleting upstream's watchdog heartbeats. Residual fixes that change what a benchmark measures are kept deliberately and must not be treated as churn in a later sync: answer normalization in chartqa, pope, scienceqa, countbench, vlmsareblind, the MMLU generative filter, the refcoco/screenspot bracket regex, MathVista extraction, and the VLMBlind scorer in VLMEvalKit.
+
+### 12.3 SLAKE name collision
+
+Upstream lmms-eval added a `slake` group (slake_en + slake_zh, overall accuracy) with the same name as the fork's MedEvalKit task (English test split, closed-question accuracy, the card's number). lmms-eval registered one as `slake-1`, so which definition `slake` resolved to depended on directory order; the 2026-09-08 runs of both corrected checkpoints measured the upstream group. The fork task is renamed `slake_medevalkit`, the registry points `slake` at it, dashboard rows are keyed by registry name, and preflight now fails a launch whose harness id is declared in two files or in none. Both corrected checkpoints need a `slake` rerun.
+
+### 12.4 Validation record (deterministic, released 8B, temperature 0)
+
+| Harness | Pinned | Candidate | Run | Result |
+|---|---|---|---|---|
+| lmms-eval | 8fd62f0f | e8e1b2ac | mmvp, pope at 96 samples | identical metrics (mmvp 0.625 / pair 0.3542, pope 0.8125), re-run after the wrapper rebuild identical |
+| lmms-eval | 8fd62f0f | e8e1b2ac | mmvp at 8 samples, thinking | canary passed, mean 444 output tokens |
+| lmms-eval | 8fd62f0f | e8e1b2ac | vlmsareblind at 48 samples | 48/48 identical generations, accuracy 0.0833 |
+| VLMEvalKit | b44d4ca | 5f34422 | MMVP | 300/300 identical predictions, 0.6833 / 0.4067 |
+| lm-eval-harness | 8a07e111 | v0.4.13 (ddd67220) | gsm8k at 32 samples | 32/32 identical generations, 0.6562 |
+
+Pointers move on `yxu/harness-sync-2026-09-08`, stacked on the hardening branch.
