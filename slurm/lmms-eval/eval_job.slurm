@@ -571,7 +571,7 @@ export PYTHONPATH="${ORCH_REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
   PREFLIGHT_THINKING=()
   case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) PREFLIGHT_THINKING=(--thinking) ;; esac
-  "${SUITE_PY}" -m suite.preflight --framework lmms-eval --model "${MODEL_PATH}" --tasks "${TASKS}" "${PREFLIGHT_THINKING[@]}" \
+  "${SUITE_PY}" -m suite.preflight --framework lmms-eval --harness-root "${LMMS_EVAL_DEV_PATH}" --model "${MODEL_PATH}" --tasks "${TASKS}" "${PREFLIGHT_THINKING[@]}" \
     --tokenizer "${TOKENIZER_PATH}" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
     --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}" || exit 2
 fi

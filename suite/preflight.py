@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
 from suite.tasks import Registry, load_registry
 
 EXIT_PREFLIGHT = 2
+TASK_DECLARATION = re.compile(r"""^(?:task|group):[ \t]*["']?([A-Za-z0-9_.+-]+)["']?[ \t]*$""", re.M)
 
 
 @dataclass(frozen=True)
@@ -92,13 +95,52 @@ def check_tasks(registry: Registry, framework: str, tasks: list[str], env: dict,
     return out
 
 
+def task_declarations(harness_root: Path) -> dict[str, list[Path]]:
+    """Map every task or group name declared under lmms_eval/tasks to the files declaring it."""
+    declared: dict[str, list[Path]] = defaultdict(list)
+    tasks_dir = harness_root / "lmms_eval" / "tasks"
+    for path in sorted(tasks_dir.rglob("*")):
+        if not path.is_file() or not (path.suffix == ".yaml" or path.name.endswith("_yaml")):
+            continue
+        try:
+            text = path.read_text(errors="replace")
+        except OSError:
+            continue
+        for name in TASK_DECLARATION.findall(text):
+            declared[name].append(path.relative_to(tasks_dir))
+    return declared
+
+
+def check_task_names(registry: Registry, framework: str, tasks: list[str], harness_root: Path | None) -> list[Check]:
+    """A launched lmms-eval task must resolve to exactly one definition in the harness tree."""
+    if framework != "lmms-eval" or harness_root is None:
+        return []
+    if not (harness_root / "lmms_eval" / "tasks").is_dir():
+        return [Check("harness:tasks", False, f"no lmms_eval/tasks under {harness_root}")]
+    declared = task_declarations(harness_root)
+    out = []
+    for name in tasks:
+        task = registry.tasks.get(name) or registry.resolve(framework, name)
+        harness_id = (task.lmms_task if task and task.framework != framework else task.harness_task) if task else name
+        files = declared.get(harness_id, [])
+        if not files:
+            out.append(Check(f"task:{name}:definition", False, f"{harness_id} is declared nowhere under {harness_root}/lmms_eval/tasks"))
+        elif len(files) > 1:
+            out.append(Check(f"task:{name}:definition", False,
+                             f"{harness_id} is declared {len(files)} times ({', '.join(str(f) for f in files)}); which one loads depends on directory order"))
+        else:
+            out.append(Check(f"task:{name}:definition", True, f"{harness_id} <- {files[0]}"))
+    return out
+
+
 def run_checks(*, registry: Registry, framework: str, model_path: Path, tasks: list[str], thinking: bool,
                tokenizer_path: Path | None, vision_tokenizer_dir: Path | None, container_image: Path | None,
-               env: dict, max_model_len: int) -> list[Check]:
+               env: dict, max_model_len: int, harness_root: Path | None = None) -> list[Check]:
     checks = check_model(model_path) + check_tokenizer(tokenizer_path) + check_container(container_image)
     if framework in ("lmms-eval", "VLMEvalKit"):
         checks += check_vision_tokenizer(vision_tokenizer_dir)
     checks += check_tasks(registry, framework, tasks, env, max_model_len)
+    checks += check_task_names(registry, framework, tasks, harness_root)
     return checks
 
 
@@ -114,18 +156,21 @@ def main(argv=None) -> int:
     p.add_argument("--container-image")
     p.add_argument("--max-model-len", type=int, default=131072)
     p.add_argument("--skip-model", action="store_true", help="foreign model served by name; no local checkpoint to check")
+    p.add_argument("--harness-root", help="lmms-eval checkout; each launched task must be declared exactly once under it")
     a = p.parse_args(argv)
     registry = load_registry(a.registry) if a.registry else load_registry()
     tasks = [t for t in a.tasks.replace(" ", ",").split(",") if t]
     if a.skip_model:
         checks = check_container(Path(a.container_image) if a.container_image else None)
         checks += check_tasks(registry, a.framework, tasks, dict(os.environ), a.max_model_len)
+        checks += check_task_names(registry, a.framework, tasks, Path(a.harness_root) if a.harness_root else None)
     else:
         checks = run_checks(registry=registry, framework=a.framework, model_path=Path(a.model), tasks=tasks,
                             thinking=a.thinking, tokenizer_path=Path(a.tokenizer) if a.tokenizer else None,
                             vision_tokenizer_dir=Path(a.vision_tokenizer) if a.vision_tokenizer else None,
                             container_image=Path(a.container_image) if a.container_image else None,
-                            env=dict(os.environ), max_model_len=a.max_model_len)
+                            env=dict(os.environ), max_model_len=a.max_model_len,
+                            harness_root=Path(a.harness_root) if a.harness_root else None)
     failed = [c for c in checks if not c.ok]
     for c in checks:
         print(f"{'ok  ' if c.ok else 'FAIL'} {c.name}: {c.detail}")

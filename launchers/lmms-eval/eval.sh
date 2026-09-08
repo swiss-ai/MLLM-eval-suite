@@ -341,7 +341,7 @@ while IFS= read -r TASK; do
 
     # Preflight (suite/preflight.py): refuse to submit what cannot succeed.
     if [[ "${SKIP_PREFLIGHT:-0}" != "1" && -z "${PREFLIGHTED[$MODEL_PATH]:-}" ]]; then
-      PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m suite.preflight --framework lmms-eval \
+      PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m suite.preflight --framework lmms-eval --harness-root "${LMMS_EVAL_DEV_PATH:-${REPO_ROOT}/third_party/lmms-eval}" \
         --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" ${ENABLE_THINKING:+--thinking} \
         --tokenizer "$TOKENIZER_PATH" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
         --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "$TASK_MAX_MODEL_LEN" \

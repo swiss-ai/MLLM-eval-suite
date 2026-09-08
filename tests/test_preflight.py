@@ -102,3 +102,36 @@ def test_cli_exit_code(tmp_path):
     assert main(base + ["--model", str(tmp_path / "missing")]) == EXIT_PREFLIGHT
     assert main(["--registry", str(tmp_path / "tasks.toml"), "--framework", "VLMEvalKit", "--tasks", "BLINK",
                  "--model", "Qwen3-VL", "--skip-model", "--container-image", str(img), "--max-model-len", "262144"]) == 0
+
+
+def _harness(tmp_path, decls):
+    root = tmp_path / "harness"
+    for rel, text in decls.items():
+        f = root / "lmms_eval" / "tasks" / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text)
+    return root
+
+
+def test_task_declared_twice_fails(tmp_path):
+    _setup(tmp_path)
+    registry = load_registry(tmp_path / "tasks.toml")
+    root = _harness(tmp_path, {
+        "pope/pope.yaml": "task: pope\n",
+        "other/pope.yaml": "group: pope\ntask:\n  - pope_en\n",
+        "frieda/frieda.yaml": "task: frieda\n",
+    })
+    from suite.preflight import check_task_names
+    by_name = {c.name: c for c in check_task_names(registry, "lmms-eval", ["pope", "frieda"], root)}
+    assert not by_name["task:pope:definition"].ok and "2 times" in by_name["task:pope:definition"].detail
+    assert by_name["task:frieda:definition"].ok
+    assert check_task_names(registry, "VLMEvalKit", ["blink"], root) == []
+
+
+def test_task_declared_nowhere_fails(tmp_path):
+    _setup(tmp_path)
+    registry = load_registry(tmp_path / "tasks.toml")
+    root = _harness(tmp_path, {"frieda/frieda.yaml": "task: frieda\n"})
+    from suite.preflight import check_task_names
+    (check,) = check_task_names(registry, "lmms-eval", ["pope"], root)
+    assert not check.ok and "nowhere" in check.detail
