@@ -54,6 +54,10 @@ A tokenize-only mode fills the image-token cache for a task list using only the 
 ### C7. Durability and observability
 The canonical checkout lives on capstor, so results and logs are durable by construction. The dashboard is built from manifests, exports its JSON next to the HTML, and prints a coverage report listing every missing cell with its cause. A status command reads manifests and Slurm accounting and prints per-run states, replacing ad-hoc log grepping. The registry is validated against manifests at build time.
 
+### C8. Partial runs never publish
+
+A run launched with a sample limit (gate checks, smoke tests, timing pairs) records that limit in its manifest, and every dashboard collector skips such runs. They are kept under `cache/validation/results/<harness>` rather than `results/` so that "newest result wins" can never let a 96-sample check displace a full sweep; the 32-sample gsm8k gate run had done exactly that before this rule existed. The manifest also records the harness checkout the job actually imported (worktree or pinned submodule), so a number's provenance survives a sync.
+
 ## 4. Architecture
 
 New Python package `suite/` at the repository root, importable by scripts, launchers, and job scripts through the existing `shared/` path mechanism:
