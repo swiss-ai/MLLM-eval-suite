@@ -15,7 +15,7 @@ JUDGE_ENV = {"openai": "OPENAI_API_KEY"}
 SUITE_LIST_FILES = {"lmms-eval": "task_suites/lmms-eval/visual_llm_judge.txt",
                     "VLMEvalKit": "task_suites/VLMEvalKit/llm_judge.txt"}
 TASK_FIELDS = {"framework", "harness_task", "judge", "judge_env", "lmms_task", "assets",
-               "max_model_len", "multi_image", "card", "report", "result_tasks"}
+               "max_model_len", "multi_image", "card", "report", "result_tasks", "chat_template"}
 ASSET_FIELDS = {"env", "relative", "source", "extract", "min_files"}
 DASHBOARD_FIELDS = {"cat", "cat_prefix", "vk", "vk_prefix", "headline", "lmms_headline", "headline_strict", "lm_metric", "lm_metric_unit"}
 
@@ -48,6 +48,7 @@ class Task:
     card: bool = False
     report: bool = False
     result_tasks: tuple[str, ...] = ()
+    chat_template: bool = False
 
     def harness_id_for(self, framework: str) -> str | None:
         """The id this task has on a harness: its own id on the owning harness, the lmms-eval alias elsewhere."""
@@ -134,7 +135,8 @@ def _task(name: str, raw: dict, defaults: dict) -> Task:
                 judge_env=judge_env, lmms_task=raw.get("lmms_task"), assets=tuple(assets),
                 max_model_len=int(raw.get("max_model_len", defaults.get("max_model_len", 131072))),
                 multi_image=bool(raw.get("multi_image", False)), card=bool(raw.get("card", False)),
-                report=bool(raw.get("report", False)), result_tasks=tuple(raw.get("result_tasks", ())))
+                report=bool(raw.get("report", False)), result_tasks=tuple(raw.get("result_tasks", ())),
+                chat_template=bool(raw.get("chat_template", raw["framework"] == "lm-eval" and defaults.get("lm_eval_chat_template", False))))
 
 
 def _dashboard(name: str, raw: dict) -> dict:
@@ -201,8 +203,13 @@ def main(argv=None) -> int:
     p.add_argument("--framework", choices=FRAMEWORKS)
     p.add_argument("--max-model-len", metavar="TASK", help="print the context length TASK needs on --framework")
     p.add_argument("--harness-id", metavar="TASK", help="print the id --framework runs TASK under (TASK itself if unregistered)")
+    p.add_argument("--chat-template", metavar="TASK", help="print true/false: whether TASK is prompted through the chat template")
     a = p.parse_args(argv)
     reg = load_registry()
+    if a.chat_template:
+        task = reg.lookup(a.framework, a.chat_template) if a.framework else reg.tasks.get(a.chat_template)
+        print("true" if task and task.chat_template else "false")
+        return 0
     if a.harness_id:
         task = reg.lookup(a.framework, a.harness_id) if a.framework else reg.tasks.get(a.harness_id)
         print((task.harness_id_for(a.framework) if task and a.framework else None) or a.harness_id)

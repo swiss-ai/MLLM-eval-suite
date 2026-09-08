@@ -23,7 +23,7 @@ EXIT_FAILED = 3
 EXIT_INVALID = 4
 EXIT_BY_STATUS = {"ok": 0, "failed": EXIT_FAILED, "invalid": EXIT_INVALID}
 THINKING_MIN_MEAN_TOKENS = 8
-GENERATION_FIELDS = ("tp", "dp", "batch_size", "gpu_memory_utilization", "max_model_len", "limit")
+GENERATION_FIELDS = ("tp", "dp", "batch_size", "gpu_memory_utilization", "max_model_len", "limit", "apply_chat_template")
 # A fatal pattern means generation was lost or invalid part way through, so a
 # results file written afterwards can be partial; the run is failed whatever the
 # exit code says. Advisory patterns are recorded as warnings on an ok run.

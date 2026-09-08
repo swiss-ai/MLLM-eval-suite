@@ -2,16 +2,6 @@
  "missing": [
   {
    "task": "gqa",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "gqa",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "gqa",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -43,16 +33,6 @@
   {
    "task": "gqa",
    "model": "molmo-72b-0924",
-   "reason": "no-run"
-  },
-  {
-   "task": "realworldqa",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "realworldqa",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -97,16 +77,6 @@
   },
   {
    "task": "ocrbench",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "ocrbench",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "ocrbench",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -147,16 +117,6 @@
   },
   {
    "task": "textvqa_val",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "textvqa_val",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "textvqa_val",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -193,16 +153,6 @@
   {
    "task": "textvqa_val",
    "model": "molmo-72b-0924",
-   "reason": "no-run"
-  },
-  {
-   "task": "docvqa_val",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "docvqa_val",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -248,16 +198,6 @@
   {
    "task": "vqav2_val",
    "model": "8b-final-correct-rope [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "vqav2_val",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "vqav2_val",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -332,16 +272,6 @@
   },
   {
    "task": "infovqa_val",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "infovqa_val",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "infovqa_val",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -382,16 +312,6 @@
   },
   {
    "task": "chartqa",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "chartqa",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "chartqa",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -418,16 +338,6 @@
   {
    "task": "chartqa",
    "model": "molmo-72b-0924",
-   "reason": "no-run"
-  },
-  {
-   "task": "ai2d",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "ai2d",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -477,16 +387,6 @@
   },
   {
    "task": "mmmu_val",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmmu_val",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmmu_val",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -518,16 +418,6 @@
   {
    "task": "mmmu_val",
    "model": "molmo-72b-0924",
-   "reason": "no-run"
-  },
-  {
-   "task": "mathvision_test",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mathvision_test",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -587,16 +477,6 @@
   },
   {
    "task": "countbench",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "countbench",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "countbench",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -638,16 +518,6 @@
   {
    "task": "mmmu_pro_standard",
    "model": "8b-final-correct-rope [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmmu_pro_standard",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmmu_pro_standard",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -702,16 +572,6 @@
   },
   {
    "task": "mmvp",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmvp",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmvp",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -757,16 +617,6 @@
   },
   {
    "task": "vlmsareblind",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "vlmsareblind",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "vlmsareblind",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -808,16 +658,6 @@
   {
    "task": "vlms_are_biased",
    "model": "8b-final-correct-rope [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "vlms_are_biased",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "vlms_are_biased",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -867,16 +707,6 @@
   },
   {
    "task": "scienceqa",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "scienceqa",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "scienceqa",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -913,16 +743,6 @@
   {
    "task": "omnidocbench",
    "model": "8b-final-correct-rope [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "omnidocbench",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "omnidocbench",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -982,16 +802,6 @@
   },
   {
    "task": "vstar_bench",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "vstar_bench",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "vstar_bench",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -1037,16 +847,6 @@
   },
   {
    "task": "seedbench_2_plus",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "seedbench_2_plus",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "seedbench_2_plus",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -1083,16 +883,6 @@
   {
    "task": "seedbench_2_plus",
    "model": "molmo-72b-0924",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmbench_en_dev",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmbench_en_dev",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -1137,16 +927,6 @@
   },
   {
    "task": "mmstar",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmstar",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmstar",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -1173,16 +953,6 @@
   {
    "task": "mmstar",
    "model": "molmo-72b-0924",
-   "reason": "no-run"
-  },
-  {
-   "task": "pope",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "pope",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -1228,16 +998,6 @@
   {
    "task": "vrsbench_vqa",
    "model": "8b-final-correct-rope [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "vrsbench_vqa",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "vrsbench_vqa",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -1298,16 +1058,6 @@
   {
    "task": "geobench_single",
    "model": "8b-final-correct-rope [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "geobench_single",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "geobench_single",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -1377,16 +1127,6 @@
   },
   {
    "task": "frieda",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "frieda",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "frieda",
    "model": "sft-256k-4200 [thinking-32k]",
    "reason": "no-run"
   },
@@ -1448,16 +1188,6 @@
   {
    "task": "babyvision",
    "model": "8b-final-correct-rope [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "babyvision",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "babyvision",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -1527,16 +1257,6 @@
   },
   {
    "task": "slake",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "slake",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "slake",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -1587,16 +1307,6 @@
   },
   {
    "task": "path_vqa",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "path_vqa",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "path_vqa",
    "model": "rl_1p5-8b-stage2_notools_mixthink_1606_480it [thinking-32k]",
    "reason": "no-run"
   },
@@ -1643,16 +1353,6 @@
   {
    "task": "pmc_vqa",
    "model": "8b-final-correct-rope [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "pmc_vqa",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "pmc_vqa",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -1717,16 +1417,6 @@
   },
   {
    "task": "vqa_rad",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "vqa_rad",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "vqa_rad",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -1767,16 +1457,6 @@
   },
   {
    "task": "blink",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "blink",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "blink",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -1808,16 +1488,6 @@
   {
    "task": "blink",
    "model": "cab33fb7f1a40091911f81165f8481920621948f",
-   "reason": "no-run"
-  },
-  {
-   "task": "embspatial",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "embspatial",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -1867,16 +1537,6 @@
   },
   {
    "task": "mmsi_bench",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmsi_bench",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "mmsi_bench",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -1912,16 +1572,6 @@
   },
   {
    "task": "mindcube",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mindcube",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "mindcube",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -1953,16 +1603,6 @@
   {
    "task": "viewspatial",
    "model": "8b-final-correct-rope [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "viewspatial",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "viewspatial",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -2037,16 +1677,6 @@
   },
   {
    "task": "mathvista_mini",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mathvista_mini",
-   "model": "apertus-v1.5-8b [thinking-32k]",
-   "reason": "no-run"
-  },
-  {
-   "task": "mathvista_mini",
    "model": "sft-rl-dpo-sdpo-less-refuse-feedback",
    "reason": "no-run"
   },
@@ -2078,16 +1708,6 @@
   {
    "task": "mathvista_mini",
    "model": "molmo-72b-0924",
-   "reason": "no-run"
-  },
-  {
-   "task": "mm_safetybench",
-   "model": "apertus-v1.5-8b",
-   "reason": "no-run"
-  },
-  {
-   "task": "mm_safetybench",
-   "model": "apertus-v1.5-8b [thinking-32k]",
    "reason": "no-run"
   },
   {
@@ -2152,11 +1772,11 @@
   }
  ],
  "counts": {
-  "cells": 1216,
+  "cells": 1140,
   "present": 786,
-  "missing": 430
+  "missing": 354
  },
  "by_reason": {
-  "no-run": 430
+  "no-run": 354
  }
 }

@@ -54,7 +54,8 @@ else:
     (bindir / "python").chmod(0o755)
     env = {key: value for key, value in os.environ.items()
            if not key.startswith(('SLURM_', 'SBATCH_')) and key not in (
-               'HF_ALLOW_CODE_EVAL', 'ALPACA_EVAL_ANNOTATORS_CONFIG', 'OPENAI_API_KEY', 'SKIP_PREFLIGHT')}
+               'HF_ALLOW_CODE_EVAL', 'ALPACA_EVAL_ANNOTATORS_CONFIG', 'OPENAI_API_KEY', 'SKIP_PREFLIGHT',
+               'LM_EVAL_CHAT_TEMPLATE')}
     env.update(ORCH_REPO_ROOT=str(root), EVAL_ENVIRONMENT=str(edf), EVAL_RESERVATION="",
                PATH=f"{bindir}:{os.environ['PATH']}", RUN_ID="test", SUITE_PY=sys.executable,
                LAUNCH_CAPTURE=str(tmp_path / "scheduler.jsonl"), HARNESS_CAPTURE=str(tmp_path / "harness.json"),
@@ -66,26 +67,68 @@ def launch(launch_env, *args, execute=False, **environment):
     root, model, env = launch_env
     env = dict(env, EXECUTE_JOB=str(int(execute)), **environment)
     result = subprocess.run(['bash', str(root / 'launchers/lm-eval/eval.sh'), str(model), *args],
-                            env=env, text=True, capture_output=True)
+                            cwd=root, env=env, text=True, capture_output=True)
     return result, env
+
+
+def captured_run(env):
+    captured = json.loads(Path(env['HARNESS_CAPTURE']).read_text())
+    args = captured['args']
+    out = Path(args[args.index('--output_path') + 1])
+    return captured, json.loads((out / 'run_meta.json').read_text())
 
 
 @pytest.mark.parametrize('task', ['humaneval_instruct', 'mbpp_instruct'])
 def test_code_opt_in_reaches_harness_and_execution_environment(launch_env, task):
     process, env = launch(launch_env, '--tasks', task, '--confirm-run-unsafe-code', execute=True)
     assert process.returncode == 0, process.stdout + process.stderr
-    captured = json.loads(Path(env['HARNESS_CAPTURE']).read_text())
+    captured, manifest = captured_run(env)
     assert '--confirm_run_unsafe_code' in captured['args']
     assert captured['code_eval'] == '1'
+    assert '--apply_chat_template' in captured['args']
+    assert manifest['generation']['apply_chat_template'] == 1
 
 
 def test_default_launch_does_not_enable_code_execution(launch_env):
     process, env = launch(launch_env, '--suite', 'text-smoke', execute=True)
     assert process.returncode == 0, process.stdout + process.stderr
-    captured = json.loads(Path(env['HARNESS_CAPTURE']).read_text())
+    captured, manifest = captured_run(env)
     assert '--confirm_run_unsafe_code' not in captured['args']
     assert captured['code_eval'] is None
     assert captured['args'][captured['args'].index('--tasks') + 1] == 'arc_easy'
+    assert captured['args'].count('--apply_chat_template') == 1
+    assert manifest['generation']['apply_chat_template'] == 1
+    assert manifest['tokenizer']['chat_template_sha256']
+
+
+@pytest.mark.parametrize('override, expected', [('0', 0), ('false', 0), ('1', 1), ('true', 1)])
+def test_chat_template_environment_override_matches_harness_and_manifest(launch_env, override, expected):
+    process, env = launch(launch_env, '--tasks', 'math500_verify', execute=True,
+                          LM_EVAL_CHAT_TEMPLATE=override)
+    assert process.returncode == 0, process.stdout + process.stderr
+    captured, manifest = captured_run(env)
+    assert captured['args'].count('--apply_chat_template') == expected
+    assert manifest['generation']['apply_chat_template'] == expected
+
+
+@pytest.mark.parametrize('environment, expected', [({}, 0), ({'LM_EVAL_CHAT_TEMPLATE': '1'}, 1)])
+def test_per_task_chat_template_override_is_used_by_launcher(launch_env, environment, expected):
+    registry = launch_env[0] / 'suite/tasks.toml'
+    registry.write_text(registry.read_text().replace('[tasks.gsm8k]\n', '[tasks.gsm8k]\nchat_template = false\n'))
+    process, env = launch(launch_env, '--tasks', 'gsm8k', execute=True, **environment)
+    assert process.returncode == 0, process.stdout + process.stderr
+    captured, manifest = captured_run(env)
+    assert captured['args'].count('--apply_chat_template') == expected
+    assert manifest['generation']['apply_chat_template'] == expected
+
+
+def test_explicit_job_chat_template_still_overrides_base_model_default(launch_env):
+    process, env = launch(launch_env, '--tasks', 'mmlu_pro', '--', '--apply-chat-template', execute=True,
+                          LM_EVAL_CHAT_TEMPLATE='0')
+    assert process.returncode == 0, process.stdout + process.stderr
+    captured, manifest = captured_run(env)
+    assert captured['args'].count('--apply_chat_template') == 1
+    assert manifest['generation']['apply_chat_template'] == 1
 
 
 def test_job_passthrough_code_opt_in_and_limit(launch_env):
@@ -122,3 +165,4 @@ def test_requested_suite_resolves_all_tasks_before_submission(launch_env):
     assert len(tasks) == len(set(tasks)) == 31
     assert tasks[:3] == ['mmlu_flan_cot_zeroshot', 'mmlu_pro', 'truthfulqa_mc2']
     assert tasks[-3:] == ['bbq', 'toxigen', 'wmdp']
+    assert all(row['args'].count('--apply-chat-template') == 1 for row in records)

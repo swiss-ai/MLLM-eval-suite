@@ -10,6 +10,8 @@ version = 1
 
 [defaults]
 max_model_len = 131072
+# Instruct checkpoints are prompted through their chat template on the text lane.
+lm_eval_chat_template = true
 
 [dashboard.3dsrbench]
 cat = "Spatial & Embodied"

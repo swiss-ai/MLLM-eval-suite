@@ -59,9 +59,21 @@ bash launchers/lm-eval/eval.sh /path/to/model \
   --suite text-requested --confirm-run-unsafe-code
 ```
 
-Prompt configuration stays task-specific. For instruction models, the job
-supports `-- --apply-chat-template`; select this intentionally for the evaluated
-protocol. No common few-shot or generation setting is imposed by the new suite.
+Text evaluations apply the model's chat template by default, matching the
+release instruction-model protocol. The registry sets
+`[defaults].lm_eval_chat_template = true`; a task's `chat_template` field can
+override that default. The launcher queries `suite.tasks --chat-template` for
+each task. To evaluate a base model with completion prompts, explicitly set
+`LM_EVAL_CHAT_TEMPLATE=0` before launching. `LM_EVAL_CHAT_TEMPLATE=1` forces chat
+formatting, and an explicit job argument `-- --apply-chat-template` remains
+supported.
+
+Each run manifest records the actual setting in
+`generation.apply_chat_template` (`1` enabled, `0` disabled), together with the
+tokenizer template path and hash. Compare scores only with the intended prompt
+protocol and template identity: missing chat formatting caused the earlier text
+evaluation gap documented in [C10](superpowers/specs/2026-09-08-eval-suite-hardening-design.md#1210-correction-the-text-gap-was-the-chat-template-and-c10-makes-the-protocol-declared).
+The new suite does not impose common few-shot counts or decoding settings.
 
 ## Dashboard metrics
 
