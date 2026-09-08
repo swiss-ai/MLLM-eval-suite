@@ -55,7 +55,14 @@ for md in "$RUNS_ROOT"/*-thinking-32k; do
 done
 
 mkdir -p "$(dirname "$OUT")"
-"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --lm-eval-root "$SUITE/results/lm-eval" --models-file "$MODELS_FILE" -o "$OUT"
+# The registry must agree with the generated judge lists before anything is built.
+(cd "$SUITE" && "$PY" -m suite.tasks --check)
+LEGACY_ARGS=()
+for legacy in "$SUITE"/docs/legacy/dashboard-*.json; do
+  [[ -f "$legacy" ]] && LEGACY_ARGS+=(--legacy-json "$legacy")
+done
+"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --vlmeval-results-root "$SUITE_VLMEVAL" \
+  --lm-eval-root "$SUITE/results/lm-eval" --models-file "$MODELS_FILE" "${LEGACY_ARGS[@]}" -o "$OUT"
 # internal checkpoint results: keep out of search indexes
 "$PY" - "$OUT" <<'PYEOF'
 import re,sys

@@ -16,8 +16,14 @@ import csv
 import datetime
 import glob
 import json
+import sys
 import re
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from suite.coverage import cell_provenance, collect_manifests, find_manifest  # noqa: E402
+from suite.coverage import coverage as coverage_report  # noqa: E402
+from suite.tasks import benchmarks_dict, load_registry  # noqa: E402
 
 from gather_results import newest_per_task
 from metric_selection import iter_headline_metrics, normalize_score
@@ -32,121 +38,10 @@ from metric_selection import iter_headline_metrics, normalize_score
 # override, and whether the key/category match by prefix. The legacy
 # structures below are derived views of this table; edit the table, not them.
 # ---------------------------------------------------------------------------
-BENCHMARKS = {
-    # lm-eval text lane: "lm_metric" marks ownership and names the headline
-    # metric key inside lm_eval's results json (metric,filter).
-    "arc_easy": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
-    "gsm8k": {"cat": "Math (Text)", "lm_metric": "exact_match,flexible-extract"},
-    "math500_verify": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "math_lvl5_verify": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "hmmt_feb_2025": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "aime24": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "aime25": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "mmlu": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
-    "mmlu_pro": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "exact_match,custom-extract"},
-    "gpqa_diamond_zeroshot": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
-    "arc_challenge": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
-    "hellaswag": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
-    "winogrande": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
-    "truthfulqa_mc2": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
-    "ifeval": {"cat": "Instruction Following (Text)", "lm_metric": "prompt_level_strict_acc,none"},
-    "ifbench": {"cat": "Instruction Following (Text)", "lm_metric": "prompt_level_strict_acc,none"},
-    "3dsrbench": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk": "3DSRBench", "vk_prefix": True},
-    "ai2d": {"cat": "STEM & Knowledge"},
-    "babyvision": {"cat": "Math & Logic"},
-    "bigearth": {"cat": "Remote Sensing", "cat_prefix": True},
-    "blink": {"cat": "Multi-Image", "vk": "BLINK", "vk_prefix": True},
-    "chartqa": {"cat": "Docs, Charts & OCR"},
-    "cc_ocr_doc_parsing": {"cat": "Docs, Charts & OCR"},
-    "cc_ocr_kie": {"cat": "Docs, Charts & OCR"},
-    "cc_ocr_multi_lan_ocr": {"cat": "Docs, Charts & OCR"},
-    "cc_ocr_multi_scene_ocr": {"cat": "Docs, Charts & OCR"},
-    "charxiv_descriptive": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_descriptive_val"},
-    "charxiv_reasoning": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_reasoning_val"},
-    "countbench": {"cat": "Counting & Grounding"},
-    "cv_bench": {"vk_prefix": True},
-    "cv_bench_2d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-2D"},
-    "cv_bench_3d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-3D"},
-    "docvqa_val": {"cat": "Docs, Charts & OCR"},
-    "embspatial": {"cat": "Spatial & Embodied", "vk": "EmbSpatialBench", "vk_prefix": True},
-    "erqa": {"cat": "Spatial & Embodied", "vk": "ERQA", "vk_prefix": True},
-    "frieda": {"cat": "Remote Sensing"},
-    "geobench": {"cat": "Remote Sensing", "cat_prefix": True},
-    "gqa": {"cat": "General VQA & Perception"},
-    "hallusionbench": {"cat": "Alignment", "vk": "HallusionBench"},
-    "healthbench": {"cat": "Medical", "cat_prefix": True},
-    "iconqa_val": {"cat": "Docs, Charts & OCR"},
-    "infovqa_val": {"cat": "Docs, Charts & OCR"},
-    "logicvista": {"cat": "Math & Logic", "vk": "LogicVista"},
-    "mathverse": {"cat": "Math & Logic", "vk": "MathVerse_MINI"},
-    "mathvision": {"cat": "Math & Logic", "cat_prefix": True},
-    "mathvista_mini": {"cat": "Math & Logic", "vk": "MathVista_MINI"},
-    "medmcqa": {"cat": "Medical"},
-    "medqa": {"cat": "Medical"},
-    "medxpertqa_mm": {"cat": "Medical VQA"},
-    "medxpertqa_text": {"cat": "Medical"},
-    "mia_bench": {"cat": "Alignment", "vk": "MIA-Bench"},
-    "mindcube": {"cat": "Spatial & Embodied", "vk": "MindCubeBench_tiny_raw_qa", "vk_prefix": True},
-    "mm_ifeval": {"cat": "Instruction Following", "vk": "MM-IFEval"},
-    "mm_safetybench": {"cat": "Alignment", "vk": "MMSafetyBench", "headline": ('safety_rate',)},
-    "mmbench_en_dev": {"cat": "General VQA & Perception"},
-    "mme": {"cat": "General VQA & Perception"},
-    "mme_cognition": {"cat": "General VQA & Perception"},
-    "mme_perception": {"cat": "General VQA & Perception"},
-    "mmerealworld": {"cat": "General VQA & Perception"},
-    "mmlu_medical": {"cat": "Medical"},
-    "mmmu_pro_standard": {"cat": "STEM & Knowledge"},
-    "mmmu_pro_vision": {"cat": "STEM & Knowledge"},
-    "mmmu_val": {"cat": "STEM & Knowledge"},
-    "mmsi_bench": {"cat": "Spatial & Embodied", "vk": "MMSIBench_wo_circular", "vk_prefix": True},
-    "mmstar": {"cat": "General VQA & Perception"},
-    "mmvet": {"cat": "General VQA & Perception", "vk": "MMVet"},
-    "mmvp": {"cat": "Robustness & Bias"},
-    "mmvp_pair": {"cat": "Robustness & Bias"},
-    "mtvqa": {"cat": "Docs, Charts & OCR"},
-    "muirbench": {"cat": "Multi-Image", "vk": "MUIRBench"},
-    "ocrbench": {"cat": "Docs, Charts & OCR"},
-    "ocrbench_v2": {"cat": "Docs, Charts & OCR"},
-    "omnidocbench": {"cat": "Docs, Charts & OCR"},
-    "omnispatial": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk_prefix": True},
-    "omnispatial_manual_cot": {"vk": "OmniSpatialBench_manual_cot"},
-    "osworld": {"vk": "OSWorld_G", "vk_prefix": True},
-    "path_mmu": {"cat": "Medical VQA", "cat_prefix": True},
-    "path_mmu_test": {"cat": "Medical VQA"},
-    "path_vqa": {"cat": "Medical VQA"},
-    "pixmo_count": {"cat": "Counting & Grounding"},
-    "pmc_vqa": {"cat": "Medical VQA"},
-    "pope": {"cat": "Alignment"},
-    "pubmedqa": {"cat": "Medical"},
-    "realworldqa": {"cat": "General VQA & Perception"},
-    "refcoco": {"cat": "Counting & Grounding", "cat_prefix": True},
-    "refspatial": {"cat": "Spatial & Embodied", "vk": "RefSpatial_wo_unseen", "vk_prefix": True},
-    "robospatial": {"cat": "Spatial & Embodied", "vk": "RoboSpatialHome"},
-    "rsrcc": {"cat": "Remote Sensing", "cat_prefix": True},
-    "scienceqa": {"cat": "STEM & Knowledge"},
-    "screenspot": {"vk": "ScreenSpot", "vk_prefix": True},
-    "screenspot_pro": {"vk": "ScreenSpot_Pro"},
-    "screenspot_v2": {"vk": "ScreenSpot_v2"},
-    "seedbench": {"cat": "General VQA & Perception"},
-    "seedbench_2_plus": {"cat": "Docs, Charts & OCR"},
-    "site_bench": {"cat": "Spatial & Embodied", "vk": "SiteBenchImage", "vk_prefix": True, "headline": ('overall_caa', 'overall_accuracy', 'accuracy')},
-    "slake": {"cat": "Medical VQA"},
-    "sparbench": {"cat": "Spatial & Embodied", "vk": "SparBench", "vk_prefix": True},
-    "spatial_dise": {"cat": "Spatial & Embodied", "vk": "Spatial-DISE_BENCH", "vk_prefix": True},
-    "textvqa_val": {"cat": "Docs, Charts & OCR"},
-    "viewspatial": {"cat": "Spatial & Embodied", "vk": "ViewSpatialBench", "vk_prefix": True},
-    "visualpuzzles_direct": {"cat": "Math & Logic"},
-    "visulogic": {"cat": "Math & Logic"},
-    "vlms_are_biased": {"cat": "Robustness & Bias"},
-    "vlmsareblind": {"cat": "Robustness & Bias"},
-    "vqa_rad": {"cat": "Medical VQA"},
-    "vqav2_val": {"cat": "General VQA & Perception"},
-    "vrsbench": {"cat": "Remote Sensing", "cat_prefix": True},
-    "vsibench": {"vk_prefix": True},
-    "vsibench_debiased": {"cat": "Spatial & Embodied", "vk": ['VSI-Bench-Debiased', 'VSI-Bench-Debiased_32frame']},
-    "vstar_bench": {"cat": "General VQA & Perception"},
-    "where2place": {"vk_prefix": True},
-}
+# Benchmark families, VLMEvalKit dataset names, headline metrics, and lm-eval
+# metric names live in suite/tasks.toml; this dict is that table verbatim.
+REGISTRY = load_registry()
+BENCHMARKS = benchmarks_dict(REGISTRY)
 
 
 # Categories in display order, with modality.
@@ -412,6 +307,9 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
                 continue
             models.add(canon)
             cell = {"v": round(value, 2), "raw": value, "run": acc.parent.name}
+            prov = cell_provenance(find_manifest(acc))
+            if prov:
+                cell["prov"] = prov
             # mm_safetybench is direction-normalized to safety_rate at derivation
             # (attack_rate is lower-better); label it so readers see which it is.
             metric = "safety_rate" if task == "mm_safetybench" else "acc"
@@ -477,6 +375,9 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
                 cell = {"v": round(norm * 100, 2), "raw": value, "run": run_id}
                 if task in trunc:
                     cell["t"] = round(trunc[task] * 100, 1)
+                prov = cell_provenance(find_manifest(path))
+                if prov:
+                    cell["prov"] = prov
                 # Two result dirs can canonicalize to one column (label case,
                 # path-slug variants); the newest artifact wins, not dir order.
                 mt = path.stat().st_mtime
@@ -962,6 +863,10 @@ def main():
     p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
     p.add_argument("--lm-eval-root", type=Path, help="results/lm-eval tree; ingests lm-eval-owned text benchmarks, merged by checkpoint identity")
+    p.add_argument("--vlmeval-results-root", type=Path,
+                   help="results/VLMEvalKit tree (run/<model>/<dataset>) whose run_meta.json manifests feed the coverage report")
+    p.add_argument("--legacy-json", type=Path, action="append", default=[],
+                   help="dashboard.json of an earlier build; its cells fill (task, metric, model) slots no current result covers, marked legacy")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
     p.add_argument("--models-file", type=Path,
                    help="column manifest (key[|alias]=Label per line); overrides --only/--label")
@@ -1010,6 +915,23 @@ def main():
             merged[key]["cells"].update(row["cells"])
         else:
             merged[key] = dict(row)
+    # Purged raw results survive only in earlier builds: import their cells
+    # wherever nothing current covers the slot, and mark them so the page and
+    # the coverage report can tell a legacy number from a manifest-backed one.
+    n_legacy = 0
+    for legacy_path in args.legacy_json:
+        legacy = json.loads(legacy_path.read_text())
+        for row in legacy.get("table", []):
+            key = (row["task"], row["metric"])
+            target = merged.setdefault(key, {"task": row["task"], "metric": row["metric"], "framework": row["framework"], "cells": {}})
+            for model, cell in row["cells"].items():
+                if model not in target["cells"]:
+                    target["cells"][model] = dict(cell, legacy=True)
+                    n_legacy += 1
+                    if model not in models:
+                        models.append(model)
+    if n_legacy:
+        print(f"legacy: imported {n_legacy} cells from {len(args.legacy_json)} earlier build(s)")
     table = [merged[key] for key in sorted(merged)]
     labels = short_labels(models)
     for pair in args.label:
@@ -1051,10 +973,28 @@ def main():
         f"<b>{len(models)}</b> checkpoints · <b>{len(cells_rows)}</b> metric rows · "
         f"{sources} · generated {datetime.datetime.now():%Y-%m-%d %H:%M}"
     )
+    manifest_roots = [r for r in args.runs_root] + ([args.vlmeval_results_root] if args.vlmeval_results_root else [])
+    manifests = collect_manifests(manifest_roots, REGISTRY, canonical_model_key)
+    if aliases:
+        manifests = {(t, aliases.get(mk, mk)): man for (t, mk), man in manifests.items()}
+    cov = coverage_report(cells_rows, models, REGISTRY, manifests,
+                   tasks=[t.name for t in REGISTRY.tasks.values() if t.card or t.report])
+    data["coverage"] = cov["counts"]
+    for key in list(args.only or []):
+        if not any(key in r["cells"] for r in cells_rows) and not any(mk == key for (_t, mk) in manifests):
+            print(f"registry: column {key!r} has no results and no manifests")
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
     html_text = HTML_TEMPLATE.replace("__DATA__", payload).replace("__META__", meta)
     args.output.write_text(html_text)
     print(f"wrote {args.output.resolve()}  ({args.output.stat().st_size / 1024:.0f} KB)")
+    json_path = args.output.with_name("dashboard.json")
+    json_path.write_text(json.dumps(data, indent=1))
+    cov_path = args.output.with_name("coverage.json")
+    cov_path.write_text(json.dumps(cov, indent=1))
+    reasons = ", ".join(f"{k}: {v}" for k, v in sorted(cov["by_reason"].items()))
+    print(f"coverage (card+report tasks x columns): {cov['counts']['present']}/{cov['counts']['cells']} cells present; "
+          f"{cov['counts']['missing']} missing ({reasons or 'none'})")
+    print(f"wrote {json_path.name} and {cov_path.name} next to the page")
 
 
 if __name__ == "__main__":
