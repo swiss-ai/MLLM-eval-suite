@@ -1,0 +1,4 @@
+run.py  3DSRBench exact_matching rule moved to image_mcq.py DEFAULT_JUDGE_MODEL; one cosmetic indentation hunk dropped
+vlmeval/dataset/mmlongbench.py  fork change was import reordering only; upstream kept
+vlmeval/dataset/utils/mmlongbench_judge_prompt.py  fork change was a trailing newline; upstream kept
+vlmeval/dataset/utils/mmlongbench_metrics.py  reset to upstream's formatting; the fork's lazy rouge_score import re-applied

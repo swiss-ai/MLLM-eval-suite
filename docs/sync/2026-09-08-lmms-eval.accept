@@ -1,0 +1,14 @@
+lmms_eval/evaluator.py  oversized-string guard re-applied inside upstream's saved_doc comprehension
+lmms_eval/models/chat/aero_realtime_vllm.py  formatting-only fork change; upstream's reformat kept
+lmms_eval/models/simple/vllm.py  rebuilt as upstream plus the fork's deltas; sampling-key passthrough and decord guard are upstream's now
+lmms_eval/tasks/covost2/_default_template_en_zh_yaml  whitespace-only fork change; upstream kept
+lmms_eval/tasks/covost2/covost2_en_zh_dev.yaml  whitespace-only fork change; upstream kept
+lmms_eval/tasks/covost2/covost2_en_zh_test.yaml  whitespace-only fork change; upstream kept
+lmms_eval/tasks/medevalkit/_medevalkit.yaml  MedEvalKit SLAKE renamed to slake_medevalkit after the merge
+lmms_eval/tasks/medevalkit/_medevalkit_no_image.yaml  MedEvalKit SLAKE renamed to slake_medevalkit after the merge
+lmms_eval/tasks/medevalkit/slake/slake.yaml  MedEvalKit SLAKE renamed to slake_medevalkit after the merge
+lmms_eval/tasks/medevalkit/slake/slake_no_image.yaml  MedEvalKit SLAKE renamed to slake_medevalkit after the merge
+lmms_eval/tasks/mmmu/utils.py  upstream fixed the same open-answer scoring bug with to_submission_answer
+lmms_eval/tasks/vlmsareblind/utils.py  fork's task_total aggregation superseded by upstream's; response normalization re-applied
+test/tools/test_batch_watchdog.py  fork deletion reverted; upstream's watchdog and its test kept
+tools/batch_watchdog.py  fork deletion reverted; upstream's watchdog and its test kept
