@@ -310,3 +310,7 @@ Inside a GPU-enabled trial container, the existing runtime verifier is:
 
 Choose a new output path when adding evidence so the original successful
 validation records remain available.
+
+## Addendum, 2026-09-08 (later the same day)
+
+The canonical checkout now lives on capstor at `/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite`, branch `yxu/hardening-2026-09-08`; the scratch checkout lost files and git objects to the scratch purge and should not be used for launching. The design behind the changes is `docs/superpowers/specs/2026-09-08-eval-suite-hardening-design.md` and the plan `docs/superpowers/plans/2026-09-08-eval-suite-hardening.md`. The image work above is unchanged and the trial image remains unpromoted; both images carry Transformers 5.15.0.dev0, and the trial differs in vLLM (0.28.1 vs 0.26.1), FlashInfer (0.6.18 vs 0.6.17), huggingface-hub (1.30 vs 1.27), and math-verify (0.9.0 vs 0.1.0). A three-benchmark A/B of the released 8B on the trial image matched production within 0.2 points (POPE, MMVP, MMStar). A 70B parallelism benchmark on one node measured TP4 fastest, TP2xPP2 11 to 17 percent slower, TP1xPP4 31 to 37 percent slower.
