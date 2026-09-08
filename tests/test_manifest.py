@@ -67,9 +67,19 @@ def test_finalize_invalid_when_thinking_did_not_engage(tmp_path):
     assert status == "invalid" and man["thinking"]["effective"] is None and "output tokens" in man["error"]
 
 
-def test_finalize_failed_on_harness_error(tmp_path):
+def test_finalize_failed_when_a_worker_died_despite_results(tmp_path):
+    status, man = _run(tmp_path, thinking=False, tokens=[5], log_text="Worker proc VllmWorker-2 died unexpectedly at rank 2\n")
+    assert status == "failed" and "died unexpectedly" in man["error"]
+
+
+def test_finalize_ok_with_warning_on_recovered_error(tmp_path):
+    status, man = _run(tmp_path, thinking=False, tokens=[5], log_text="Error during evaluation: judge retry 1 of 3\n")
+    assert status == "ok" and man["warnings"] == ["judge retry 1 of 3"] and man["error"] is None
+
+
+def test_finalize_failed_on_error_without_results(tmp_path):
     status, man = _run(tmp_path, thinking=False, tokens=[], log_text="Error during evaluation: boom\n", results=False)
-    assert status == "failed" and "boom" in man["error"]
+    assert status == "failed" and man["error"] == "no results file produced" and man["warnings"] == ["boom"]
 
 
 def test_finalize_failed_when_no_results(tmp_path):
@@ -85,7 +95,7 @@ def test_cli_exit_codes(tmp_path):
                  "--model", str(m), "--tokenizer", str(t), "--harness-dir", str(tmp_path), "--tp", "2", "--limit", "8"]) == 0
     assert json.loads((out / "run_meta.json").read_text())["generation"]["tp"] == 2
     log = tmp_path / "l.out"
-    log.write_text("Error during evaluation: x\n")
+    log.write_text("torch.OutOfMemoryError: CUDA out of memory\n")
     assert main(["finalize", "--manifest", str(out / "run_meta.json"), "--log", str(log),
                  "--results-dir", str(out), "--harness-rc", "0"]) == EXIT_FAILED
 

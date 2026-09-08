@@ -20,14 +20,19 @@ EXIT_INVALID = 4
 EXIT_BY_STATUS = {"ok": 0, "failed": EXIT_FAILED, "invalid": EXIT_INVALID}
 THINKING_MIN_MEAN_TOKENS = 8
 GENERATION_FIELDS = ("tp", "dp", "batch_size", "gpu_memory_utilization", "max_model_len", "limit")
-ERROR_PATTERNS = (
-    r"Error during evaluation: (.{0,300})",
+# A fatal pattern means generation was lost or invalid part way through, so a
+# results file written afterwards can be partial; the run is failed whatever the
+# exit code says. Advisory patterns are recorded as warnings on an ok run.
+FATAL_PATTERNS = (
     r"(torch\.OutOfMemoryError: .{0,200})",
     r"(EngineDeadError.{0,200})",
     r"(RuntimeError: cancelled)",
     r"(thinking canary failed.{0,200})",
     r"(Engine core initialization failed.{0,100})",
     r"(Worker proc \S+ died unexpectedly.{0,80})",
+)
+ADVISORY_PATTERNS = (
+    r"Error during evaluation: (.{0,300})",
 )
 FLAG_RE = re.compile(r"apertus_1p5(?:_vllm)?: enable_thinking=(\S+)")
 CANARY_RE = re.compile(r"thinking canary (passed|failed)")
@@ -100,6 +105,7 @@ def start(out_dir: Path, *, framework: str, task: str, run_id: str, model_path: 
         "container": _container_identity(),
         "slurm": {"job_id": os.environ.get("SLURM_JOB_ID"), "node": os.environ.get("SLURMD_NODENAME")},
         "results": None,
+        "warnings": [],
         "env": {k: v for k, v in os.environ.items()
                 if k.startswith(("APERTUS_", "VLLM_APERTUS_", "IMAGE_TOKEN_CACHE", "PYTORCH_CUDA_ALLOC_CONF"))},
     }
@@ -126,24 +132,27 @@ def output_token_stats(sample_files) -> dict | None:
     return {"n": len(counts), "mean": statistics.fmean(counts), "median": statistics.median(counts), "max": max(counts)}
 
 
-def _scan_logs(log_paths) -> tuple[str | None, bool | None, str]:
-    error, effective, canary = None, None, "not-run"
+def _scan_logs(log_paths) -> tuple[str | None, list[str], bool | None, str]:
+    """First fatal match, every advisory match, the observed thinking flag, and the canary verdict."""
+    fatal, warnings, effective, canary = None, [], None, "not-run"
     for path in log_paths:
         try:
             text = Path(path).read_text(errors="ignore")
         except OSError:
             continue
-        for pat in ERROR_PATTERNS:
+        for pat in FATAL_PATTERNS:
             m = re.search(pat, text)
-            if m and error is None:
-                error = m.group(1).strip()
+            if m and fatal is None:
+                fatal = m.group(1).strip()
+        for pat in ADVISORY_PATTERNS:
+            warnings += [m.strip() for m in re.findall(pat, text)]
         m = FLAG_RE.search(text)
         if m:
             effective = {"True": True, "False": False}.get(m.group(1))
         m = CANARY_RE.search(text)
         if m:
             canary = m.group(1)
-    return error, effective, canary
+    return fatal, warnings, effective, canary
 
 
 def _newest(paths) -> Path | None:
@@ -170,9 +179,10 @@ def finalize(manifest_path: Path, log_paths, results_dir: Path, harness_rc: int,
              thinking_min_tokens: int = THINKING_MIN_MEAN_TOKENS) -> tuple[str, dict]:
     manifest_path = Path(manifest_path)
     manifest = json.loads(manifest_path.read_text())
-    error, effective, canary = _scan_logs(log_paths)
+    error, warnings, effective, canary = _scan_logs(log_paths)
     manifest["thinking"]["effective"] = effective
     manifest["thinking"]["canary"] = canary
+    manifest["warnings"] = warnings
     result_file, samples = _find_results(results_dir, manifest["framework"])
     status = "ok"
     if error or harness_rc != 0 or result_file is None:
