@@ -45,6 +45,7 @@ fi
 REPO_ROOT="${ORCH_REPO_ROOT}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/lmms-eval/eval_job.slurm}"
 source "${ORCH_REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
+export SUITE_CONTAINER_IMAGE="$(sed -n 's/^image *= *"\(.*\)"/\1/p' "${EVAL_ENVIRONMENT}")"
 LMMS_CACHE_ROOT="${LMMS_CACHE_ROOT:-${REPO_ROOT}/cache/lmms-eval}"
 CACHE_BASE="${CACHE_BASE:-${LMMS_CACHE_ROOT}/image_token_cache}"
 declare -A HF_AUTH_CHECKED
@@ -343,6 +344,7 @@ while IFS= read -r TASK; do
       JOB_ERROR="${LOG_DIR}/eval_${MODE}_%j.err"
     fi
 
+    export SUITE_JOB_OUTPUT="$JOB_OUTPUT" SUITE_JOB_ERROR="$JOB_ERROR"
     echo "--- submit: task=$TASK  model=$MODEL_LABEL ---"
     echo "    cache: $TASK_CACHE_DIR"
     echo "    logs:  $JOB_OUTPUT / $JOB_ERROR"

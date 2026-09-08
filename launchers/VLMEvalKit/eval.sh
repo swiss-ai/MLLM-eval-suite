@@ -17,6 +17,7 @@ REPO_ROOT="${ORCH_REPO_ROOT}"
 REPO_DIR="${REPO_DIR:-${REPO_ROOT}/third_party/VLMEvalKit}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/VLMEvalKit/eval_job.slurm}"
 source "${REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
+export SUITE_CONTAINER_IMAGE="$(sed -n 's/^image *= *"\(.*\)"/\1/p' "${EVAL_ENVIRONMENT}")"
 
 RESPONSE_CACHE="${VLMEVAL_RESPONSE_CACHE:-${REPO_ROOT}/cache/VLMEvalKit}"
 IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-}"
@@ -325,6 +326,7 @@ while IFS= read -r DATASET; do
     fi
 
     export FOREIGN_MODEL="${MODEL_FOREIGN}"
+    export SUITE_JOB_OUTPUT="${JOB_OUTPUT}" SUITE_JOB_ERROR="${JOB_ERROR}"
     echo "--- submit: data=${DATASET} model=${MODEL} foreign=${MODEL_FOREIGN} work=${WORK_DIR} ---"
     echo "    logs:   ${JOB_OUTPUT} / ${JOB_ERROR}"
     if [[ "${DRY_RUN}" -eq 1 ]]; then

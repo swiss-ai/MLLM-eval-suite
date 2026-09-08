@@ -381,4 +381,25 @@ printf ' %q' "${RUN_CMD[@]}"
 printf '\n'
 echo "======================================="
 
+# Run manifest (suite/manifest.py): identity before inference, status after.
+export PYTHONPATH="${ORCH_REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+MANIFEST_RUN_ID="$(basename "$(dirname "$(dirname "${WORK_DIR}")")")"
+MANIFEST_THINKING=()
+case "$(printf '%s' "${APERTUS_ENABLE_THINKING:-}" | tr '[:upper:]' '[:lower:]')" in 1|true|t|yes|y|on) MANIFEST_THINKING=(--thinking) ;; esac
+MANIFEST_EXTRA="$(printf '{"generation": {"tp": %s, "dp": %s, "batch_size": %s, "gpu_memory_utilization": %s, "max_model_len": %s}}' \
+  "${APERTUS_TENSOR_PARALLEL_SIZE:-1}" "${NUM_PROCESSES}" "${BATCH_SIZE}" "${APERTUS_GPU_MEMORY_UTILIZATION:-null}" "${APERTUS_MAX_MODEL_LEN:-131072}")"
+"${PYTHON_BIN}" -m suite.manifest start --out "${WORK_DIR}" --framework VLMEvalKit --task "${DATASET}" \
+  --run-id "${MANIFEST_RUN_ID}" --model "${APERTUS_MODEL_PATH:-${MODEL}}" ${APERTUS_TOKENIZER_PATH:+--tokenizer "${APERTUS_TOKENIZER_PATH}"} \
+  --model-args "model=${MODEL},mode=${MODE}" --gen-kwargs "max_new_tokens=${APERTUS_MAX_NEW_TOKENS:-},temperature=${APERTUS_TEMPERATURE:-},top_p=${APERTUS_TOP_P:-}" \
+  "${MANIFEST_THINKING[@]}" --extra-json "${MANIFEST_EXTRA}"
+set +e
 "${RUN_CMD[@]}"
+HARNESS_RC=$?
+set -e
+MANIFEST_LOGS=()
+for pattern in "${SUITE_JOB_OUTPUT:-}" "${SUITE_JOB_ERROR:-}"; do
+  [[ -n "${pattern}" ]] && MANIFEST_LOGS+=(--log "${pattern//%j/${SLURM_JOB_ID:-interactive}}")
+done
+"${PYTHON_BIN}" -m suite.manifest finalize --manifest "${WORK_DIR}/run_meta.json" "${MANIFEST_LOGS[@]}" \
+  --results-dir "${WORK_DIR}" --harness-rc "${HARNESS_RC}"
+exit $?

@@ -563,4 +563,27 @@ if [[ -n "${GEN_KWARGS}" ]]; then
 fi
 echo "==========================================="
 
+# Run manifest (suite/manifest.py): identity before inference, status after.
+SUITE_PY="${SUITE_PY:-/opt/venv/bin/python}"
+export PYTHONPATH="${ORCH_REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+MANIFEST_RUN_ID="$(basename "$(dirname "${OUTPUT_PATH}")")"
+MANIFEST_TP="$(sed -n 's/.*tensor_parallel_size=\([0-9]*\).*/\1/p' <<<"${MODEL_ARGS}" | tail -n1)"
+MANIFEST_THINKING=()
+case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) MANIFEST_THINKING=(--thinking) ;; esac
+MANIFEST_EXTRA="$(printf '{"generation": {"tp": %s, "dp": %s, "batch_size": %s, "gpu_memory_utilization": %s, "max_model_len": %s}}' \
+  "${MANIFEST_TP:-1}" "${NUM_PROCESSES}" "${BATCH_SIZE}" "${GPU_MEMORY_UTILIZATION}" "${MAX_MODEL_LEN}")"
+"${SUITE_PY}" -m suite.manifest start --out "${OUTPUT_PATH}" --framework lmms-eval --task "${TASKS}" \
+  --run-id "${MANIFEST_RUN_ID}" --model "${MODEL_PATH}" --tokenizer "${TOKENIZER_PATH}" \
+  ${CHAT_TEMPLATE:+--chat-template "${CHAT_TEMPLATE}"} --model-args "${MODEL_ARGS}" --gen-kwargs "${GEN_KWARGS}" \
+  "${MANIFEST_THINKING[@]}" --extra-json "${MANIFEST_EXTRA}"
+set +e
 "${CMD[@]}"
+HARNESS_RC=$?
+set -e
+MANIFEST_LOGS=()
+for pattern in "${SUITE_JOB_OUTPUT:-}" "${SUITE_JOB_ERROR:-}"; do
+  [[ -n "${pattern}" ]] && MANIFEST_LOGS+=(--log "${pattern//%j/${SLURM_JOB_ID:-interactive}}")
+done
+"${SUITE_PY}" -m suite.manifest finalize --manifest "${OUTPUT_PATH}/run_meta.json" "${MANIFEST_LOGS[@]}" \
+  --results-dir "${OUTPUT_PATH}" --harness-rc "${HARNESS_RC}"
+exit $?
