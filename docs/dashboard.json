@@ -2,8 +2,6 @@
  "models": [
   "8b-final-correct-rope",
   "8b-final-correct-rope [thinking-32k]",
-  "apertus-v1.5-8b",
-  "apertus-v1.5-8b [thinking-32k]",
   "sft-capfilter-constant-it8816",
   "sft-256k-4200",
   "sft-256k-4200 [thinking-32k]",
@@ -36,8 +34,6 @@
  "labels": {
   "8b-final-correct-rope": "Apertus-1.5-8B",
   "8b-final-correct-rope [thinking-32k]": "Apertus-1.5-8B (think)",
-  "apertus-v1.5-8b": "Apertus-v1.5-8B (Aug 17 text, dir purged)",
-  "apertus-v1.5-8b [thinking-32k]": "Apertus-v1.5-8B (think, Aug 17 text, dir purged)",
   "sft-capfilter-constant-it8816": "it8816-const",
   "sft-256k-4200": "SFT-4200",
   "sft-256k-4200 [thinking-32k]": "SFT-4200 (think)",
@@ -6485,7 +6481,7 @@
      "run": "CharXiv_descriptive_val__20260630T062015Z_243390",
      "source": {
       "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/VLMEvalKit/20260630T062015Z_243390/ap1p5-70b-sft-262k-2700/CharXiv_descriptive_val/derived_acc.csv",
-      "mtime_ns": 1788884266000000000
+      "mtime_ns": 1788891024000000000
      },
      "legacy": true
     },
@@ -14093,23 +14089,6 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
-    "8b-final-correct-rope": {
-     "v": 0.0,
-     "raw": 0.0,
-     "run": "20260908T_8b_text_rerun",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/aime24/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-04-42.863893.json",
-      "mtime_ns": 1788883482000000000
-     },
-     "prov": {
-      "run_id": "20260908T_8b_text_rerun",
-      "status": "ok",
-      "thinking": null,
-      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
-      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
-      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
-     }
-    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 3.33,
      "raw": 0.03333333333333333,
@@ -14120,7 +14099,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b": {
+    "8b-final-correct-rope": {
      "v": 10.0,
      "raw": 0.1,
      "run": "20260817T193228Z_11519",
@@ -14130,7 +14109,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b [thinking-32k]": {
+    "8b-final-correct-rope [thinking-32k]": {
      "v": 33.33,
      "raw": 0.3333333333333333,
      "run": "20260818T051111Z_1053",
@@ -14148,23 +14127,6 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
-    "8b-final-correct-rope": {
-     "v": 0.0,
-     "raw": 0.0,
-     "run": "20260908T_8b_text_rerun",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/aime25/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-05-34.253969.json",
-      "mtime_ns": 1788883534000000000
-     },
-     "prov": {
-      "run_id": "20260908T_8b_text_rerun",
-      "status": "ok",
-      "thinking": null,
-      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
-      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
-      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
-     }
-    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 10.0,
      "raw": 0.1,
@@ -14175,7 +14137,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b": {
+    "8b-final-correct-rope": {
      "v": 6.67,
      "raw": 0.06666666666666667,
      "run": "20260817T193228Z_11519",
@@ -14185,7 +14147,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b [thinking-32k]": {
+    "8b-final-correct-rope [thinking-32k]": {
      "v": 23.33,
      "raw": 0.23333333333333334,
      "run": "20260818T051111Z_1053",
@@ -14203,23 +14165,6 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
-    "8b-final-correct-rope": {
-     "v": 79.61,
-     "raw": 0.796057619408643,
-     "run": "20260908T_8b_text_rerun",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/gsm8k/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-02-33.224163.json",
-      "mtime_ns": 1788883353000000000
-     },
-     "prov": {
-      "run_id": "20260908T_8b_text_rerun",
-      "status": "ok",
-      "thinking": null,
-      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
-      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
-      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
-     }
-    },
     "sft-rl-dpo-sdpo-less-refuse-feedback": {
      "v": 77.71,
      "raw": 0.77710386656558,
@@ -14240,7 +14185,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b": {
+    "8b-final-correct-rope": {
      "v": 80.97,
      "raw": 0.8097043214556482,
      "run": "20260818T090845Z_gsm8kcap",
@@ -14250,7 +14195,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b [thinking-32k]": {
+    "8b-final-correct-rope [thinking-32k]": {
      "v": 85.97,
      "raw": 0.8597422289613343,
      "run": "20260818T053933Z_18447",
@@ -14268,23 +14213,6 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
-    "8b-final-correct-rope": {
-     "v": 0.0,
-     "raw": 0.0,
-     "run": "20260908T_8b_text_rerun",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/hmmt_feb_2025/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-02-42.912240.json",
-      "mtime_ns": 1788883362000000000
-     },
-     "prov": {
-      "run_id": "20260908T_8b_text_rerun",
-      "status": "ok",
-      "thinking": null,
-      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
-      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
-      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
-     }
-    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 0.0,
      "raw": 0.0,
@@ -14295,7 +14223,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b": {
+    "8b-final-correct-rope": {
      "v": 0.0,
      "raw": 0.0,
      "run": "20260817T193228Z_11519",
@@ -14305,7 +14233,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b [thinking-32k]": {
+    "8b-final-correct-rope [thinking-32k]": {
      "v": 13.33,
      "raw": 0.13333333333333333,
      "run": "20260818T051111Z_1053",
@@ -14323,23 +14251,6 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
-    "8b-final-correct-rope": {
-     "v": 31.8,
-     "raw": 0.318,
-     "run": "20260908T_8b_text_rerun",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/math500_verify/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-05-27.990879.json",
-      "mtime_ns": 1788883527000000000
-     },
-     "prov": {
-      "run_id": "20260908T_8b_text_rerun",
-      "status": "ok",
-      "thinking": null,
-      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
-      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
-      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
-     }
-    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 68.4,
      "raw": 0.684,
@@ -14350,7 +14261,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b": {
+    "8b-final-correct-rope": {
      "v": 70.0,
      "raw": 0.7,
      "run": "20260817T193228Z_11519",
@@ -14360,7 +14271,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b [thinking-32k]": {
+    "8b-final-correct-rope [thinking-32k]": {
      "v": 83.8,
      "raw": 0.838,
      "run": "20260818T053933Z_18447",
@@ -14378,23 +14289,6 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
-    "8b-final-correct-rope": {
-     "v": 17.6,
-     "raw": 0.17598187311178248,
-     "run": "20260908T_8b_text_rerun",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/math_lvl5_verify/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-17-13.935756.json",
-      "mtime_ns": 1788884233000000000
-     },
-     "prov": {
-      "run_id": "20260908T_8b_text_rerun",
-      "status": "ok",
-      "thinking": null,
-      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
-      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
-      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
-     }
-    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 43.88,
      "raw": 0.438821752265861,
@@ -14405,7 +14299,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b": {
+    "8b-final-correct-rope": {
      "v": 44.79,
      "raw": 0.4478851963746224,
      "run": "20260817T193228Z_11519",
@@ -14415,7 +14309,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b [thinking-32k]": {
+    "8b-final-correct-rope [thinking-32k]": {
      "v": 69.11,
      "raw": 0.6910876132930514,
      "run": "20260818T053933Z_18447",
@@ -14436,22 +14330,19 @@
     "8b-final-correct-rope": {
      "v": 57.76,
      "raw": 0.5776450511945392,
-     "run": "20260818T170000Z_final_text",
+     "run": "20260908T_8b_text_chat",
      "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260818T170000Z_final_text/arc_challenge/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-08-18T17-46-51.582709.json",
-      "mtime_ns": 1787068011000000000
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260908T_8b_text_chat/arc_challenge/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-09-08T20-02-08.625793.json",
+      "mtime_ns": 1788890528000000000
      },
-     "legacy": true
-    },
-    "apertus-v1.5-8b": {
-     "v": 64.42,
-     "raw": 0.64419795221843,
-     "run": "20260817T200610Z_30406",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260817T200610Z_30406/arc_challenge/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-08-17T22-10-45.015346.json",
-      "mtime_ns": 1786997445000000000
-     },
-     "legacy": true
+     "prov": {
+      "run_id": "20260908T_8b_text_chat",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "e8b7bf1d7848a554bc3bdafcc0649729bc0b0a24753f977ea4595fd63e051139",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
     }
    }
   },
@@ -14461,16 +14352,6 @@
    "framework": "lm-eval",
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
-    "8b-final-correct-rope": {
-     "v": 80.6,
-     "raw": 0.805976430976431,
-     "run": "20260818T170000Z_final_text",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260818T170000Z_final_text/arc_easy/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-08-18T17-47-02.374154.json",
-      "mtime_ns": 1787068022000000000
-     },
-     "legacy": true
-    },
     "sft-rl-dpo-sdpo-less-refuse-feedback": {
      "v": 85.19,
      "raw": 0.8518518518518519,
@@ -14491,15 +14372,22 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b": {
-     "v": 84.97,
-     "raw": 0.8497474747474747,
-     "run": "20260817T192415Z_3159",
+    "8b-final-correct-rope": {
+     "v": 80.6,
+     "raw": 0.805976430976431,
+     "run": "20260908T_8b_text_chat",
      "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260817T192415Z_3159/arc_easy/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-08-17T21-28-58.904325.json",
-      "mtime_ns": 1786994938000000000
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260908T_8b_text_chat/arc_easy/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-09-08T20-02-19.056865.json",
+      "mtime_ns": 1788890539000000000
      },
-     "legacy": true
+     "prov": {
+      "run_id": "20260908T_8b_text_chat",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "e8b7bf1d7848a554bc3bdafcc0649729bc0b0a24753f977ea4595fd63e051139",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
     }
    }
   },
@@ -14510,16 +14398,6 @@
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
     "8b-final-correct-rope": {
-     "v": 30.81,
-     "raw": 0.30808080808080807,
-     "run": "20260818T170000Z_final_text",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260818T170000Z_final_text/gpqa_diamond_zeroshot/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-08-18T17-46-42.070711.json",
-      "mtime_ns": 1787068002000000000
-     },
-     "legacy": true
-    },
-    "apertus-v1.5-8b": {
      "v": 30.81,
      "raw": 0.30808080808080807,
      "run": "20260818T081310Z_19019",
@@ -14538,31 +14416,21 @@
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
     "8b-final-correct-rope": {
-     "v": 79.98,
-     "raw": 0.7998406691894046,
-     "run": "20260908T_8b_text_rerun",
+     "v": 66.2,
+     "raw": 0.6620195180242979,
+     "run": "20260908T_8b_text_chat",
      "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/hellaswag/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-01-46.928256.json",
-      "mtime_ns": 1788883306000000000
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260908T_8b_text_chat/hellaswag/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-09-08T20-03-37.150263.json",
+      "mtime_ns": 1788890617000000000
      },
      "prov": {
-      "run_id": "20260908T_8b_text_rerun",
+      "run_id": "20260908T_8b_text_chat",
       "status": "ok",
       "thinking": null,
-      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "model_sha": "e8b7bf1d7848a554bc3bdafcc0649729bc0b0a24753f977ea4595fd63e051139",
       "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
       "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
      }
-    },
-    "apertus-v1.5-8b": {
-     "v": 79.99,
-     "raw": 0.7999402509460267,
-     "run": "20260817T200610Z_30406",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260817T200610Z_30406/hellaswag/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-08-17T22-11-50.934707.json",
-      "mtime_ns": 1786997510000000000
-     },
-     "legacy": true
     }
    }
   },
@@ -14573,31 +14441,21 @@
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
     "8b-final-correct-rope": {
-     "v": 64.89,
-     "raw": 0.648910411622276,
-     "run": "20260908T_8b_text_rerun",
+     "v": 63.96,
+     "raw": 0.6395812562313061,
+     "run": "20260908T_8b_text_chat",
      "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/mmlu/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-03-19.308747.json",
-      "mtime_ns": 1788883399000000000
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260908T_8b_text_chat/mmlu/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-09-08T20-04-57.466240.json",
+      "mtime_ns": 1788890697000000000
      },
      "prov": {
-      "run_id": "20260908T_8b_text_rerun",
+      "run_id": "20260908T_8b_text_chat",
       "status": "ok",
       "thinking": null,
-      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "model_sha": "e8b7bf1d7848a554bc3bdafcc0649729bc0b0a24753f977ea4595fd63e051139",
       "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
       "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
      }
-    },
-    "apertus-v1.5-8b": {
-     "v": 64.91,
-     "raw": 0.6491240564022219,
-     "run": "20260817T200610Z_30406",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260817T200610Z_30406/mmlu/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-08-17T22-13-30.503661.json",
-      "mtime_ns": 1786997610000000000
-     },
-     "legacy": true
     }
    }
   },
@@ -14608,23 +14466,6 @@
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
     "8b-final-correct-rope": {
-     "v": 44.14,
-     "raw": 0.44140625,
-     "run": "20260908T_8b_text_rerun",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/mmlu_pro/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-02-16.720605.json",
-      "mtime_ns": 1788883336000000000
-     },
-     "prov": {
-      "run_id": "20260908T_8b_text_rerun",
-      "status": "ok",
-      "thinking": null,
-      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
-      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
-      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
-     }
-    },
-    "apertus-v1.5-8b": {
      "v": 45.79,
      "raw": 0.4578623670212766,
      "run": "20260818T061945Z_5512",
@@ -14634,7 +14475,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b [thinking-32k]": {
+    "8b-final-correct-rope [thinking-32k]": {
      "v": 48.47,
      "raw": 0.48470744680851063,
      "run": "20260818T062434Z_31582",
@@ -14653,24 +14494,21 @@
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
     "8b-final-correct-rope": {
-     "v": 58.03,
-     "raw": 0.5803276697609684,
-     "run": "20260818T170000Z_final_text",
+     "v": 58.02,
+     "raw": 0.5801526312388452,
+     "run": "20260908T_8b_text_chat",
      "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260818T170000Z_final_text/truthfulqa_mc2/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-08-18T17-47-11.834423.json",
-      "mtime_ns": 1787068031000000000
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260908T_8b_text_chat/truthfulqa_mc2/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-09-08T20-02-27.024912.json",
+      "mtime_ns": 1788890547000000000
      },
-     "legacy": true
-    },
-    "apertus-v1.5-8b": {
-     "v": 55.88,
-     "raw": 0.5587911387047909,
-     "run": "20260817T200610Z_30406",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260817T200610Z_30406/truthfulqa_mc2/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-08-17T22-11-01.152648.json",
-      "mtime_ns": 1786997461000000000
-     },
-     "legacy": true
+     "prov": {
+      "run_id": "20260908T_8b_text_chat",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "e8b7bf1d7848a554bc3bdafcc0649729bc0b0a24753f977ea4595fd63e051139",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
     }
    }
   },
@@ -14681,24 +14519,21 @@
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
     "8b-final-correct-rope": {
-     "v": 65.67,
-     "raw": 0.6566692975532754,
-     "run": "20260818T170000Z_final_text",
+     "v": 65.27,
+     "raw": 0.6527229676400947,
+     "run": "20260908T_8b_text_chat",
      "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260818T170000Z_final_text/winogrande/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-08-18T17-46-48.364258.json",
-      "mtime_ns": 1787068008000000000
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260908T_8b_text_chat/winogrande/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-09-08T20-01-53.667030.json",
+      "mtime_ns": 1788890513000000000
      },
-     "legacy": true
-    },
-    "apertus-v1.5-8b": {
-     "v": 75.3,
-     "raw": 0.7529597474348856,
-     "run": "20260817T200610Z_30406",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260817T200610Z_30406/winogrande/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-08-17T22-10-49.133599.json",
-      "mtime_ns": 1786997449000000000
-     },
-     "legacy": true
+     "prov": {
+      "run_id": "20260908T_8b_text_chat",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "e8b7bf1d7848a554bc3bdafcc0649729bc0b0a24753f977ea4595fd63e051139",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
     }
    }
   },
@@ -14711,16 +14546,6 @@
     "8b-final-correct-rope": {
      "v": 34.0,
      "raw": 0.34,
-     "run": "20260818T170000Z_final_text",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260818T170000Z_final_text/ifbench/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-08-18T17-46-52.468309.json",
-      "mtime_ns": 1787068012000000000
-     },
-     "legacy": true
-    },
-    "apertus-v1.5-8b": {
-     "v": 34.0,
-     "raw": 0.34,
      "run": "20260818T074831Z_1539",
      "source": {
       "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260818T074831Z_1539/ifbench/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-08-18T09-53-34.945533.json",
@@ -14728,7 +14553,7 @@
      },
      "legacy": true
     },
-    "apertus-v1.5-8b [thinking-32k]": {
+    "8b-final-correct-rope [thinking-32k]": {
      "v": 24.67,
      "raw": 0.24666666666666667,
      "run": "20260818T074832Z_16383",
@@ -14747,24 +14572,21 @@
    "cat": "Instruction Following (Text)",
    "cells": {
     "8b-final-correct-rope": {
-     "v": 86.32,
-     "raw": 0.8632162661737524,
-     "run": "20260818T170000Z_final_text",
+     "v": 85.58,
+     "raw": 0.8558225508317929,
+     "run": "20260908T_8b_text_chat",
      "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260818T170000Z_final_text/ifeval/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-08-18T17-46-56.800070.json",
-      "mtime_ns": 1787068016000000000
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260908T_8b_text_chat/ifeval/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-09-08T20-02-14.559404.json",
+      "mtime_ns": 1788890534000000000
      },
-     "legacy": true
-    },
-    "apertus-v1.5-8b": {
-     "v": 69.32,
-     "raw": 0.6931608133086876,
-     "run": "20260817T200610Z_30406",
-     "source": {
-      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/Apertus-v1.5-8B/20260817T200610Z_30406/ifeval/__iopsstor__scratch__cscs__xyixuan__apertus__MLLM-eval-suite__cache__models__textview__Apertus-v1.5-8B/results_2026-08-17T22-13-14.831476.json",
-      "mtime_ns": 1786997594000000000
-     },
-     "legacy": true
+     "prov": {
+      "run_id": "20260908T_8b_text_chat",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "e8b7bf1d7848a554bc3bdafcc0649729bc0b0a24753f977ea4595fd63e051139",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
     }
    }
   },
@@ -14826,8 +14648,6 @@
  "groups": {
   "8b-final-correct-rope": "Apertus checkpoints",
   "8b-final-correct-rope [thinking-32k]": "Apertus checkpoints",
-  "apertus-v1.5-8b": "Apertus checkpoints",
-  "apertus-v1.5-8b [thinking-32k]": "Apertus checkpoints",
   "sft-capfilter-constant-it8816": "Apertus checkpoints",
   "sft-256k-4200": "Apertus checkpoints",
   "sft-256k-4200 [thinking-32k]": "Apertus checkpoints",
@@ -14858,12 +14678,12 @@
   "molmo-72b-0924": "Baselines"
  },
  "evidence": {
-  "manifest": 11,
-  "legacy": 1774
+  "manifest": 9,
+  "legacy": 1760
  },
  "coverage": {
-  "cells": 1216,
+  "cells": 1140,
   "present": 786,
-  "missing": 430
+  "missing": 354
  }
 }
