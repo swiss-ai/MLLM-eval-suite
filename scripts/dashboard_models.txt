@@ -8,8 +8,11 @@
 # reads this file. Comments and blank lines are ignored.
 
 # group: Apertus checkpoints
-8b-final-correct-rope|apertus-v1.5-8b=Apertus-1.5-8B
-8b-final-correct-rope [thinking-32k]|apertus-v1.5-8b [thinking-32k]=Apertus-1.5-8B (think)
+8b-final-correct-rope=Apertus-1.5-8B
+8b-final-correct-rope [thinking-32k]=Apertus-1.5-8B (think)
+# Aug 17 text runs on a model directory the scratch purge removed; not attributable to the release.
+apertus-v1.5-8b=Apertus-v1.5-8B (Aug 17 text, dir purged)
+apertus-v1.5-8b [thinking-32k]=Apertus-v1.5-8B (think, Aug 17 text, dir purged)
 sft-capfilter-constant-it8816=it8816-const
 sft-256k-4200=SFT-4200
 sft-256k-4200 [thinking-32k]=SFT-4200 (think)
