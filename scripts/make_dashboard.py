@@ -910,16 +910,24 @@ renderAll();
 """
 
 
+LEGACY_IMPORT_FRAMEWORKS = ("lmms-eval", "VLMEvalKit")
+
+
 def import_legacy(merged: dict, models: list[str], legacy_paths: list[Path], rejected_runs=frozenset(),
-                  rejected_sources=frozenset(), aliases=None) -> int:
+                  rejected_sources=frozenset(), aliases=None, frameworks=LEGACY_IMPORT_FRAMEWORKS) -> int:
     """Fill (task, metric, model) slots no current result covers from earlier builds, marked legacy.
 
     Purged raw results survive only there; the mark lets the page and the coverage
-    report tell a legacy number from a manifest-backed one."""
+    report tell a legacy number from a manifest-backed one. Only the harnesses whose
+    raw results the purge destroyed are imported: every text result an earlier build
+    saw is still on disk, so a legacy text cell could only re-add a number the current
+    selection or column split rejected."""
     n_legacy = 0
     for legacy_path in legacy_paths:
         legacy = json.loads(legacy_path.read_text())
         for row in legacy.get("table", []):
+            if row.get("framework") not in frameworks:
+                continue
             key = (row["task"], row["metric"])
             target = merged.setdefault(key, {"task": row["task"], "metric": row["metric"], "framework": row["framework"], "cells": {}})
             for model, cell in row["cells"].items():
