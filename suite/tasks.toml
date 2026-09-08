@@ -75,6 +75,7 @@ vk = "CharXiv_reasoning_val"
 cat = "Counting & Grounding"
 
 [dashboard.cv_bench]
+cat = "Spatial & Embodied"
 vk_prefix = true
 
 [dashboard.cv_bench_2d]
@@ -351,6 +352,12 @@ headline = ["overall_caa", "overall_accuracy", "accuracy"]
 [dashboard.slake]
 cat = "Medical VQA"
 
+[dashboard.slake_en]
+cat = "Medical VQA"
+
+[dashboard.slake_zh]
+cat = "Medical VQA"
+
 [dashboard.sparbench]
 cat = "Spatial & Embodied"
 vk = "SparBench"
@@ -508,12 +515,14 @@ framework = "lmms-eval"
 harness_task = "pixmo_count"
 
 [tasks.screenspot]
-framework = "lmms-eval"
-harness_task = "screenspot"
+framework = "VLMEvalKit"
+harness_task = "ScreenSpot"
+lmms_task = "screenspot"
 
 [tasks.osworld_g]
-framework = "lmms-eval"
-harness_task = "osworld_g"
+framework = "VLMEvalKit"
+harness_task = "OSWorld_G"
+lmms_task = "osworld_g"
 
 [tasks.refcoco]
 framework = "lmms-eval"
@@ -543,14 +552,6 @@ harness_task = "mmmu_pro_vision"
 [tasks.cv_bench]
 framework = "lmms-eval"
 harness_task = "cv_bench"
-
-[tasks.site_bench_image]
-framework = "lmms-eval"
-harness_task = "site_bench_image"
-
-[tasks.mindcube_tiny]
-framework = "lmms-eval"
-harness_task = "mindcube_tiny"
 
 [tasks.mmvp]
 framework = "lmms-eval"
@@ -593,12 +594,14 @@ harness_task = "vstar_bench"
 card = true
 
 [tasks.screenspot_v2]
-framework = "lmms-eval"
-harness_task = "screenspot_v2"
+framework = "VLMEvalKit"
+harness_task = "ScreenSpot_v2"
+lmms_task = "screenspot_v2"
 
 [tasks.screenspot_pro]
-framework = "lmms-eval"
-harness_task = "screenspot_pro"
+framework = "VLMEvalKit"
+harness_task = "ScreenSpot_Pro"
+lmms_task = "screenspot_pro"
 
 [tasks.seedbench_2_plus]
 framework = "lmms-eval"

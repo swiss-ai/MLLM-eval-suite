@@ -9,7 +9,7 @@ from pathlib import Path
 
 from suite import REPO_ROOT
 
-TERMINAL_OK = {"COMPLETED"}
+LIVE_STATES = {"RUNNING", "PENDING"}
 
 
 def scan(results_root: Path) -> list[dict]:
@@ -27,18 +27,25 @@ def scan(results_root: Path) -> list[dict]:
     return rows
 
 
-def annotate_slurm(rows: list[dict], sacct=None) -> None:
-    ids = [r["job_id"] for r in rows if r["status"] == "running" and r["job_id"]]
-    if not ids:
-        return
-    if sacct is None:
-        out = subprocess.run(["sacct", "-j", ",".join(ids), "-X", "-n", "-o", "JobID,State"],
-                             capture_output=True, text=True).stdout
-        sacct = {l.split()[0]: l.split()[1] for l in out.splitlines() if l.strip()}
+def running_job_ids(rows: list[dict]) -> list[str]:
+    return [r["job_id"] for r in rows if r["status"] == "running" and r["job_id"]]
+
+
+def fetch_sacct(job_ids: list[str]) -> dict[str, str]:
+    """Slurm state per job id, from sacct."""
+    if not job_ids:
+        return {}
+    out = subprocess.run(["sacct", "-j", ",".join(job_ids), "-X", "-n", "-o", "JobID,State"],
+                         capture_output=True, text=True).stdout
+    return {l.split()[0]: l.split()[1] for l in out.splitlines() if l.strip()}
+
+
+def annotate_slurm(rows: list[dict], states: dict[str, str]) -> None:
+    """A manifest still 'running' whose job has ended was aborted without finalizing."""
     for r in rows:
-        if r["status"] == "running" and r["job_id"] in sacct:
-            state = sacct[r["job_id"]]
-            r["status"] = f"running/{state}" if state == "RUNNING" or state == "PENDING" else f"aborted/{state}"
+        if r["status"] == "running" and r["job_id"] in states:
+            state = states[r["job_id"]]
+            r["status"] = f"running/{state}" if state in LIVE_STATES else f"aborted/{state}"
 
 
 def format_table(rows: list[dict]) -> str:
@@ -66,7 +73,7 @@ def main(argv=None) -> int:
     a = p.parse_args(argv)
     rows = [r for r in scan(Path(a.root)) if not a.run_id or r["run_id"] == a.run_id]
     if a.slurm:
-        annotate_slurm(rows)
+        annotate_slurm(rows, fetch_sacct(running_job_ids(rows)))
     if a.json:
         print(json.dumps(rows, indent=1))
     else:

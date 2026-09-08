@@ -12,13 +12,14 @@ import time
 from pathlib import Path
 
 from suite import REPO_ROOT
-from suite.hashing import file_stat, sha256_file
+from suite.fsutil import file_stat, sha256_file
 
 SCHEMA = 1
 EXIT_FAILED = 3
 EXIT_INVALID = 4
+EXIT_BY_STATUS = {"ok": 0, "failed": EXIT_FAILED, "invalid": EXIT_INVALID}
 THINKING_MIN_MEAN_TOKENS = 8
-HARNESS_DIRS = {"lmms-eval": "lmms-eval", "VLMEvalKit": "VLMEvalKit", "lm-eval": "lm-eval-harness"}
+GENERATION_FIELDS = ("tp", "dp", "batch_size", "gpu_memory_utilization", "max_model_len", "limit")
 ERROR_PATTERNS = (
     r"Error during evaluation: (.{0,300})",
     r"(torch\.OutOfMemoryError: .{0,200})",
@@ -73,34 +74,35 @@ def _tokenizer_identity(tokenizer_path: Path | None, chat_template: Path | None)
     return out
 
 
-def start(out_dir: Path, *, framework: str, task: str, run_id: str, model_path: Path, tokenizer_path: Path | None,
-          chat_template: Path | None, model_args: str, gen_kwargs: str, thinking: bool, extra: dict | None = None) -> dict:
+def _container_identity() -> dict:
+    image = os.environ.get("SUITE_CONTAINER_IMAGE") or None
+    out = {"image": image, "size": None}
+    if image and Path(image).exists():
+        out.update(file_stat(Path(image)))
+    return out
+
+
+def start(out_dir: Path, *, framework: str, task: str, run_id: str, model_path: Path, harness_dir: Path,
+          tokenizer_path: Path | None, chat_template: Path | None, model_args: str, gen_kwargs: str, thinking: bool,
+          generation: dict | None = None) -> dict:
+    """Write run_meta.json before inference. harness_dir is the checkout the job imports, worktree or pinned."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    harness_dir = REPO_ROOT / "third_party" / HARNESS_DIRS.get(framework, framework)
     manifest = {
         "schema": SCHEMA, "run_id": run_id, "framework": framework, "task": task,
         "status": "running", "error": None, "started_at": int(time.time()), "finished_at": None,
         "model": {"name": Path(model_path).name, **_model_identity(Path(model_path))},
         "tokenizer": _tokenizer_identity(tokenizer_path, chat_template),
         "thinking": {"requested": bool(thinking), "effective": None, "canary": "not-run"},
-        "generation": {"model_args": model_args, "gen_kwargs": gen_kwargs},
-        "harness": {"name": framework, **_git(harness_dir)},
+        "generation": {"model_args": model_args, "gen_kwargs": gen_kwargs, **(generation or {})},
+        "harness": {"name": framework, **_git(Path(harness_dir))},
         "suite": _git(REPO_ROOT),
-        "container": {"image": os.environ.get("SUITE_CONTAINER_IMAGE") or None, "size": None},
+        "container": _container_identity(),
         "slurm": {"job_id": os.environ.get("SLURM_JOB_ID"), "node": os.environ.get("SLURMD_NODENAME")},
         "results": None,
         "env": {k: v for k, v in os.environ.items()
                 if k.startswith(("APERTUS_", "VLLM_APERTUS_", "IMAGE_TOKEN_CACHE", "PYTORCH_CUDA_ALLOC_CONF"))},
     }
-    image = manifest["container"]["image"]
-    if image and Path(image).exists():
-        manifest["container"].update(file_stat(Path(image)))
-    for key, value in (extra or {}).items():
-        if isinstance(value, dict) and isinstance(manifest.get(key), dict):
-            manifest[key].update(value)
-        else:
-            manifest[key] = value
     (out_dir / "run_meta.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
     return manifest
 
@@ -144,17 +146,24 @@ def _scan_logs(log_paths) -> tuple[str | None, bool | None, str]:
     return error, effective, canary
 
 
+def _newest(paths) -> Path | None:
+    stamped = []
+    for p in paths:
+        try:
+            stamped.append((p.stat().st_mtime, p))
+        except OSError:
+            continue
+    return max(stamped)[1] if stamped else None
+
+
 def _find_results(results_dir: Path, framework: str) -> tuple[Path | None, list[Path]]:
+    """The newest headline result file for the framework's layout, plus lmms-eval sample logs."""
     results_dir = Path(results_dir)
     if framework == "VLMEvalKit":
-        files = sorted(results_dir.rglob("*_acc.csv")) + sorted(results_dir.rglob("*_score.csv"))
-        return (files[-1] if files else None), []
+        return _newest([*results_dir.rglob("*_acc.csv"), *results_dir.rglob("*_score.csv")]), []
     if framework == "lm-eval":
-        files = sorted(results_dir.rglob("results_*.json"), key=lambda p: p.stat().st_mtime)
-    else:
-        files = sorted(results_dir.rglob("*_results.json"), key=lambda p: p.stat().st_mtime)
-    samples = sorted(results_dir.rglob("*samples_*.jsonl"))
-    return (files[-1] if files else None), samples
+        return _newest(results_dir.rglob("results_*.json")), []
+    return _newest(results_dir.rglob("*_results.json")), sorted(results_dir.rglob("*samples_*.jsonl"))
 
 
 def finalize(manifest_path: Path, log_paths, results_dir: Path, harness_rc: int,
@@ -191,12 +200,14 @@ def main(argv=None) -> int:
     s.add_argument("--task", required=True)
     s.add_argument("--run-id", required=True)
     s.add_argument("--model", required=True)
+    s.add_argument("--harness-dir", required=True, help="the harness checkout this job imports")
     s.add_argument("--tokenizer")
     s.add_argument("--chat-template")
     s.add_argument("--model-args", default="")
     s.add_argument("--gen-kwargs", default="")
     s.add_argument("--thinking", action="store_true")
-    s.add_argument("--extra-json", default="{}")
+    for name in GENERATION_FIELDS:
+        s.add_argument(f"--{name.replace('_', '-')}")
     f = sub.add_parser("finalize")
     f.add_argument("--manifest", required=True)
     f.add_argument("--log", action="append", default=[])
@@ -204,14 +215,24 @@ def main(argv=None) -> int:
     f.add_argument("--harness-rc", type=int, default=0)
     a = p.parse_args(argv)
     if a.cmd == "start":
+        generation = {name: _number(getattr(a, name)) for name in GENERATION_FIELDS if getattr(a, name) not in (None, "")}
         start(Path(a.out), framework=a.framework, task=a.task, run_id=a.run_id, model_path=Path(a.model),
-              tokenizer_path=Path(a.tokenizer) if a.tokenizer else None,
+              harness_dir=Path(a.harness_dir), tokenizer_path=Path(a.tokenizer) if a.tokenizer else None,
               chat_template=Path(a.chat_template) if a.chat_template else None,
-              model_args=a.model_args, gen_kwargs=a.gen_kwargs, thinking=a.thinking, extra=json.loads(a.extra_json))
+              model_args=a.model_args, gen_kwargs=a.gen_kwargs, thinking=a.thinking, generation=generation)
         return 0
     status, manifest = finalize(Path(a.manifest), a.log, Path(a.results_dir), a.harness_rc)
     print(f"run_meta: status={status} error={manifest.get('error')}")
-    return {"ok": 0, "failed": EXIT_FAILED, "invalid": EXIT_INVALID}[status]
+    return EXIT_BY_STATUS[status]
+
+
+def _number(text: str):
+    for cast in (int, float):
+        try:
+            return cast(text)
+        except ValueError:
+            continue
+    return text
 
 
 if __name__ == "__main__":

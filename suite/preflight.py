@@ -9,6 +9,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from suite.fsutil import count_files
 from suite.tasks import Registry, load_registry
 
 EXIT_PREFLIGHT = 2
@@ -28,15 +29,6 @@ def _readable_file(path: Path) -> bool:
         return real.is_file() and os.access(real, os.R_OK)
     except OSError:
         return False
-
-
-def _count_files(path: Path, limit: int) -> int:
-    n = 0
-    for _root, _dirs, files in os.walk(path):
-        n += len(files)
-        if n >= limit:
-            return n
-    return n
 
 
 def check_model(model_path: Path) -> list[Check]:
@@ -75,16 +67,16 @@ def check_container(image: Path | None) -> list[Check]:
 def check_tasks(registry: Registry, framework: str, tasks: list[str], env: dict, max_model_len: int) -> list[Check]:
     out = []
     for name in tasks:
-        task = registry.tasks.get(name) or registry.resolve(framework, name)
+        task = registry.lookup(framework, name)
         if task is None:
             out.append(Check(f"task:{name}:registry", False, "not in suite/tasks.toml"))
             continue
-        if task.framework != framework and not (framework == "lmms-eval" and task.lmms_task == name):
+        if task.harness_id_for(framework) is None:
             out.append(Check(f"task:{name}:framework", False, f"registered for {task.framework}, launched on {framework}"))
         for asset in task.assets:
             base = env.get(asset.env, "")
             path = Path(base) / asset.relative if base else None
-            n = _count_files(path, asset.min_files) if path and path.is_dir() else 0
+            n = count_files(path, asset.min_files) if path and path.is_dir() else 0
             out.append(Check(f"task:{name}:assets", n >= asset.min_files,
                              f"{asset.env}={base or '<unset>'} {asset.relative}: {n} files, need {asset.min_files}; "
                              f"restore with `python3 -m suite.stage_datasets --task {task.name}`"))
@@ -120,8 +112,8 @@ def check_task_names(registry: Registry, framework: str, tasks: list[str], harne
     declared = task_declarations(harness_root)
     out = []
     for name in tasks:
-        task = registry.tasks.get(name) or registry.resolve(framework, name)
-        harness_id = (task.lmms_task if task and task.framework != framework else task.harness_task) if task else name
+        task = registry.lookup(framework, name)
+        harness_id = (task.harness_id_for(framework) if task else None) or name
         files = declared.get(harness_id, [])
         if not files:
             out.append(Check(f"task:{name}:definition", False, f"{harness_id} is declared nowhere under {harness_root}/lmms_eval/tasks"))
@@ -135,10 +127,14 @@ def check_task_names(registry: Registry, framework: str, tasks: list[str], harne
 
 def run_checks(*, registry: Registry, framework: str, model_path: Path, tasks: list[str], thinking: bool,
                tokenizer_path: Path | None, vision_tokenizer_dir: Path | None, container_image: Path | None,
-               env: dict, max_model_len: int, harness_root: Path | None = None) -> list[Check]:
-    checks = check_model(model_path) + check_tokenizer(tokenizer_path) + check_container(container_image)
-    if framework in ("lmms-eval", "VLMEvalKit"):
-        checks += check_vision_tokenizer(vision_tokenizer_dir)
+               env: dict, max_model_len: int, harness_root: Path | None = None, skip_model: bool = False) -> list[Check]:
+    """skip_model covers foreign models served by name, which have no local checkpoint or tokenizer to inspect."""
+    checks = []
+    if not skip_model:
+        checks += check_model(model_path) + check_tokenizer(tokenizer_path)
+        if framework in ("lmms-eval", "VLMEvalKit"):
+            checks += check_vision_tokenizer(vision_tokenizer_dir)
+    checks += check_container(container_image)
     checks += check_tasks(registry, framework, tasks, env, max_model_len)
     checks += check_task_names(registry, framework, tasks, harness_root)
     return checks
@@ -160,17 +156,12 @@ def main(argv=None) -> int:
     a = p.parse_args(argv)
     registry = load_registry(a.registry) if a.registry else load_registry()
     tasks = [t for t in a.tasks.replace(" ", ",").split(",") if t]
-    if a.skip_model:
-        checks = check_container(Path(a.container_image) if a.container_image else None)
-        checks += check_tasks(registry, a.framework, tasks, dict(os.environ), a.max_model_len)
-        checks += check_task_names(registry, a.framework, tasks, Path(a.harness_root) if a.harness_root else None)
-    else:
-        checks = run_checks(registry=registry, framework=a.framework, model_path=Path(a.model), tasks=tasks,
-                            thinking=a.thinking, tokenizer_path=Path(a.tokenizer) if a.tokenizer else None,
-                            vision_tokenizer_dir=Path(a.vision_tokenizer) if a.vision_tokenizer else None,
-                            container_image=Path(a.container_image) if a.container_image else None,
-                            env=dict(os.environ), max_model_len=a.max_model_len,
-                            harness_root=Path(a.harness_root) if a.harness_root else None)
+    checks = run_checks(registry=registry, framework=a.framework, model_path=Path(a.model), tasks=tasks,
+                        thinking=a.thinking, tokenizer_path=Path(a.tokenizer) if a.tokenizer else None,
+                        vision_tokenizer_dir=Path(a.vision_tokenizer) if a.vision_tokenizer else None,
+                        container_image=Path(a.container_image) if a.container_image else None,
+                        env=dict(os.environ), max_model_len=a.max_model_len,
+                        harness_root=Path(a.harness_root) if a.harness_root else None, skip_model=a.skip_model)
     failed = [c for c in checks if not c.ok]
     for c in checks:
         print(f"{'ok  ' if c.ok else 'FAIL'} {c.name}: {c.detail}")

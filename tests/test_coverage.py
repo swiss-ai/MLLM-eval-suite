@@ -1,6 +1,6 @@
 import json
 
-from suite.coverage import cell_provenance, collect_manifests, coverage, find_manifest
+from suite.coverage import Manifests, cell_provenance, coverage
 from suite.tasks import Registry, Task
 
 
@@ -24,7 +24,7 @@ def test_coverage_reasons():
     assert cov["by_reason"] == {"no-run": 2, "run-failed": 1, "run-invalid": 1, "running": 1}
 
 
-def test_find_manifest_walks_up_and_provenance(tmp_path):
+def test_manifest_for_result_and_provenance(tmp_path):
     run = tmp_path / "results" / "lmms-eval" / "m" / "r1" / "gqa"
     leaf = run / "textview__m"
     leaf.mkdir(parents=True)
@@ -32,13 +32,14 @@ def test_find_manifest_walks_up_and_provenance(tmp_path):
                                                    "model": {"config_sha256": "abc"}, "harness": {"commit": "h"}, "container": {"image": "i"}}))
     f = leaf / "x_results.json"
     f.write_text("{}")
-    man = find_manifest(f)
-    assert man["run_id"] == "r1" and find_manifest(tmp_path / "nowhere.json") is None
+    manifests = Manifests([tmp_path / "results"])
+    man = manifests.for_result(f)
+    assert man["run_id"] == "r1" and manifests.for_result(tmp_path / "nowhere.json") is None
     assert cell_provenance(man) == {"run_id": "r1", "status": "ok", "thinking": True, "model_sha": "abc", "harness": "h", "image": "i"}
     assert cell_provenance(None) is None
 
 
-def test_collect_manifests_both_layouts(tmp_path):
+def test_manifests_by_cell_all_layouts(tmp_path):
     lm = tmp_path / "lmms-eval" / "8B-Final" / "r1" / "gqa"
     lm.mkdir(parents=True)
     (lm / "run_meta.json").write_text(json.dumps({"framework": "lmms-eval", "task": "gqa", "status": "ok", "started_at": 5}))
@@ -48,6 +49,10 @@ def test_collect_manifests_both_layouts(tmp_path):
     vk = tmp_path / "VLMEvalKit" / "r1" / "8B-Final" / "BLINK"
     vk.mkdir(parents=True)
     (vk / "run_meta.json").write_text(json.dumps({"framework": "VLMEvalKit", "task": "BLINK", "status": "failed", "error": "ctx"}))
-    got = collect_manifests([tmp_path / "lmms-eval", tmp_path / "VLMEvalKit"], _reg(), canonical_key=str.lower)
+    lm_text = tmp_path / "lm-eval" / "8B-Final" / "r1" / "gsm8k"
+    lm_text.mkdir(parents=True)
+    (lm_text / "run_meta.json").write_text(json.dumps({"framework": "lm-eval", "task": "gsm8k", "status": "ok"}))
+    got = Manifests([tmp_path / "lmms-eval", tmp_path / "VLMEvalKit", tmp_path / "lm-eval"]).by_cell(_reg(), canonical_key=str.lower)
     assert got[("gqa", "8b-final")]["status"] == "ok"
     assert got[("blink", "8b-final")]["error"] == "ctx"
+    assert got[("gsm8k", "8b-final")]["status"] == "ok"

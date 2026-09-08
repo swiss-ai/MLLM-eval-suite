@@ -11,13 +11,10 @@ from pathlib import Path
 from typing import Callable
 
 from suite import REPO_ROOT
+from suite.fsutil import count_files
 from suite.tasks import Task, load_registry
 
 DEFAULT_ROOT = REPO_ROOT / "cache" / "rs_datasets"
-ASSET_DIRS = {"FRIEDA_DIR": "frieda", "VRSBENCH_DIR": "vrsbench", "GEOBENCH_DIR": "geobench",
-              "BIGEARTH_S2_DIR": "bigearth/BigEarthNet-S2"}
-
-
 def parse_source(source: str) -> tuple[str, str, str]:
     if source.startswith("hf://datasets/"):
         owner, repo, filename = source[len("hf://datasets/"):].split("/", 2)
@@ -34,15 +31,6 @@ def default_downloader(source: str, dest_dir: Path) -> Path:
     from huggingface_hub import hf_hub_download
     os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "0")
     return Path(hf_hub_download(repo_id=repo, filename=filename, repo_type="dataset", local_dir=str(dest_dir)))
-
-
-def _count(path: Path, limit: int) -> int:
-    n = 0
-    for _root, _dirs, files in os.walk(path):
-        n += len(files)
-        if n >= limit:
-            break
-    return n
 
 
 def _extract(archive: Path, kind: str, into: Path) -> None:
@@ -64,13 +52,13 @@ def restore(task: Task, roots: dict[str, Path], downloader: Callable[[str, Path]
     for asset in task.assets:
         root = Path(roots[asset.env])
         target = root / asset.relative
-        if target.is_dir() and _count(target, asset.min_files) >= asset.min_files:
+        if target.is_dir() and count_files(target, asset.min_files) >= asset.min_files:
             continue
         downloads = root / "_downloads"
         downloads.mkdir(parents=True, exist_ok=True)
         archive = downloader(asset.source, downloads)
         _extract(archive, asset.extract, root)
-        if _count(target, asset.min_files) < asset.min_files:
+        if count_files(target, asset.min_files) < asset.min_files:
             raise RuntimeError(f"{task.name}: {target} has fewer than {asset.min_files} files after extracting {archive}")
         restored.append(target)
     return restored
@@ -84,8 +72,7 @@ def main(argv=None) -> int:
     reg = load_registry()
     for name in a.task:
         task = reg.tasks[name]
-        roots = {asset.env: Path(os.environ.get(asset.env) or Path(a.root) / ASSET_DIRS.get(asset.env, name))
-                 for asset in task.assets}
+        roots = {asset.env: Path(os.environ.get(asset.env) or Path(a.root) / asset.default_root) for asset in task.assets}
         restored = restore(task, roots)
         for path in restored:
             print(f"restored {name}: {path}")

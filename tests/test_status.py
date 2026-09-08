@@ -27,5 +27,5 @@ def test_annotate_slurm_marks_aborted_runs(tmp_path):
     _write(tmp_path / "lmms-eval" / "m" / "r1" / "pope", task="pope", status="running", slurm={"job_id": "11"})
     _write(tmp_path / "lmms-eval" / "m" / "r1" / "gqa", task="gqa", status="running", slurm={"job_id": "12"})
     rows = scan(tmp_path)
-    annotate_slurm(rows, sacct={"11": "RUNNING", "12": "CANCELLED+"})
+    annotate_slurm(rows, {"11": "RUNNING", "12": "CANCELLED+"})
     assert {r["task"]: r["status"] for r in rows} == {"pope": "running/RUNNING", "gqa": "aborted/CANCELLED+"}

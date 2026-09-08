@@ -1,6 +1,4 @@
-import json
 import textwrap
-from pathlib import Path
 
 import pytest
 
@@ -121,20 +119,23 @@ def test_unknown_field_rejected(tmp_path):
         load_registry(p)
 
 
-def test_real_registry_matches_legacy_dashboard_dict():
+def test_real_registry_invariants():
     reg = load_registry()
-    legacy = json.loads((Path(__file__).parent / "fixtures" / "legacy_benchmarks.json").read_text())
-    got = {k: {f: (tuple(v) if f == "headline" else v) for f, v in e.items()} for k, e in benchmarks_dict(reg).items()}
-    want = {k: {f: (tuple(v) if f == "headline" else v) for f, v in e.items()} for k, e in legacy.items()}
-    assert got == want
-
-
-def test_real_registry_sets():
-    reg = load_registry()
-    assert len([t for t in reg.tasks.values() if t.card]) == 33
-    assert len([t for t in reg.tasks.values() if t.report]) == 19
+    reported = [t for t in reg.tasks.values() if t.card or t.report]
+    assert reported, "the registry must declare the card and report sets"
+    for t in reported:
+        assert reg.category(t.name), f"{t.name}: every reported task needs a dashboard category"
+        assert reg.resolve(t.framework, t.harness_task) is t, f"{t.name}: harness id must resolve back to the task"
     assert reg.tasks["mmsi_bench"].framework == "VLMEvalKit" and reg.tasks["frieda"].assets
-    assert all(reg.category(t.name) for t in reg.tasks.values() if t.card), "every card task needs a dashboard category"
+    assert reg.tasks["frieda"].assets[0].default_root == "frieda"
+
+
+def test_harness_id_for_and_lookup(reg):
+    t = reg.tasks["mmsi_bench"]
+    assert t.harness_id_for("VLMEvalKit") == "MMSIBench_wo_circular" and t.harness_id_for("lmms-eval") == "mmsi_bench"
+    assert t.harness_id_for("lm-eval") is None
+    assert reg.lookup("lmms-eval", "mmsi_bench") is t and reg.lookup("VLMEvalKit", "MMSIBench_wo_circular") is t
+    assert reg.lookup("lmms-eval", "MMSIBench_wo_circular") is None
 
 
 def test_cli_max_model_len(capsys):

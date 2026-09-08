@@ -28,6 +28,11 @@ class Asset:
     extract: str = "none"
     min_files: int = 1
 
+    @property
+    def default_root(self) -> str:
+        """Directory under the datasets root that the env var points at by default."""
+        return self.env.lower().removesuffix("_dir")
+
 
 @dataclass(frozen=True)
 class Task:
@@ -43,6 +48,14 @@ class Task:
     card: bool = False
     report: bool = False
 
+    def harness_id_for(self, framework: str) -> str | None:
+        """The id this task has on a harness: its own id on the owning harness, the lmms-eval alias elsewhere."""
+        if framework == self.framework:
+            return self.harness_task
+        if framework == "lmms-eval":
+            return self.lmms_task
+        return None
+
 
 @dataclass
 class Registry:
@@ -50,26 +63,36 @@ class Registry:
     dashboard: dict[str, dict]
     defaults: dict = field(default_factory=dict)
 
+    def __post_init__(self):
+        self._by_harness_id: dict[tuple[str, str], Task] = {}
+        for t in self.tasks.values():
+            for fw in FRAMEWORKS:
+                hid = t.harness_id_for(fw)
+                if hid is None:
+                    continue
+                other = self._by_harness_id.get((fw, hid))
+                if other is not None:
+                    raise ValueError(f"tasks {other.name!r} and {t.name!r} both claim {hid!r} on {fw}")
+                self._by_harness_id[(fw, hid)] = t
+        self._prefix_rows = [(k, e) for k, e in self.dashboard.items() if e.get("cat_prefix")]
+
     def by_framework(self, framework: str) -> list[Task]:
         return [t for t in self.tasks.values() if t.framework == framework]
 
     def resolve(self, framework: str, harness_id: str) -> Task | None:
         """The task a launcher means by a harness-level id, or None."""
-        for t in self.tasks.values():
-            if t.framework == framework and t.harness_task == harness_id:
-                return t
-        if framework == "lmms-eval":
-            for t in self.tasks.values():
-                if t.lmms_task == harness_id:
-                    return t
-        return None
+        return self._by_harness_id.get((framework, harness_id))
+
+    def lookup(self, framework: str, name: str) -> Task | None:
+        """A task by registry name or by its id on the given harness."""
+        return self.tasks.get(name) or self.resolve(framework, name)
 
     def dashboard_entry(self, task_name: str) -> dict | None:
         """Exact dashboard row, else the family whose cat_prefix covers the task."""
         if task_name in self.dashboard:
             return self.dashboard[task_name]
-        for key, entry in self.dashboard.items():
-            if entry.get("cat_prefix") and task_name.startswith(key):
+        for key, entry in self._prefix_rows:
+            if task_name.startswith(key):
                 return entry
         return None
 
@@ -129,10 +152,7 @@ def benchmarks_dict(reg: Registry) -> dict[str, dict]:
 
 
 def judge_tasks(reg: Registry, framework: str) -> list[str]:
-    ids = {t.harness_task for t in reg.by_framework(framework) if t.judge}
-    if framework == "lmms-eval":
-        ids |= {t.lmms_task for t in reg.tasks.values() if t.judge and t.lmms_task}
-    return sorted(ids)
+    return sorted({hid for t in reg.tasks.values() if t.judge and (hid := t.harness_id_for(framework))})
 
 
 def suite_list_text(reg: Registry, framework: str) -> str:
@@ -168,7 +188,7 @@ def main(argv=None) -> int:
     a = p.parse_args(argv)
     reg = load_registry()
     if a.max_model_len:
-        task = reg.tasks.get(a.max_model_len) or (reg.resolve(a.framework, a.max_model_len) if a.framework else None)
+        task = reg.lookup(a.framework, a.max_model_len) if a.framework else reg.tasks.get(a.max_model_len)
         print(task.max_model_len if task else reg.defaults.get("max_model_len", 131072))
         return 0
     if a.write_suite_lists:

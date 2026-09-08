@@ -7,45 +7,39 @@ from pathlib import Path
 from suite.tasks import Registry
 
 
-def find_manifest(path: Path) -> dict | None:
-    """The nearest run_meta.json above a results file, or None."""
-    for parent in Path(path).parents:
-        candidate = parent / "run_meta.json"
-        if candidate.exists():
-            try:
-                return json.loads(candidate.read_text())
-            except json.JSONDecodeError:
-                return None
-    return None
+class Manifests:
+    """Every run_meta.json under the results roots, read once.
 
-
-def cell_provenance(manifest: dict | None) -> dict | None:
-    if not manifest:
-        return None
-    return {"run_id": manifest.get("run_id"), "status": manifest.get("status"),
-            "thinking": (manifest.get("thinking") or {}).get("effective"),
-            "model_sha": (manifest.get("model") or {}).get("config_sha256"),
-            "harness": (manifest.get("harness") or {}).get("commit"),
-            "image": (manifest.get("container") or {}).get("image")}
-
-
-def collect_manifests(roots, registry: Registry, canonical_key) -> dict[tuple[str, str], dict]:
-    """Every manifest under the given results roots, keyed by (dashboard task, model key).
-
-    lmms-eval manifests sit at <root>/<model>/<run>/<task>/run_meta.json and
-    VLMEvalKit ones at <root>/<run>/<model>/<dataset>/run_meta.json; the
-    framework field tells the two layouts apart.
+    lmms-eval and lm-eval manifests sit at <root>/<model>/<run>/<task>/run_meta.json
+    and VLMEvalKit ones at <root>/<run>/<model>/<dataset>/run_meta.json; the
+    framework field tells the layouts apart.
     """
-    out: dict[tuple[str, str], dict] = {}
-    for root in roots:
-        root = Path(root)
-        if not root.is_dir():
-            continue
-        for path in root.rglob("run_meta.json"):
-            try:
-                man = json.loads(path.read_text())
-            except (OSError, json.JSONDecodeError):
+
+    def __init__(self, roots):
+        self.entries: list[tuple[Path, Path, dict]] = []
+        self.by_dir: dict[Path, dict] = {}
+        for root in map(Path, roots):
+            if not root.is_dir():
                 continue
+            for path in root.rglob("run_meta.json"):
+                try:
+                    man = json.loads(path.read_text())
+                except (OSError, json.JSONDecodeError):
+                    continue
+                self.entries.append((root, path, man))
+                self.by_dir[path.parent] = man
+
+    def for_result(self, path: Path) -> dict | None:
+        """The manifest of the run that produced a results file, or None."""
+        for parent in Path(path).parents:
+            if parent in self.by_dir:
+                return self.by_dir[parent]
+        return None
+
+    def by_cell(self, registry: Registry, canonical_key) -> dict[tuple[str, str], dict]:
+        """Newest manifest per (dashboard task, model key)."""
+        out: dict[tuple[str, str], dict] = {}
+        for root, path, man in self.entries:
             rel = path.relative_to(root).parts
             if len(rel) < 3:
                 continue
@@ -59,7 +53,17 @@ def collect_manifests(roots, registry: Registry, canonical_key) -> dict[tuple[st
             prev = out.get(key)
             if prev is None or (man.get("started_at") or 0) >= (prev.get("started_at") or 0):
                 out[key] = man
-    return out
+        return out
+
+
+def cell_provenance(manifest: dict | None) -> dict | None:
+    if not manifest:
+        return None
+    return {"run_id": manifest.get("run_id"), "status": manifest.get("status"),
+            "thinking": (manifest.get("thinking") or {}).get("effective"),
+            "model_sha": (manifest.get("model") or {}).get("config_sha256"),
+            "harness": (manifest.get("harness") or {}).get("commit"),
+            "image": (manifest.get("container") or {}).get("image")}
 
 
 def coverage(table: list[dict], models: list[str], registry: Registry, manifests: dict[tuple[str, str], dict],
