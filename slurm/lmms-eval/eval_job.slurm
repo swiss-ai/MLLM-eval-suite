@@ -73,6 +73,7 @@ LIMIT=""
 GEN_KWARGS=""
 CHAT_TEMPLATE=""
 EXTRA_MODEL_ARGS=""
+TOKENIZE_ONLY=0
 SEED=1234
 EVAL_SEED="${SEED}"
 ENABLE_IMAGE_TOKEN_CACHE=true
@@ -175,6 +176,7 @@ while [[ $# -gt 0 ]]; do
     --limit) LIMIT="$2"; shift 2 ;;
     --chat-template) CHAT_TEMPLATE="$2"; shift 2 ;;
     --extra-model-args) EXTRA_MODEL_ARGS="$2"; shift 2 ;;
+    --tokenize-only) TOKENIZE_ONLY=1; shift ;;
     --offline-datasets) OFFLINE_DATASETS="$2"; shift 2 ;;
     --enable-image-token-cache) ENABLE_IMAGE_TOKEN_CACHE="$2"; shift 2 ;;
     --image-token-cache-dir) IMAGE_TOKEN_CACHE_DIR="$2"; shift 2 ;;
@@ -572,6 +574,22 @@ if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
   "${SUITE_PY}" -m suite.preflight --framework lmms-eval --model "${MODEL_PATH}" --tasks "${TASKS}" "${PREFLIGHT_THINKING[@]}" \
     --tokenizer "${TOKENIZER_PATH}" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
     --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}" || exit 2
+fi
+if [[ "${TOKENIZE_ONLY}" == "1" ]]; then
+  # Tokenize-only pass (suite/tokenize_cache.py): fill the image-token cache
+  # with the VQ encoder alone, one shard per GPU, and never load the LLM.
+  echo "tokenize-only: tasks=${TASKS} shards=${NUM_PROCESSES} cache=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR:-<disabled>}"
+  TOKENIZE_PIDS=()
+  for ((g = 0; g < NUM_PROCESSES; g++)); do
+    CUDA_VISIBLE_DEVICES="${g}" "${SUITE_PY}" -m suite.tokenize_cache --tasks "${TASKS}" --shard "${g}/${NUM_PROCESSES}" \
+      --tokenizer "${TOKENIZER_PATH}" > "${OUTPUT_PATH}/tokenize_shard${g}.log" 2>&1 &
+    TOKENIZE_PIDS+=($!)
+  done
+  TOKENIZE_RC=0
+  for pid in "${TOKENIZE_PIDS[@]}"; do wait "${pid}" || TOKENIZE_RC=1; done
+  grep -h "tokenize_cache:" "${OUTPUT_PATH}"/tokenize_shard*.log || true
+  [[ "${TOKENIZE_RC}" != "0" ]] && { echo "tokenize-only pass failed; see ${OUTPUT_PATH}/tokenize_shard*.log" >&2; tail -n 20 "${OUTPUT_PATH}"/tokenize_shard*.log >&2; }
+  exit "${TOKENIZE_RC}"
 fi
 MANIFEST_RUN_ID="$(basename "$(dirname "${OUTPUT_PATH}")")"
 MANIFEST_TP="$(sed -n 's/.*tensor_parallel_size=\([0-9]*\).*/\1/p' <<<"${MODEL_ARGS}" | tail -n1)"

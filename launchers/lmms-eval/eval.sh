@@ -90,6 +90,8 @@ TASKS_RAW=""
 SUITE=""
 MODE="fill"
 SIZE="8b"
+TOKENIZE_ONLY=0
+ALLOW_ENCODE="${ALLOW_ENCODE:-0}"
 SUBMIT_MODE="batch"
 ENABLE_THINKING=""
 GEN_KWARGS_OVERRIDE=""
@@ -104,6 +106,7 @@ while [[ $# -gt 0 ]]; do
     --suite)    SUITE="$2"; shift 2 ;;
     --mode)     MODE="$2"; shift 2 ;;
     --size)     SIZE="$2"; shift 2 ;;
+    --allow-encode) ALLOW_ENCODE=1; shift ;;
     --submit-mode) SUBMIT_MODE="$2"; shift 2 ;;
     --enable-thinking) ENABLE_THINKING=1; shift ;;
     --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
@@ -122,7 +125,7 @@ done
 
 if [[ -z "$MODELS_RAW" ]]; then echo "missing <model> argument" >&2; usage; exit 1; fi
 
-case "$MODE" in fill|readonly) ;; *) echo "--mode must be fill|readonly (got: $MODE)" >&2; exit 1 ;; esac
+case "$MODE" in fill|readonly|tokenize) ;; *) echo "--mode must be fill|readonly|tokenize (got: $MODE)" >&2; exit 1 ;; esac
 # Parallelism profile, mirroring the VLMEvalKit launcher: 8b = 4 DP workers on one
 # node; 70b = one worker with the model tensor-sharded across all 4 GPUs.
 case "$SIZE" in
@@ -241,6 +244,17 @@ if [[ -n "$GEN_KWARGS_OVERRIDE" ]]; then GEN_KWARGS="$GEN_KWARGS_OVERRIDE"; fi
 # 4 vLLM workers per node = 1 per GH200 GPU (4 GPUs). Per-task SQLite handles
 # 4 concurrent writers via WAL with sub-ms lock overhead.
 NUM_PROCESSES="${NUM_PROCESSES:-$SIZE_NUM_PROCESSES}"
+# The image-token cache is model-independent. A tokenize pass fills it with
+# the VQ encoder alone; the 70b profile then reads it strictly, so a large
+# model never encodes images beside its TP worker unless --allow-encode.
+if [[ "$MODE" == "tokenize" ]]; then
+  TOKENIZE_ONLY=1
+  MODE="fill"
+  NUM_PROCESSES="${TOKENIZE_SHARDS:-4}"
+elif [[ "$SIZE" == "70b" && "$MODE" == "fill" && "$ALLOW_ENCODE" != "1" ]]; then
+  MODE="readonly"
+  echo "70b profile: image-token cache readonly (strict); run --mode tokenize first, or pass --allow-encode"
+fi
 BATCH_SIZE="${BATCH_SIZE:-512}"
 # The image-token cache memoizes the discrete image->VQ-token conversion shared
 # by every Apertus checkpoint; foreign continuous-encoder models run once and
@@ -394,6 +408,7 @@ while IFS= read -r TASK; do
       --wandb-api-key "${WANDB_API_KEY:-}"
     )
     JOB_ARGS+=("${PASSTHROUGH[@]}" "${PASSTHROUGH_TASK[@]}")
+    [[ "$TOKENIZE_ONLY" == "1" ]] && JOB_ARGS+=(--tokenize-only)
 
     if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
       JOB_ARGS+=(--extra-model-args "$EXTRA_MODEL_ARGS")
