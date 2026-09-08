@@ -181,9 +181,9 @@ Sbatch jobs on the reservation, released 8B, 4-way data parallel on one node eac
 | Task | Production r1 | Production r2 | Trial r1 | Trial r2 |
 |---|---|---|---|---|
 | mmvp, 300 samples | 168 | 191 | 125 | 141 |
-| mmstar, 1500 samples | 306 | outlier, see below | 271 | 270 |
+| mmstar, 1500 samples | 306 | 303 (replacement; the original took 1906 on a slow node) | 271 | 270 |
 
-The trial image is faster in every completed pair: about a quarter less on MMVP and about a tenth less on MMStar. The second production MMStar job ran roughly three times longer than its sibling on a different node and is excluded as a node outlier rather than an image effect. Headline scores agree within 0.3 points (mmvp 68.67 versus 69.0; mmstar 44.83 versus 44.83 and 44.87), and the two trial repetitions of mmstar differ by one sample, so run-to-run variation exists at that level on either image. The trial image stays unpromoted until a full sweep reproduces the production numbers; these runs live under `cache/validation`.
+The trial image is faster in every pair: about a quarter less on MMVP and about a tenth less on MMStar. The original second production MMStar job generated at 3.7 seconds per step on a node whose siblings ran several times faster, produced the same score, and is replaced by a rerun for the timing table. Headline scores agree within 0.3 points (mmvp 68.67 versus 69.0; mmstar 44.83 on all three production runs versus 44.83 and 44.87 on the trial image), so the production image is repeatable run to run at this sample size and the trial image varies by one sample. The trial image stays unpromoted until a full sweep reproduces the production numbers; these runs live under `cache/validation`.
 
 ### 12.7 Released 8B text numbers: the purged `Apertus-v1.5-8B` tree
 

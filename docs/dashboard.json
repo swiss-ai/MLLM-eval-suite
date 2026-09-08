@@ -6485,7 +6485,7 @@
      "run": "CharXiv_descriptive_val__20260630T062015Z_243390",
      "source": {
       "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/VLMEvalKit/20260630T062015Z_243390/ap1p5-70b-sft-262k-2700/CharXiv_descriptive_val/derived_acc.csv",
-      "mtime_ns": 1788882699000000000
+      "mtime_ns": 1788884266000000000
      },
      "legacy": true
     },
@@ -14093,6 +14093,23 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
+    "8b-final-correct-rope": {
+     "v": 0.0,
+     "raw": 0.0,
+     "run": "20260908T_8b_text_rerun",
+     "source": {
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/aime24/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-04-42.863893.json",
+      "mtime_ns": 1788883482000000000
+     },
+     "prov": {
+      "run_id": "20260908T_8b_text_rerun",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
+    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 3.33,
      "raw": 0.03333333333333333,
@@ -14131,6 +14148,23 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
+    "8b-final-correct-rope": {
+     "v": 0.0,
+     "raw": 0.0,
+     "run": "20260908T_8b_text_rerun",
+     "source": {
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/aime25/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-05-34.253969.json",
+      "mtime_ns": 1788883534000000000
+     },
+     "prov": {
+      "run_id": "20260908T_8b_text_rerun",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
+    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 10.0,
      "raw": 0.1,
@@ -14169,6 +14203,23 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
+    "8b-final-correct-rope": {
+     "v": 79.61,
+     "raw": 0.796057619408643,
+     "run": "20260908T_8b_text_rerun",
+     "source": {
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/gsm8k/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-02-33.224163.json",
+      "mtime_ns": 1788883353000000000
+     },
+     "prov": {
+      "run_id": "20260908T_8b_text_rerun",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
+    },
     "sft-rl-dpo-sdpo-less-refuse-feedback": {
      "v": 77.71,
      "raw": 0.77710386656558,
@@ -14217,6 +14268,23 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
+    "8b-final-correct-rope": {
+     "v": 0.0,
+     "raw": 0.0,
+     "run": "20260908T_8b_text_rerun",
+     "source": {
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/hmmt_feb_2025/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-02-42.912240.json",
+      "mtime_ns": 1788883362000000000
+     },
+     "prov": {
+      "run_id": "20260908T_8b_text_rerun",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
+    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 0.0,
      "raw": 0.0,
@@ -14255,6 +14323,23 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
+    "8b-final-correct-rope": {
+     "v": 31.8,
+     "raw": 0.318,
+     "run": "20260908T_8b_text_rerun",
+     "source": {
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/math500_verify/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-05-27.990879.json",
+      "mtime_ns": 1788883527000000000
+     },
+     "prov": {
+      "run_id": "20260908T_8b_text_rerun",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
+    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 68.4,
      "raw": 0.684,
@@ -14293,6 +14378,23 @@
    "framework": "lm-eval",
    "cat": "Math (Text)",
    "cells": {
+    "8b-final-correct-rope": {
+     "v": 17.6,
+     "raw": 0.17598187311178248,
+     "run": "20260908T_8b_text_rerun",
+     "source": {
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/math_lvl5_verify/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-17-13.935756.json",
+      "mtime_ns": 1788884233000000000
+     },
+     "prov": {
+      "run_id": "20260908T_8b_text_rerun",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
+    },
     "sdpo-mix-less-refuse-feedback": {
      "v": 43.88,
      "raw": 0.438821752265861,
@@ -14435,6 +14537,23 @@
    "framework": "lm-eval",
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
+    "8b-final-correct-rope": {
+     "v": 79.98,
+     "raw": 0.7998406691894046,
+     "run": "20260908T_8b_text_rerun",
+     "source": {
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/hellaswag/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-01-46.928256.json",
+      "mtime_ns": 1788883306000000000
+     },
+     "prov": {
+      "run_id": "20260908T_8b_text_rerun",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
+    },
     "apertus-v1.5-8b": {
      "v": 79.99,
      "raw": 0.7999402509460267,
@@ -14453,6 +14572,23 @@
    "framework": "lm-eval",
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
+    "8b-final-correct-rope": {
+     "v": 64.89,
+     "raw": 0.648910411622276,
+     "run": "20260908T_8b_text_rerun",
+     "source": {
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/mmlu/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-03-19.308747.json",
+      "mtime_ns": 1788883399000000000
+     },
+     "prov": {
+      "run_id": "20260908T_8b_text_rerun",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
+    },
     "apertus-v1.5-8b": {
      "v": 64.91,
      "raw": 0.6491240564022219,
@@ -14471,6 +14607,23 @@
    "framework": "lm-eval",
    "cat": "Knowledge & Reasoning (Text)",
    "cells": {
+    "8b-final-correct-rope": {
+     "v": 44.14,
+     "raw": 0.44140625,
+     "run": "20260908T_8b_text_rerun",
+     "source": {
+      "path": "/capstor/store/cscs/swissai/infra01/users/xyixuan/MLLM-eval-suite/results/lm-eval/8B-Final-correct-rope/20260908T_8b_text_rerun/mmlu_pro/__capstor__store__cscs__swissai__infra01__users__xyixuan__MLLM-eval-suite__cache__models__textview__8B-Final-correct-rope/results_2026-09-08T18-02-16.720605.json",
+      "mtime_ns": 1788883336000000000
+     },
+     "prov": {
+      "run_id": "20260908T_8b_text_rerun",
+      "status": "ok",
+      "thinking": null,
+      "model_sha": "b749d727989baf14c0ee5d88892338da984429d6ed548bd13bdd3d63a5b68881",
+      "harness": "8a07e1110d060de48cfc7a9a7987b7659060b60b",
+      "image": "/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/sqsh/apertus-vllm-vision-eval-prod.sqsh"
+     }
+    },
     "apertus-v1.5-8b": {
      "v": 45.79,
      "raw": 0.4578623670212766,
@@ -14705,7 +14858,7 @@
   "molmo-72b-0924": "Baselines"
  },
  "evidence": {
-  "manifest": 2,
+  "manifest": 11,
   "legacy": 1774
  },
  "coverage": {
