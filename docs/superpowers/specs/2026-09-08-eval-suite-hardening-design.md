@@ -190,3 +190,30 @@ The trial image is faster in every pair: about a quarter less on MMVP and about 
 The collision gate added in the review follow-up flagged two lm-eval trees under the released 8B column: `results/lm-eval/Apertus-v1.5-8B` (2026-08-17 runs on `cache/models/textview/Apertus-v1.5-8B`, a directory the scratch purge removed) and `results/lm-eval/8B-Final-correct-rope` (the 2026-08-18 `final_text` run on the checkpoint that still resolves to the capstor release weights). Both used identical lm-eval settings, yet they disagree by 6.6 points on ARC-Challenge in one direction and 17 points on IFEval in the other, which is a configuration difference, not noise. Because the older directory no longer exists, its numbers cannot be attributed to the release, so the alias is split: the released 8B columns keep only what `8B-Final-correct-rope` produced, and the older runs, including the 2026-08-18 thinking-mode text runs on the same purged directory, are shown under their own labeled columns. The text tasks that lose their released-8B cell (aime24, aime25, hmmt_feb_2025, math500_verify, math_lvl5_verify, hellaswag, mmlu, mmlu_pro, gsm8k) were resubmitted on the release checkpoint on 2026-09-08 ~18:00 (run id `20260908T_8b_text_rerun`). The lm-eval launcher has no thinking mode, so the thinking-column text cells stay attributed to the older tree until that path exists.
 
 What the purged directory was. The public release `swiss-ai/Apertus-v1.5-8B` (last modified 2026-07-24) ships the capstor `...SDPO-Low-Less-Refuse-Feedback-Final` text weights repackaged (shards 1, 2, and 4 differ by a few kilobytes of safetensors header; shard 3 is smaller by the vision and audio tokenizers, which the release stores separately) with `rope_theta` 4,000,000 and llama3 factor 32 in its `text_config`. The capstor checkpoint's own `config.json` still says `rope_theta` 12,000,000 with factor 8. The `8B-Final-correct-rope` checkout evaluates the release's configuration, so the released-8B rows are on the public model. The reruns under that configuration give math500 31.8, math_lvl5 17.6, aime24 and aime25 0.0, gsm8k 79.6, mmlu_pro 44.1, hellaswag 80.0, mmlu 64.9, against 70.0, 44.8, 10.0, 6.7, 81.0, 45.8, 80.0, 64.9 from the purged tree with identical task configuration. Knowledge tasks agree and long-generation math tasks do not, which is the signature of a rope difference; a rerun of the same weights under the capstor configuration (`20260908T_8b_text_capstor_rope`, validation tree) tests that directly. The report's text tables come from the text team's own harness and are not affected by this suite's text rows either way.
+
+### 12.8 Rope lineage of the released 8B, and what the August text numbers were
+
+Configs on capstor, read from each stage's `config.json`:
+
+| Stage | Saved by transformers | Legacy `rope_theta` / `rope_scaling.factor` | `rope_parameters` theta / factor |
+|---|---|---|---|
+| SFT, RLVR (`final_checkpoints`) | 5.14 | absent | 4,000,000 / 32 |
+| SFT-RL-DPO | 5.3 | absent | 4,000,000 / 32 |
+| every sDPO variant, including the release weights | 4.57.1 | 12,000,000 / 8 | 4,000,000 / 32 |
+| Hugging Face release `swiss-ai/Apertus-v1.5-8B` | 5.14 | absent | 4,000,000 / 32 |
+
+Transformers 4.57 reads only the legacy keys, so the sDPO stage loaded and trained the model at theta 12M with factor 8 (the Apertus 1.0 text values) and wrote them back; the 70B sDPO checkpoints carry the same seam. The public release ships the pretraining and SFT values. Rerunning the release weights under each config with today's production image (the same image the August runs used, dated 2026-08-13):
+
+| Task | Release config 4M/32 | Capstor config 12M/8 | August 17 tree |
+|---|---|---|---|
+| math500_verify | 31.8 | 34.8 | 70.0 |
+| math_lvl5_verify | 17.6 | 17.9 | 44.8 |
+| aime24 / aime25 | 0.0 / 0.0 | 3.3 / 0.0 | 10.0 / 6.7 |
+| gsm8k | 79.6 | 75.0 | 79.8 |
+| mmlu_pro | 44.1 | 43.7 | 45.8 |
+| arc_challenge | 57.8 | 64.4 | 64.4 |
+| winogrande | 65.7 | 74.6 | 75.3 |
+| ifeval | 86.3 | 69.1 | 69.3 |
+| truthfulqa_mc2 | 58.0 | 55.1 | 55.9 |
+
+The capstor config reproduces the August tree on every short task, so the August directory was the 12M/8 configuration. It does not reproduce the August math numbers: under either rope the model now answers first and then loops into "Wait, let me verify" until the 16k-token cap (104 of 500 MATH-500 responses over 20k characters, 123 boxed answers, against 6 and 474 in August). The tokenizers of the August directory (the release's) and of the text view (the checkpoint's) encode identically; they differ only in `tokenizer_config.json`, where the release declares `</s>` as end-of-sequence and the checkpoint declares `<|assistant_end|>`. A rerun with the release tokenizer files under both rope configs (`20260908T_8b_text_hftok_*`, validation tree) isolates that last difference.
