@@ -152,7 +152,20 @@ Upstream lmms-eval added a `slake` group (slake_en + slake_zh, overall accuracy)
 | lmms-eval | 8fd62f0f | e8e1b2ac | mmvp, pope at 96 samples | identical metrics (mmvp 0.625 / pair 0.3542, pope 0.8125), re-run after the wrapper rebuild identical |
 | lmms-eval | 8fd62f0f | e8e1b2ac | mmvp at 8 samples, thinking | canary passed, mean 444 output tokens |
 | lmms-eval | 8fd62f0f | e8e1b2ac | vlmsareblind at 48 samples | 48/48 identical generations, accuracy 0.0833 |
-| VLMEvalKit | b44d4ca | 5f34422 | MMVP | 300/300 identical predictions, 0.6833 / 0.4067 |
+| VLMEvalKit | b44d4ca | 5f34422 | MMVP, fresh response-cache root on both sides, both run orders | 300/300 identical predictions, 0.6833 / 0.4067 |
 | lm-eval-harness | 8a07e111 | v0.4.13 (ddd67220) | gsm8k at 32 samples | 32/32 identical generations, 0.6562 |
 
-Pointers move on `yxu/harness-sync-2026-09-08`, stacked on the hardening branch.
+A first VLMEvalKit comparison replayed the baseline's answers from the shared response cache (75 lookups, 75 hits, 0 misses) and was discarded; a VLMEvalKit candidate must run with a fresh `--response-cache` root, and the gate scripts now do. Every gate run's manifest names the worktree it imported and its sample limit, and lives under `cache/validation/results/` (contract C8).
+
+Pointers move on `yxu/harness-sync-2026-09-08`, stacked on the hardening branch (swiss-ai/MLLM-eval-suite#9; fork PRs swiss-ai/lmms-eval#25 and swiss-ai/VLMEvalKit#9).
+
+### 12.5 Does the sync change inference speed?
+
+Wall-clock seconds per run on one node of the coding allocation, warm caches, the same 8B and settings, each pair run in both orders. Whichever run comes second in a pair is faster, on every harness, so run order dominates and no harness-version effect is measurable. The engine is the same container image (vLLM 0.26.1) on both sides; inference speed is a property of the image, and a speedup would come from the vLLM 0.28 trial image, which is a separate validation.
+
+| Pair | Pinned first | Merged second | Merged first | Pinned second |
+|---|---|---|---|---|
+| lmms-eval mmvp, 96 samples | 149 | 98 | 209 | 306 |
+| VLMEvalKit MMVP, fresh response cache | 442 (cold) / 185 | 363 | 309 | |
+| lm-eval gsm8k, 32 samples (whole job) | 375 | 146 | 484 | 496 |
+| lm-eval gsm8k, generation phase only | 1:59 | 1:29 | 2:03 | 1:26 |
