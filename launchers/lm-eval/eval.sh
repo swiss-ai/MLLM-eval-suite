@@ -109,7 +109,14 @@ while IFS= read -r TASK; do
     )
     [[ "$CONFIRM_RUN_UNSAFE_CODE" -eq 1 ]] && JOB_ARGS+=(--confirm-run-unsafe-code)
     # The registry decides the prompting protocol; LM_EVAL_CHAT_TEMPLATE=0 overrides it for a base model.
-    if [[ "${LM_EVAL_CHAT_TEMPLATE:-$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lm-eval --chat-template "$TASK")}" == "true" || "${LM_EVAL_CHAT_TEMPLATE:-}" == "1" ]]; then
+    CHAT_TEMPLATE="${LM_EVAL_CHAT_TEMPLATE:-}"
+    if [[ -z "$CHAT_TEMPLATE" ]]; then
+      if ! CHAT_TEMPLATE="$(cd "$REPO_ROOT" && PYTHONPATH="$REPO_ROOT" python3 -m suite.tasks --framework lm-eval --chat-template "$TASK")"; then
+        echo "chat-template registry lookup failed for ${TASK}; not submitting" >&2
+        exit 2
+      fi
+    fi
+    if [[ "$CHAT_TEMPLATE" == "true" || "$CHAT_TEMPLATE" == "1" ]]; then
       JOB_ARGS+=(--apply-chat-template)
     fi
     JOB_ARGS+=("${PASSTHROUGH[@]}")

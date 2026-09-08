@@ -63,11 +63,11 @@ else:
     return root, model, env
 
 
-def launch(launch_env, *args, execute=False, **environment):
+def launch(launch_env, *args, execute=False, cwd=None, **environment):
     root, model, env = launch_env
     env = dict(env, EXECUTE_JOB=str(int(execute)), **environment)
     result = subprocess.run(['bash', str(root / 'launchers/lm-eval/eval.sh'), str(model), *args],
-                            cwd=root, env=env, text=True, capture_output=True)
+                            cwd=cwd or root, env=env, text=True, capture_output=True)
     return result, env
 
 
@@ -120,6 +120,38 @@ def test_per_task_chat_template_override_is_used_by_launcher(launch_env, environ
     captured, manifest = captured_run(env)
     assert captured['args'].count('--apply_chat_template') == expected
     assert manifest['generation']['apply_chat_template'] == expected
+
+
+def test_chat_template_query_ignores_stale_checkout_in_caller_directory(launch_env, tmp_path):
+    stale = tmp_path / 'stale-checkout'
+    (stale / 'suite').mkdir(parents=True)
+    (stale / 'suite/__init__.py').write_text('')
+    # A previous CLI version understands --framework but not --chat-template.
+    (stale / 'suite/tasks.py').write_text(
+        'import argparse\np = argparse.ArgumentParser()\n'
+        'p.add_argument("--framework")\np.parse_args()\n')
+    process, env = launch(launch_env, '--tasks', 'gsm8k', cwd=stale, SKIP_PREFLIGHT='1')
+    assert process.returncode == 0, process.stdout + process.stderr
+    records = [json.loads(line) for line in Path(env['LAUNCH_CAPTURE']).read_text().splitlines()]
+    assert len(records) == 1
+    assert records[0]['args'].count('--apply-chat-template') == 1
+    assert 'unrecognized arguments' not in process.stderr
+
+
+@pytest.mark.parametrize('missing', ['suite/tasks.py', 'suite/tasks.toml'])
+def test_chat_template_query_failure_stops_before_scheduler(launch_env, missing):
+    (launch_env[0] / missing).unlink()
+    process, env = launch(launch_env, '--tasks', 'gsm8k', SKIP_PREFLIGHT='1')
+    assert process.returncode != 0
+    assert not Path(env['LAUNCH_CAPTURE']).exists()
+
+
+def test_unregistered_custom_task_still_works_with_explicit_preflight_bypass(launch_env):
+    process, env = launch(launch_env, '--tasks', 'custom_task', SKIP_PREFLIGHT='1')
+    assert process.returncode == 0, process.stdout + process.stderr
+    records = [json.loads(line) for line in Path(env['LAUNCH_CAPTURE']).read_text().splitlines()]
+    assert len(records) == 1
+    assert '--apply-chat-template' not in records[0]['args']
 
 
 def test_explicit_job_chat_template_still_overrides_base_model_default(launch_env):
