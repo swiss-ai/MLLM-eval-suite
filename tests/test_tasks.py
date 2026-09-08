@@ -165,3 +165,12 @@ def test_cli_harness_id(capsys):
     assert capsys.readouterr().out.strip() == "mmsi_bench"
     assert main(["--framework", "lmms-eval", "--harness-id", "not_a_task"]) == 0
     assert capsys.readouterr().out.strip() == "not_a_task"
+
+
+def test_chat_template_protocol_defaults_to_the_text_lane(capsys):
+    from suite.tasks import main
+    reg = load_registry()
+    assert all(t.chat_template for t in reg.by_framework("lm-eval")), "every lm-eval task is prompted through the chat template"
+    assert not any(t.chat_template for t in reg.by_framework("lmms-eval"))
+    assert main(["--framework", "lm-eval", "--chat-template", "gsm8k"]) == 0 and capsys.readouterr().out.strip() == "true"
+    assert main(["--framework", "lmms-eval", "--chat-template", "mmvp"]) == 0 and capsys.readouterr().out.strip() == "false"

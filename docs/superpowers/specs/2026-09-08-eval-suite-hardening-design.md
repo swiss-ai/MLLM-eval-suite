@@ -188,3 +188,46 @@ The trial image is faster in every pair: about a quarter less on MMVP and about 
 ### 12.7 Released 8B text numbers: the purged `Apertus-v1.5-8B` tree
 
 The collision gate added in the review follow-up flagged two lm-eval trees under the released 8B column: `results/lm-eval/Apertus-v1.5-8B` (2026-08-17 runs on `cache/models/textview/Apertus-v1.5-8B`, a directory the scratch purge removed) and `results/lm-eval/8B-Final-correct-rope` (the 2026-08-18 `final_text` run on the checkpoint that still resolves to the capstor release weights). Both used identical lm-eval settings, yet they disagree by 6.6 points on ARC-Challenge in one direction and 17 points on IFEval in the other, which is a configuration difference, not noise. Because the older directory no longer exists, its numbers cannot be attributed to the release, so the alias is split: the released 8B columns keep only what `8B-Final-correct-rope` produced, and the older runs, including the 2026-08-18 thinking-mode text runs on the same purged directory, are shown under their own labeled columns. The text tasks that lose their released-8B cell (aime24, aime25, hmmt_feb_2025, math500_verify, math_lvl5_verify, hellaswag, mmlu, mmlu_pro, gsm8k) were resubmitted on the release checkpoint on 2026-09-08 ~18:00 (run id `20260908T_8b_text_rerun`). The lm-eval launcher has no thinking mode, so the thinking-column text cells stay attributed to the older tree until that path exists.
+
+What the purged directory was. The public release `swiss-ai/Apertus-v1.5-8B` (last modified 2026-07-24) ships the capstor `...SDPO-Low-Less-Refuse-Feedback-Final` text weights repackaged (shards 1, 2, and 4 differ by a few kilobytes of safetensors header; shard 3 is smaller by the vision and audio tokenizers, which the release stores separately) with `rope_theta` 4,000,000 and llama3 factor 32 in its `text_config`. The capstor checkpoint's own `config.json` still says `rope_theta` 12,000,000 with factor 8. The `8B-Final-correct-rope` checkout evaluates the release's configuration, so the released-8B rows are on the public model. The reruns under that configuration give math500 31.8, math_lvl5 17.6, aime24 and aime25 0.0, gsm8k 79.6, mmlu_pro 44.1, hellaswag 80.0, mmlu 64.9, against 70.0, 44.8, 10.0, 6.7, 81.0, 45.8, 80.0, 64.9 from the purged tree with identical task configuration. Knowledge tasks agree and long-generation math tasks do not, which is the signature of a rope difference; a rerun of the same weights under the capstor configuration (`20260908T_8b_text_capstor_rope`, validation tree) tests that directly. The report's text tables come from the text team's own harness and are not affected by this suite's text rows either way.
+
+### 12.8 Rope lineage of the released 8B, and what the August text numbers were
+
+Configs on capstor, read from each stage's `config.json`:
+
+| Stage | Saved by transformers | Legacy `rope_theta` / `rope_scaling.factor` | `rope_parameters` theta / factor |
+|---|---|---|---|
+| SFT, RLVR (`final_checkpoints`) | 5.14 | absent | 4,000,000 / 32 |
+| SFT-RL-DPO | 5.3 | absent | 4,000,000 / 32 |
+| every sDPO variant, including the release weights | 4.57.1 | 12,000,000 / 8 | 4,000,000 / 32 |
+| Hugging Face release `swiss-ai/Apertus-v1.5-8B` | 5.14 | absent | 4,000,000 / 32 |
+
+Transformers 4.57 reads only the legacy keys, so the sDPO stage loaded and trained the model at theta 12M with factor 8 (the Apertus 1.0 text values) and wrote them back; the 70B sDPO checkpoints carry the same seam. The public release ships the pretraining and SFT values. Rerunning the release weights under each config with today's production image (the same image the August runs used, dated 2026-08-13):
+
+| Task | Release config 4M/32 | Capstor config 12M/8 | August 17 tree |
+|---|---|---|---|
+| math500_verify | 31.8 | 34.8 | 70.0 |
+| math_lvl5_verify | 17.6 | 17.9 | 44.8 |
+| aime24 / aime25 | 0.0 / 0.0 | 3.3 / 0.0 | 10.0 / 6.7 |
+| gsm8k | 79.6 | 75.0 | 79.8 |
+| mmlu_pro | 44.1 | 43.7 | 45.8 |
+| arc_challenge | 57.8 | 64.4 | 64.4 |
+| winogrande | 65.7 | 74.6 | 75.3 |
+| ifeval | 86.3 | 69.1 | 69.3 |
+| truthfulqa_mc2 | 58.0 | 55.1 | 55.9 |
+
+The capstor config reproduces the August tree on every short task, so the August directory was the 12M/8 configuration. It does not reproduce the August math numbers: under either rope the model now answers first and then loops into "Wait, let me verify" until the 16k-token cap (104 of 500 MATH-500 responses over 20k characters, 123 boxed answers, against 6 and 474 in August). The tokenizers of the August directory (the release's) and of the text view (the checkpoint's) encode identically; they differ only in `tokenizer_config.json`, where the release declares `</s>` as end-of-sequence and the checkpoint declares `<|assistant_end|>`. A rerun with the release tokenizer files under both rope configs (`20260908T_8b_text_hftok_*`, validation tree) isolates that last difference.
+
+### 12.9 The evaluated views carry the unpruned output head
+
+The release prunes the language-model head to the 131,072 text ids (`text_config.output_vocab_size`; `lm_head.weight` is 131,072 x 4,096 in `swiss-ai/Apertus-v1.5-8B`), a release-time transformation. The internal checkpoints keep the training-time head of 266,752 rows, and 41 of 42 sampled tensors are byte-identical between the release and the capstor `...Final` checkpoint, the exception being that head. The `8B-Final-correct-rope` and `70B-Final-fast` views the suite evaluates symlink the internal shards and declare `vocab_size` 266,752 with no `output_vocab_size`; vLLM (0.26.1 and 0.28.1 alike) sizes the Apertus head from `vocab_size` and does not read `output_vocab_size`, so every suite run on those views computed its softmax over 135,680 rows the public model never sees. The tokenizer and rope experiments in 12.8 could not close the MATH-500 gap because none of them touched the head; the August 17 tree was the release-exact text view written by `scripts/extract_text_backbone.py`, which slices the embedding and head to the text vocabulary. That view is rebuilt as `cache/models/textview/Apertus-v1.5-8B` and rerun (`20260908T_8b_text_release_view`).
+
+Consequences: text lanes must evaluate the extractor's views, not the symlinked internal checkpoints; image and audio lanes need a vLLM change that sizes `lm_head` from `output_vocab_size` while keeping the full embedding, since image tokens still enter as input ids; the affected sweeps rerun afterwards. Comparisons between two unpruned views (the corrected and pre-fix 70B) remain internally consistent but neither side is the release.
+
+### 12.10 Correction: the text gap was the chat template, and C10 makes the protocol declared
+
+Sections 12.7 to 12.9 chased the wrong variables. The stored prompts in the sample logs settle it: the August 17 text runs (aime, math500, math_lvl5, gsm8k, mmlu_pro, ifbench, gpqa) prompted the instruct model through its chat template (system turn, `Deliberation: disabled`, user turn), while one August 17 batch (arc_easy; arc_challenge, hellaswag, ifeval) and every rerun on 2026-09-08 sent the bare `Problem: ... Answer:` completion prompt, because `--apply-chat-template` was a job argument passed by hand at launch. Without the template the model emits a terse guess, never sees a turn boundary, and loops into self-verification until the 16k-token cap; that is MATH-500 32 against 70. The Aug 18 `final_text` run applied the template but with the capstor checkpoint's edited `chat_template.jinja` rather than the release's.
+
+What the earlier sections established still holds as fact, but none of it was the cause of the text gap: the sDPO stage's rope seam (12.8) is real and belongs to the alignment team; the release-exact text view has the pruned head (12.9) and is the right artifact for the text lane; the 12M/8 and tokenizer reruns reproduced August only where August itself had run without the template. The serving image never changed.
+
+**C10. Prompting protocol is declared, not remembered.** `[defaults].lm_eval_chat_template` (overridable per task by `chat_template`) says whether a text task prompts through the chat template; the launcher reads it (`suite.tasks --chat-template`, `LM_EVAL_CHAT_TEMPLATE=0` for a base model) and the manifest records `generation.apply_chat_template`. Template-off runs (two from August, all from tonight) are moved to `cache/validation`, the extractor-built release view is the released 8B's text source again, and the seven tasks without a template-on run on that view are rerun once (`20260908T_8b_text_chat`).

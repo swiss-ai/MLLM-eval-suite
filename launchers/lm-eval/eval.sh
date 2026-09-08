@@ -102,6 +102,10 @@ while IFS= read -r TASK; do
       --num-processes "$NUM_PROCESSES"
       --hf-home "${HF_HOME:-${REPO_ROOT}/cache/hf}"
     )
+    # The registry decides the prompting protocol; LM_EVAL_CHAT_TEMPLATE=0 overrides it for a base model.
+    if [[ "${LM_EVAL_CHAT_TEMPLATE:-$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lm-eval --chat-template "$TASK")}" == "true" || "${LM_EVAL_CHAT_TEMPLATE:-}" == "1" ]]; then
+      JOB_ARGS+=(--apply-chat-template)
+    fi
     JOB_ARGS+=("${PASSTHROUGH[@]}")
     echo "--- submit: task=$TASK model=$MODEL_LABEL ---"
     if [[ "$DRY_RUN" -eq 1 ]]; then
