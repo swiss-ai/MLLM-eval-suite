@@ -471,7 +471,7 @@ def test_finalize_finds_lm_eval_results(tmp_path):
           chat_template=None, model_args="", gen_kwargs="", thinking=False)
     sub = out / "model"
     sub.mkdir()
-    (sub / "results_2026-09-08T00-00-00.json").write_text(json.dumps({"results": {"gsm8k": {"exact_match,flexible-extract": 0.81}}}))
+    (sub / "results_2026-09-08T00-00-00.json").write_text(json.dumps({"results": {"gsm8k": {"exact_match,flexible-extract": 0.81}}, "chat_template": "{{ messages }}"}))
     log = tmp_path / "job.out"
     log.write_text("")
     status, man = finalize(out / "run_meta.json", [log], out, harness_rc=0)
@@ -486,3 +486,17 @@ def test_sample_record_count_survives_unicode_line_separators(tmp_path):
                json.dumps({"doc_id": 2, "resps": [["plain"]]})]
     s.write_text("\n".join(records) + "\n")
     assert sample_record_count([s]) == 3
+
+
+def test_finalize_invalid_when_text_prompting_disagrees_with_registry(tmp_path):
+    m, t = _model_dir(tmp_path)
+    out = tmp_path / "out"
+    start(out, framework="lm-eval", task="gsm8k", run_id="r1", model_path=m, harness_dir=tmp_path, tokenizer_path=t,
+          chat_template=None, model_args="", gen_kwargs="", thinking=False)
+    sub = out / "model"
+    sub.mkdir()
+    (sub / "results_2026-09-08T00-00-00.json").write_text(json.dumps({"results": {"gsm8k": {"exact_match,flexible-extract": 0.81}}, "chat_template": None}))
+    log = tmp_path / "job.out"
+    log.write_text("")
+    status, man = finalize(out / "run_meta.json", [log], out, harness_rc=0)
+    assert status == "invalid" and "prompting protocol mismatch" in man["error"]

@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import math
+from functools import lru_cache
 from pathlib import Path
+
+from suite.tasks import load_registry
 
 
 def limited(value) -> bool:
@@ -12,6 +15,27 @@ def limited(value) -> bool:
         return float(value) != 0
     except (TypeError, ValueError):
         return True
+
+
+@lru_cache(maxsize=1)
+def _registry():
+    return load_registry()
+
+
+def declared_chat_template(task: str | None) -> bool | None:
+    """The prompting protocol the registry declares for a text task, or None when the task is not a text task."""
+    if not task:
+        return None
+    registered = _registry().lookup("lm-eval", task)
+    return registered.chat_template if registered and registered.framework == "lm-eval" else None
+
+
+def protocol_mismatch(data: dict | None, task: str | None) -> bool:
+    """True when an lm-eval result was prompted differently from what the registry declares for the task."""
+    declared = declared_chat_template(task)
+    if declared is None or not isinstance(data, dict):
+        return False
+    return bool(data.get("chat_template")) != declared
 
 
 def ineligible_reason(manifest: dict | None, data: dict | None = None, task: str | None = None) -> str | None:
@@ -33,6 +57,8 @@ def ineligible_reason(manifest: dict | None, data: dict | None = None, task: str
                 return "invalid-results"
         if limited((data.get("config") or {}).get("limit")):
             return "limited-run"
+        if protocol_mismatch(data, task):
+            return "protocol-mismatch"
         counts = (data.get("n-samples") or {}).get(task)
         if counts is None:
             return None
