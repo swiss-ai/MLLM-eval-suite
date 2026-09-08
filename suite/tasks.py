@@ -17,7 +17,7 @@ SUITE_LIST_FILES = {"lmms-eval": "task_suites/lmms-eval/visual_llm_judge.txt",
 TASK_FIELDS = {"framework", "harness_task", "judge", "judge_env", "lmms_task", "assets",
                "max_model_len", "multi_image", "card", "report"}
 ASSET_FIELDS = {"env", "relative", "source", "extract", "min_files"}
-DASHBOARD_FIELDS = {"cat", "cat_prefix", "vk", "vk_prefix", "headline", "lm_metric"}
+DASHBOARD_FIELDS = {"cat", "cat_prefix", "vk", "vk_prefix", "headline", "lmms_headline", "headline_strict", "lm_metric"}
 
 
 @dataclass(frozen=True)
@@ -100,6 +100,17 @@ class Registry:
         entry = self.dashboard_entry(task_name)
         return entry.get("cat") if entry else None
 
+    def headline_for(self, framework: str, task_name: str) -> tuple[tuple[str, ...], bool]:
+        """Headline metric names to try in order for a result of this task on this harness, and whether
+        nothing else may stand in when none is present. A harness that only aliases the task uses the
+        lmms_headline field, since metric names differ between harnesses."""
+        task = self.lookup(framework, task_name)
+        entry = self.dashboard_entry(task.name if task else task_name)
+        if not entry:
+            return (), False
+        key = "lmms_headline" if task and task.framework != framework else "headline"
+        return tuple(entry.get(key, ())), bool(entry.get("headline_strict"))
+
 
 def _task(name: str, raw: dict, defaults: dict) -> Task:
     unknown = set(raw) - TASK_FIELDS
@@ -130,8 +141,9 @@ def _dashboard(name: str, raw: dict) -> dict:
     if unknown:
         raise ValueError(f"dashboard {name!r}: unknown fields {sorted(unknown)}")
     entry = dict(raw)
-    if "headline" in entry:
-        entry["headline"] = tuple(entry["headline"])
+    for key in ("headline", "lmms_headline"):
+        if key in entry:
+            entry[key] = tuple(entry[key])
     return entry
 
 

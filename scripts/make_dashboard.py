@@ -29,8 +29,7 @@ from gather_results import newest_per_task
 from metric_selection import iter_headline_metrics, normalize_score
 
 # Spatial-intelligence benchmarks are tracked on EASI via VLMEvalKit
-# (https://easi.lmms-lab.com/leaderboard/), not here. Matches the EASI block
-# in metric_selection.TASK_METRIC_PRIORITY.
+# (https://easi.lmms-lab.com/leaderboard/), not here.
 # ---------------------------------------------------------------------------
 # The benchmark registry: one record per dashboard task key. Everything the
 # dashboard needs to know about a benchmark lives here — its category, the
@@ -212,7 +211,7 @@ _VK_AGG_LABELS = ("all", "overall", "none")
 # Per-benchmark headline override where the EASI-canonical metric is not plain
 # accuracy. site_bench reports chance-adjusted accuracy (overall_caa); raw
 # accuracy ~2x inflates it relative to the EASI leaderboard.
-VK_HEADLINE_BY_TASK = {k: b["headline"] for k, b in BENCHMARKS.items() if "headline" in b}
+VK_HEADLINE_BY_TASK = {k: b["headline"] for k, b in BENCHMARKS.items() if "headline" in b and k in VK_OWNED_TASKS.values()}
 
 
 def _vk_norm(name: str) -> str:
@@ -376,7 +375,7 @@ def collect(runs_root: Path, model_filters: list[str] | None, manifests: Manifes
                 continue
             prov = cell_provenance(manifest)
             mt = path.stat().st_mtime
-            for row_task, metric, value in iter_headline_metrics(task, metrics):
+            for row_task, metric, value in iter_headline_metrics(task, metrics, *REGISTRY.headline_for("lmms-eval", task)):
                 registered = REGISTRY.resolve("lmms-eval", row_task)
                 if registered is not None:
                     row_task = registered.name

@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gather_results import newest_per_task
-from make_dashboard import canonical_model_key
+from make_dashboard import REGISTRY, canonical_model_key
 from metric_selection import iter_headline_metrics
 
 
@@ -27,7 +27,7 @@ def task_values(mdir: Path) -> dict[tuple[str, str], float]:
     out: dict[tuple[str, str], float] = {}
     for task, (path, data) in newest_per_task(mdir).items():
         metrics = data.get("results", {}).get(task, {})
-        for row_task, metric, value in iter_headline_metrics(task, metrics):
+        for row_task, metric, value in iter_headline_metrics(task, metrics, *REGISTRY.headline_for("lmms-eval", task)):
             out[(row_task, metric)] = value
     return out
 

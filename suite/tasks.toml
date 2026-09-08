@@ -16,6 +16,7 @@ cat = "Spatial & Embodied"
 cat_prefix = true
 vk = "3DSRBench"
 vk_prefix = true
+lmms_headline = ["circular_accuracy", "vanilla_accuracy"]
 
 [dashboard.ai2d]
 cat = "STEM & Knowledge"
@@ -38,6 +39,7 @@ lm_metric = "acc_norm,none"
 
 [dashboard.babyvision]
 cat = "Math & Logic"
+headline = ["babyvision_overall_accuracy"]
 
 [dashboard.bigearth]
 cat = "Remote Sensing"
@@ -47,6 +49,7 @@ cat_prefix = true
 cat = "Multi-Image"
 vk = "BLINK"
 vk_prefix = true
+lmms_headline = ["blink_acc"]
 
 [dashboard.cc_ocr_doc_parsing]
 cat = "Docs, Charts & OCR"
@@ -77,6 +80,7 @@ cat = "Counting & Grounding"
 [dashboard.cv_bench]
 cat = "Spatial & Embodied"
 vk_prefix = true
+headline = ["cv_bench_acc"]
 
 [dashboard.cv_bench_2d]
 cat = "Spatial & Embodied"
@@ -93,18 +97,37 @@ cat = "Docs, Charts & OCR"
 cat = "Spatial & Embodied"
 vk = "EmbSpatialBench"
 vk_prefix = true
+lmms_headline = ["embspatial_acc"]
 
 [dashboard.erqa]
 cat = "Spatial & Embodied"
 vk = "ERQA"
 vk_prefix = true
+lmms_headline = ["erqa_acc"]
 
 [dashboard.frieda]
 cat = "Remote Sensing"
+headline = ["f1", "exact_match"]
 
 [dashboard.geobench]
 cat = "Remote Sensing"
 cat_prefix = true
+
+[dashboard.geobench_ref]
+cat = "Remote Sensing"
+headline = ["ref_acc50"]
+
+[dashboard.geobench_cap]
+cat = "Remote Sensing"
+headline = ["cap_CIDEr"]
+
+[dashboard.geobench_temporal]
+cat = "Remote Sensing"
+headline = ["temporal_per_task", "temporal_accuracy"]
+
+[dashboard.geobench_single]
+cat = "Remote Sensing"
+headline = ["per_task", "single_accuracy"]
 
 [dashboard.gpqa_diamond_zeroshot]
 cat = "Knowledge & Reasoning (Text)"
@@ -124,6 +147,7 @@ vk = "HallusionBench"
 [dashboard.healthbench]
 cat = "Medical"
 cat_prefix = true
+headline = ["healthbench_score"]
 
 [dashboard.hellaswag]
 cat = "Knowledge & Reasoning (Text)"
@@ -191,6 +215,7 @@ vk = "MIA-Bench"
 cat = "Spatial & Embodied"
 vk = "MindCubeBench_tiny_raw_qa"
 vk_prefix = true
+lmms_headline = ["overall_accuracy"]
 
 [dashboard.mm_ifeval]
 cat = "Instruction Following"
@@ -222,6 +247,7 @@ lm_metric = "acc,none"
 
 [dashboard.mmlu_medical]
 cat = "Medical"
+headline = ["exact_match,flexible-extract", "exact_match"]
 
 [dashboard.mmlu_pro]
 cat = "Knowledge & Reasoning (Text)"
@@ -240,9 +266,11 @@ cat = "STEM & Knowledge"
 cat = "Spatial & Embodied"
 vk = "MMSIBench_wo_circular"
 vk_prefix = true
+lmms_headline = ["average"]
 
 [dashboard.mmstar]
 cat = "General VQA & Perception"
+headline = ["average"]
 
 [dashboard.mmvet]
 cat = "General VQA & Perception"
@@ -250,6 +278,7 @@ vk = "MMVet"
 
 [dashboard.mmvp]
 cat = "Robustness & Bias"
+headline = ["mmvp_accuracy"]
 
 [dashboard.mmvp_pair]
 cat = "Robustness & Bias"
@@ -274,6 +303,7 @@ cat = "Docs, Charts & OCR"
 cat = "Spatial & Embodied"
 cat_prefix = true
 vk_prefix = true
+lmms_headline = ["omnispatial"]
 
 [dashboard.omnispatial_manual_cot]
 vk = "OmniSpatialBench_manual_cot"
@@ -310,6 +340,8 @@ cat = "General VQA & Perception"
 [dashboard.refcoco]
 cat = "Counting & Grounding"
 cat_prefix = true
+headline = ["refcoco_ACC@0.5"]
+headline_strict = true
 
 [dashboard.refspatial]
 cat = "Spatial & Embodied"
@@ -323,6 +355,7 @@ vk = "RoboSpatialHome"
 [dashboard.rsrcc]
 cat = "Remote Sensing"
 cat_prefix = true
+headline = ["accuracy"]
 
 [dashboard.scienceqa]
 cat = "STEM & Knowledge"
@@ -339,15 +372,18 @@ vk = "ScreenSpot_v2"
 
 [dashboard.seedbench]
 cat = "General VQA & Perception"
+headline = ["seed_image", "seed_all"]
 
 [dashboard.seedbench_2_plus]
 cat = "Docs, Charts & OCR"
+headline = ["seedbench_2_plus_all"]
 
 [dashboard.site_bench]
 cat = "Spatial & Embodied"
 vk = "SiteBenchImage"
 vk_prefix = true
 headline = ["overall_caa", "overall_accuracy", "accuracy"]
+lmms_headline = ["chance_adjusted_acc", "accuracy"]
 
 [dashboard.slake]
 cat = "Medical VQA"
@@ -362,6 +398,7 @@ cat = "Medical VQA"
 cat = "Spatial & Embodied"
 vk = "SparBench"
 vk_prefix = true
+lmms_headline = ["sparbench_score"]
 
 [dashboard.spatial_dise]
 cat = "Spatial & Embodied"
@@ -379,6 +416,7 @@ lm_metric = "acc,none"
 cat = "Spatial & Embodied"
 vk = "ViewSpatialBench"
 vk_prefix = true
+lmms_headline = ["overall_accuracy"]
 
 [dashboard.visualpuzzles_direct]
 cat = "Math & Logic"
@@ -388,9 +426,11 @@ cat = "Math & Logic"
 
 [dashboard.vlms_are_biased]
 cat = "Robustness & Bias"
+headline = ["accuracy_by_topic.topic_mean", "accuracy"]
 
 [dashboard.vlmsareblind]
 cat = "Robustness & Bias"
+headline = ["accuracy_by_task.task_mean", "accuracy"]
 
 [dashboard.vqa_rad]
 cat = "Medical VQA"
@@ -402,6 +442,18 @@ cat = "General VQA & Perception"
 cat = "Remote Sensing"
 cat_prefix = true
 
+[dashboard.vrsbench_ref]
+cat = "Remote Sensing"
+headline = ["ref_acc50"]
+
+[dashboard.vrsbench_cap]
+cat = "Remote Sensing"
+headline = ["cap_CIDEr"]
+
+[dashboard.vrsbench_vqa]
+cat = "Remote Sensing"
+headline = ["vqa_accuracy"]
+
 [dashboard.vsibench]
 vk_prefix = true
 
@@ -411,6 +463,7 @@ vk = ["VSI-Bench-Debiased", "VSI-Bench-Debiased_32frame"]
 
 [dashboard.vstar_bench]
 cat = "General VQA & Perception"
+headline = ["vstar_overall_acc"]
 
 [dashboard.where2place]
 vk_prefix = true

@@ -11,10 +11,16 @@ Usage:
 
 import argparse
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 from metric_selection import pick_headline_metric
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from suite.tasks import load_registry  # noqa: E402
+
+REGISTRY = load_registry()
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_RESULTS_ROOT = (SCRIPT_DIR.parent / "results").resolve()
@@ -25,7 +31,7 @@ def pick_headline(task: str, metrics: dict) -> tuple[str, float] | None:
 
     Strategy: use shared task-aware policy, then skip non-numeric metrics.
     """
-    metric, value = pick_headline_metric(task, metrics)
+    metric, value = pick_headline_metric(task, metrics, *REGISTRY.headline_for("lmms-eval", task))
     if metric is None or value is None:
         return None
     return metric, value

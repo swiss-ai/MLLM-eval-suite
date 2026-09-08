@@ -58,6 +58,10 @@ The canonical checkout lives on capstor, so results and logs are durable by cons
 
 A run launched with a sample limit (gate checks, smoke tests, timing pairs) records that limit in its manifest, and every dashboard collector skips such runs. They are kept under `cache/validation/results/<harness>` rather than `results/` so that "newest result wins" can never let a 96-sample check displace a full sweep; the 32-sample gsm8k gate run had done exactly that before this rule existed. The manifest also records the harness checkout the job actually imported (worktree or pinned submodule), so a number's provenance survives a sync.
 
+### C9. The registry names the headline metric
+
+`[dashboard.<task>]` declares the ordered metric names that make a benchmark's headline (`headline`), the names to use when a harness only aliases the task (`lmms_headline`), and whether nothing else may stand in (`headline_strict`). Script code keeps only computation and fallback: the MME total, secondary rows such as the MMVP pair accuracy, and the generic priority for tasks the registry does not describe. The migration from the script-side priority list was gated on a cell-for-cell identical dashboard rebuild.
+
 ## 4. Architecture
 
 New Python package `suite/` at the repository root, importable by scripts, launchers, and job scripts through the existing `shared/` path mechanism:

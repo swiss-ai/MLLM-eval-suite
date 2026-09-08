@@ -146,3 +146,12 @@ def test_cli_max_model_len(capsys):
     assert capsys.readouterr().out.strip() == "131072"
     assert main(["--framework", "lmms-eval", "--max-model-len", "not_a_task"]) == 0
     assert capsys.readouterr().out.strip() == "131072"
+
+
+def test_headline_for_owner_and_alias():
+    reg = load_registry()
+    assert reg.headline_for("lmms-eval", "mmstar") == (("average",), False)
+    assert reg.headline_for("lmms-eval", "refcoco_bbox_rec_val") == (("refcoco_ACC@0.5",), True)
+    assert reg.headline_for("VLMEvalKit", "site_bench")[0][0] == "overall_caa"
+    assert reg.headline_for("lmms-eval", "site_bench_image") == (("chance_adjusted_acc", "accuracy"), False)
+    assert reg.headline_for("lmms-eval", "gqa") == ((), False)
