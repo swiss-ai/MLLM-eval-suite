@@ -471,7 +471,7 @@ def test_finalize_finds_lm_eval_results(tmp_path):
           chat_template=None, model_args="", gen_kwargs="", thinking=False)
     sub = out / "model"
     sub.mkdir()
-    (sub / "results_2026-09-08T00-00-00.json").write_text(json.dumps({"results": {"gsm8k": {"exact_match,flexible-extract": 0.81}}}))
+    (sub / "results_2026-09-08T00-00-00.json").write_text(json.dumps({"results": {"gsm8k": {"exact_match,flexible-extract": 0.81}}, "chat_template": "{{ messages }}"}))
     log = tmp_path / "job.out"
     log.write_text("")
     status, man = finalize(out / "run_meta.json", [log], out, harness_rc=0)
@@ -499,7 +499,8 @@ def test_acp_tag_requires_all_fourteen_components(tmp_path, damage, expected):
              for kind in ('bool', 'mcq')]
     data = {'results': {name: {'exact_match,extract-yes-no' if name.endswith('bool') else 'exact_match,mcq-extract': .5}
                         for name in names},
-            'n-samples': {name: {'original': 2, 'effective': 2} for name in names}}
+            'n-samples': {name: {'original': 2, 'effective': 2} for name in names},
+            'chat_template': '{{ messages }}'}
     if damage == 'missing':
         del data['results']['acp_val_mcq']
     elif damage == 'nonnumeric':
@@ -511,3 +512,17 @@ def test_acp_tag_requires_all_fourteen_components(tmp_path, damage, expected):
     assert status == expected, manifest['error']
     if expected == 'ok':
         assert manifest['results']['result_samples'] == 28
+
+
+def test_finalize_invalid_when_text_prompting_disagrees_with_registry(tmp_path):
+    m, t = _model_dir(tmp_path)
+    out = tmp_path / "out"
+    start(out, framework="lm-eval", task="gsm8k", run_id="r1", model_path=m, harness_dir=tmp_path, tokenizer_path=t,
+          chat_template=None, model_args="", gen_kwargs="", thinking=False)
+    sub = out / "model"
+    sub.mkdir()
+    (sub / "results_2026-09-08T00-00-00.json").write_text(json.dumps({"results": {"gsm8k": {"exact_match,flexible-extract": 0.81}}, "chat_template": None}))
+    log = tmp_path / "job.out"
+    log.write_text("")
+    status, man = finalize(out / "run_meta.json", [log], out, harness_rc=0)
+    assert status == "invalid" and "prompting protocol mismatch" in man["error"]

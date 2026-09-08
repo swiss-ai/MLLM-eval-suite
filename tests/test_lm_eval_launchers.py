@@ -47,7 +47,9 @@ if args[:2] == ['-m', 'apertus_lm_eval_ext']:
         'annotators': os.environ.get('ALPACA_EVAL_ANNOTATORS_CONFIG')}))
     out = Path(args[args.index('--output_path') + 1])
     task = args[args.index('--tasks') + 1]
-    (out / 'results_fixture.json').write_text(json.dumps({'results': {task: {'acc,none': 0.5}}}))
+    (out / 'results_fixture.json').write_text(json.dumps({
+        'results': {task: {'acc,none': 0.5}},
+        'chat_template': '{{ messages }}' if '--apply_chat_template' in args else None}))
 else:
     os.execv(sys.executable, [sys.executable, *args])
 ''')
@@ -101,25 +103,33 @@ def test_default_launch_does_not_enable_code_execution(launch_env):
     assert manifest['tokenizer']['chat_template_sha256']
 
 
-@pytest.mark.parametrize('override, expected', [('0', 0), ('false', 0), ('1', 1), ('true', 1)])
-def test_chat_template_environment_override_matches_harness_and_manifest(launch_env, override, expected):
+@pytest.mark.parametrize('override, expected, status', [
+    ('0', 0, 'invalid'), ('false', 0, 'invalid'), ('1', 1, 'ok'), ('true', 1, 'ok')])
+def test_chat_template_environment_override_is_recorded_and_protocol_checked(launch_env, override, expected, status):
     process, env = launch(launch_env, '--tasks', 'math500_verify', execute=True,
                           LM_EVAL_CHAT_TEMPLATE=override)
-    assert process.returncode == 0, process.stdout + process.stderr
+    assert process.returncode == (0 if status == 'ok' else 4), process.stdout + process.stderr
     captured, manifest = captured_run(env)
     assert captured['args'].count('--apply_chat_template') == expected
     assert manifest['generation']['apply_chat_template'] == expected
+    assert manifest['status'] == status
+    if status == 'invalid':
+        assert 'prompting protocol mismatch' in manifest['error']
 
 
-@pytest.mark.parametrize('environment, expected', [({}, 0), ({'LM_EVAL_CHAT_TEMPLATE': '1'}, 1)])
-def test_per_task_chat_template_override_is_used_by_launcher(launch_env, environment, expected):
+@pytest.mark.parametrize('environment, expected, status', [
+    ({}, 0, 'ok'), ({'LM_EVAL_CHAT_TEMPLATE': '1'}, 1, 'invalid')])
+def test_per_task_chat_template_declaration_is_used_and_enforced(launch_env, environment, expected, status):
     registry = launch_env[0] / 'suite/tasks.toml'
     registry.write_text(registry.read_text().replace('[tasks.gsm8k]\n', '[tasks.gsm8k]\nchat_template = false\n'))
     process, env = launch(launch_env, '--tasks', 'gsm8k', execute=True, **environment)
-    assert process.returncode == 0, process.stdout + process.stderr
+    assert process.returncode == (0 if status == 'ok' else 4), process.stdout + process.stderr
     captured, manifest = captured_run(env)
     assert captured['args'].count('--apply_chat_template') == expected
     assert manifest['generation']['apply_chat_template'] == expected
+    assert manifest['status'] == status
+    if status == 'invalid':
+        assert 'prompting protocol mismatch' in manifest['error']
 
 
 def test_chat_template_query_ignores_stale_checkout_in_caller_directory(launch_env, tmp_path):

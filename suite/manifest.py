@@ -16,6 +16,7 @@ from pathlib import Path
 from suite import REPO_ROOT
 from suite.fsutil import file_stat, sha256_file
 from suite.result_selection import limited
+from suite.result_selection import declared_chat_template
 from suite.tasks import load_registry
 
 SCHEMA = 1
@@ -328,6 +329,12 @@ def _validate_json_result(path: Path, manifest: dict) -> tuple[str | None, dict 
         return f"result file {path} has no non-empty results mapping", None
     results = data["results"]
     expected = _task_ids(manifest)
+    if manifest.get("framework") == "lm-eval":
+        for task_id in sorted(expected):
+            declared = declared_chat_template(task_id)
+            if declared is not None and bool(data.get("chat_template")) != declared:
+                return (f"prompting protocol mismatch: the registry declares chat_template={declared} for {task_id}, "
+                        f"the run used {bool(data.get('chat_template'))}"), None
     group_subtasks = data.get("group_subtasks") if isinstance(data.get("group_subtasks"), dict) else {}
     sample_map = data.get("n-samples") if isinstance(data.get("n-samples"), dict) else {}
     registered = load_registry().lookup(manifest["framework"], manifest["task"])

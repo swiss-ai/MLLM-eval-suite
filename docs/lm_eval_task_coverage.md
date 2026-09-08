@@ -63,10 +63,14 @@ Text evaluations apply the model's chat template by default, matching the
 release instruction-model protocol. The registry sets
 `[defaults].lm_eval_chat_template = true`; a task's `chat_template` field can
 override that default. The launcher queries `suite.tasks --chat-template` for
-each task. To evaluate a base model with completion prompts, explicitly set
-`LM_EVAL_CHAT_TEMPLATE=0` before launching. `LM_EVAL_CHAT_TEMPLATE=1` forces chat
-formatting, and an explicit job argument `-- --apply-chat-template` remains
-supported.
+each task. `LM_EVAL_CHAT_TEMPLATE=0` forces completion prompts;
+`LM_EVAL_CHAT_TEMPLATE=1` forces chat formatting, and an explicit job argument
+`-- --apply-chat-template` remains supported. Finalization and collection also
+check the harness result against the registry: an override that disagrees with
+the declaration is marked invalid and excluded from published results. For a
+base-model protocol, declare `chat_template = false` for the task (or change the
+registry default for that evaluation checkout), and retain the same declaration
+when collecting results.
 
 Each run manifest records the actual setting in
 `generation.apply_chat_template` (`1` enabled, `0` disabled), together with the

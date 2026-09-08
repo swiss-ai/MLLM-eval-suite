@@ -49,6 +49,8 @@ def result(root, run, score, stamp, *, task="gqa", framework="lmms-eval",
     path = directory / ("results_x.json" if text else "x_results.json")
     metric = "exact_match,flexible-extract" if text else "exact_match,none"
     data = {"results": {task: {metric: score}}, "config": {"limit": limit}}
+    if text:
+        data["chat_template"] = "{{ messages }}"
     if counts:
         data["n-samples"] = {task: counts}
     path.write_text(json.dumps(data))
@@ -432,7 +434,7 @@ def test_gather_cli_keeps_older_eligible_result(tmp_path, monkeypatch, capsys):
 ])
 def test_requested_text_metric_filters_and_units(tmp_path, task, metrics, expected):
     path = result(tmp_path, 'full', .1, 100, task=task, framework='lm-eval')
-    path.write_text(json.dumps({'results': {task: metrics}}))
+    path.write_text(json.dumps({'results': {task: metrics}, 'chat_template': '{{ messages }}'}))
     _, rows = dashboard.collect_lm_eval(tmp_path, None, Manifests([tmp_path]))
     assert len(rows) == 1
     assert rows[0]['cells']['model']['v'] == expected
@@ -443,7 +445,7 @@ def test_acp_tag_keeps_both_component_families_without_inventing_overall(tmp_pat
     path.write_text(json.dumps({'results': {
         'acp_areach_bool': {'exact_match,extract-yes-no': .4},
         'acp_areach_mcq': {'exact_match,mcq-extract': .8},
-    }}))
+    }, 'chat_template': '{{ messages }}'}))
     _, rows = dashboard.collect_lm_eval(tmp_path, None, Manifests([tmp_path]))
     assert {row['task']: row['cells']['model']['v'] for row in rows} == {
         'acp_areach_bool': 40, 'acp_areach_mcq': 80}

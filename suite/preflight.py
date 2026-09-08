@@ -57,6 +57,21 @@ def check_model(model_path: Path) -> list[Check]:
     return out
 
 
+def check_text_view(model_path: Path) -> list[Check]:
+    """An Apertus text view must be the release's pruned text backbone, not the training checkpoint's multimodal head."""
+    try:
+        cfg = json.loads((Path(model_path) / "config.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    if cfg.get("model_type") != "apertus":
+        return []
+    vocab, out_vocab = cfg.get("vocab_size"), cfg.get("output_vocab_size")
+    ok = out_vocab is not None and out_vocab == vocab
+    return [Check("model:text_view", ok,
+                  f"vocab_size={vocab} output_vocab_size={out_vocab}" + ("" if ok else
+                  "; this view carries the unpruned multimodal head, build it with scripts/extract_text_backbone.py"))]
+
+
 def check_tokenizer(tokenizer_path: Path | None) -> list[Check]:
     if tokenizer_path is None:
         return [Check("tokenizer", False, "no tokenizer path")]
@@ -147,6 +162,8 @@ def run_checks(*, registry: Registry, framework: str, model_path: Path, tasks: l
         checks += check_model(model_path) + check_tokenizer(tokenizer_path)
         if framework in ("lmms-eval", "VLMEvalKit"):
             checks += check_vision_tokenizer(vision_tokenizer_dir)
+        if framework == "lm-eval":
+            checks += check_text_view(model_path)
     checks += check_container(container_image)
     checks += check_tasks(registry, framework, tasks, env, max_model_len)
     checks += check_task_names(registry, framework, tasks, harness_root)
