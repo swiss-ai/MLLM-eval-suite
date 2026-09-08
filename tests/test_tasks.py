@@ -155,3 +155,13 @@ def test_headline_for_owner_and_alias():
     assert reg.headline_for("VLMEvalKit", "site_bench")[0][0] == "overall_caa"
     assert reg.headline_for("lmms-eval", "site_bench_image") == (("chance_adjusted_acc", "accuracy"), False)
     assert reg.headline_for("lmms-eval", "gqa") == ((), False)
+
+
+def test_cli_harness_id(capsys):
+    from suite.tasks import main
+    assert main(["--framework", "lmms-eval", "--harness-id", "slake"]) == 0
+    assert capsys.readouterr().out.strip() == "slake_medevalkit"
+    assert main(["--framework", "lmms-eval", "--harness-id", "mmsi_bench"]) == 0
+    assert capsys.readouterr().out.strip() == "mmsi_bench"
+    assert main(["--framework", "lmms-eval", "--harness-id", "not_a_task"]) == 0
+    assert capsys.readouterr().out.strip() == "not_a_task"
