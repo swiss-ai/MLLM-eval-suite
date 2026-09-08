@@ -31,19 +31,19 @@ def pick_headline(task: str, metrics: dict) -> tuple[str, float] | None:
     return metric, value
 
 
-def newest_per_task(model_dir: Path) -> dict[str, Path]:
-    """For each task in this model dir, return path to newest *_results.json."""
-    by_task: dict[str, Path] = {}
+def newest_per_task(model_dir: Path) -> dict[str, tuple[Path, dict]]:
+    """For each task in this model dir, the newest *_results.json and its parsed content."""
+    by_task: dict[str, tuple[float, Path, dict]] = {}
     for path in model_dir.rglob("*_results.json"):
         try:
             data = json.loads(path.read_text())
+            mtime = path.stat().st_mtime
         except (OSError, json.JSONDecodeError):
             continue
         for task in data.get("results", {}):
-            cur = by_task.get(task)
-            if cur is None or path.stat().st_mtime > cur.stat().st_mtime:
-                by_task[task] = path
-    return by_task
+            if task not in by_task or mtime > by_task[task][0]:
+                by_task[task] = (mtime, path, data)
+    return {task: (path, data) for task, (_, path, data) in by_task.items()}
 
 
 def main():
@@ -69,8 +69,7 @@ def main():
     metric_name_per_task: dict[str, str] = {}
 
     for mdir in model_dirs:
-        for task, path in newest_per_task(mdir).items():
-            data = json.loads(path.read_text())
+        for task, (path, data) in newest_per_task(mdir).items():
             metrics = data["results"].get(task, {})
             headline = pick_headline(task, metrics)
             if headline is None:

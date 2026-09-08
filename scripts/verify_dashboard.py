@@ -25,11 +25,7 @@ from metric_selection import iter_headline_metrics
 
 def task_values(mdir: Path) -> dict[tuple[str, str], float]:
     out: dict[tuple[str, str], float] = {}
-    for task, path in newest_per_task(mdir).items():
-        try:
-            data = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
+    for task, (path, data) in newest_per_task(mdir).items():
         metrics = data.get("results", {}).get(task, {})
         for row_task, metric, value in iter_headline_metrics(task, metrics):
             out[(row_task, metric)] = value

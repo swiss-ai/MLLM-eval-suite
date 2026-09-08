@@ -21,7 +21,7 @@ import re
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from suite.coverage import cell_provenance, collect_manifests, find_manifest  # noqa: E402
+from suite.coverage import Manifests, cell_provenance  # noqa: E402
 from suite.coverage import coverage as coverage_report  # noqa: E402
 from suite.tasks import benchmarks_dict, load_registry  # noqa: E402
 
@@ -60,7 +60,16 @@ VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + EXTRA_VK_PREFIXES
 LM_EVAL_TASKS = tuple(k for k, b in BENCHMARKS.items() if b.get("lm_metric"))
 
 
+def is_partial_run(manifest: dict | None) -> bool:
+    """A run launched with a sample limit (gate checks, smoke tests) is never a dashboard number."""
+    return bool(((manifest or {}).get("generation") or {}).get("limit"))
+
+
 def framework_for(task: str) -> str:
+    """The harness whose number is authoritative for a task: the registry's owner, else the legacy prefix rule."""
+    registered = REGISTRY.lookup("lmms-eval", task)
+    if registered is not None:
+        return registered.framework
     if task in LM_EVAL_TASKS:
         return "lm-eval"
     return "VLMEvalKit" if task.lower().startswith(VLMEVALKIT_PREFIXES) else "lmms-eval"
@@ -248,7 +257,7 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
     return None
 
 
-def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
+def collect_vlmeval(vk_root: Path, model_filters: list[str] | None, manifests: Manifests):
     model_dirs = sorted(d for d in vk_root.iterdir() if d.is_dir())
     if model_filters:
         model_dirs = [d for d in model_dirs
@@ -305,9 +314,12 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
             if value is None:
                 skipped.append(f"{mdir.name}/{vk_name}")
                 continue
+            manifest = manifests.for_result(acc)
+            if is_partial_run(manifest):
+                continue
             models.add(canon)
             cell = {"v": round(value, 2), "raw": value, "run": acc.parent.name}
-            prov = cell_provenance(find_manifest(acc))
+            prov = cell_provenance(manifest)
             if prov:
                 cell["prov"] = prov
             # mm_safetybench is direction-normalized to safety_rate at derivation
@@ -337,7 +349,7 @@ def short_labels(names: list[str]) -> dict[str, str]:
     return {n: (n[cut:] or n) for n in names}
 
 
-def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: bool = False):
+def collect(runs_root: Path, model_filters: list[str] | None, manifests: Manifests, include_spatial: bool = False):
     model_dirs = sorted(d for d in runs_root.iterdir() if d.is_dir())
     if model_filters:
         model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
@@ -350,12 +362,8 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
         trunc = _truncation_for(mdir.name)
-        for task, path in newest_per_task(mdir).items():
+        for task, (path, data) in newest_per_task(mdir).items():
             if task.lower().startswith(DROPPED_TASK_PREFIXES):
-                continue
-            try:
-                data = json.loads(path.read_text())
-            except (OSError, json.JSONDecodeError):
                 continue
             metrics = data.get("results", {}).get(task, {})
             run_id = path.relative_to(mdir).parts[0] if path.is_relative_to(mdir) else ""
@@ -363,6 +371,11 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
             # there, not here; lmms-eval's number for them is non-authoritative.
             if not include_spatial and framework_for(task) == "VLMEvalKit":
                 continue
+            manifest = manifests.for_result(path)
+            if is_partial_run(manifest):
+                continue
+            prov = cell_provenance(manifest)
+            mt = path.stat().st_mtime
             for row_task, metric, value in iter_headline_metrics(task, metrics):
                 registered = REGISTRY.resolve("lmms-eval", row_task)
                 if registered is not None:
@@ -378,12 +391,10 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
                 cell = {"v": round(norm * 100, 2), "raw": value, "run": run_id}
                 if task in trunc:
                     cell["t"] = round(trunc[task] * 100, 1)
-                prov = cell_provenance(find_manifest(path))
                 if prov:
                     cell["prov"] = prov
                 # Two result dirs can canonicalize to one column (label case,
                 # path-slug variants); the newest artifact wins, not dir order.
-                mt = path.stat().st_mtime
                 key = (row_task, metric, canon)
                 if cell_mtimes.get(key, -1) <= mt:
                     rows.setdefault((row_task, metric), {})[canon] = cell
@@ -397,7 +408,7 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
     return models, table
 
 
-def collect_lm_eval(lm_root: Path, model_filters: list[str] | None):
+def collect_lm_eval(lm_root: Path, model_filters: list[str] | None, manifests: Manifests):
     """results/lm-eval/<model>/<run-id>/<task>/.../results_*.json → cells.
 
     lm_eval nests its json under a sanitized model dir, so rglob; only tasks
@@ -418,6 +429,8 @@ def collect_lm_eval(lm_root: Path, model_filters: list[str] | None):
             except (OSError, json.JSONDecodeError):
                 continue
             run_id = path.relative_to(mdir).parts[0]
+            if is_partial_run(manifests.for_result(path)):
+                continue
             for task, metrics in data.get("results", {}).items():
                 rec = BENCHMARKS.get(task, {})
                 metric = rec.get("lm_metric")
@@ -857,6 +870,26 @@ renderAll();
 """
 
 
+def import_legacy(merged: dict, models: list[str], legacy_paths: list[Path]) -> int:
+    """Fill (task, metric, model) slots no current result covers from earlier builds, marked legacy.
+
+    Purged raw results survive only there; the mark lets the page and the coverage
+    report tell a legacy number from a manifest-backed one."""
+    n_legacy = 0
+    for legacy_path in legacy_paths:
+        legacy = json.loads(legacy_path.read_text())
+        for row in legacy.get("table", []):
+            key = (row["task"], row["metric"])
+            target = merged.setdefault(key, {"task": row["task"], "metric": row["metric"], "framework": row["framework"], "cells": {}})
+            for model, cell in row["cells"].items():
+                if model not in target["cells"]:
+                    target["cells"][model] = dict(cell, legacy=True)
+                    n_legacy += 1
+                    if model not in models:
+                        models.append(model)
+    return n_legacy
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--runs-root", required=True, type=Path, nargs="+",
@@ -881,21 +914,23 @@ def main():
     if args.models_file:
         args.only, args.label, aliases, model_groups = parse_models_manifest(args.models_file)
 
+    manifest_roots = list(args.runs_root) + ([args.vlmeval_results_root] if args.vlmeval_results_root else [])
+    manifests = Manifests(manifest_roots)
     models_l: list[str] = []
     table_l: list[dict] = []
     for root in args.runs_root:
         if not root.is_dir():
             print(f"runs-root not found, skipping: {root}")
             continue
-        m, t = collect(root.resolve(), args.models, args.include_spatial)
+        m, t = collect(root.resolve(), args.models, manifests, args.include_spatial)
         models_l = sorted(set(models_l) | set(m))
         table_l += t
     models_v, table_v = ([], [])
     if args.vlmeval_root:
-        models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
+        models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models, manifests)
     models_t, table_t = ([], [])
     if args.lm_eval_root:
-        models_t, table_t = collect_lm_eval(args.lm_eval_root.resolve(), args.models)
+        models_t, table_t = collect_lm_eval(args.lm_eval_root.resolve(), args.models, manifests)
     if aliases:
         models_l = [aliases.get(m, m) for m in models_l]
         models_v = [aliases.get(m, m) for m in models_v]
@@ -918,21 +953,7 @@ def main():
             merged[key]["cells"].update(row["cells"])
         else:
             merged[key] = dict(row)
-    # Purged raw results survive only in earlier builds: import their cells
-    # wherever nothing current covers the slot, and mark them so the page and
-    # the coverage report can tell a legacy number from a manifest-backed one.
-    n_legacy = 0
-    for legacy_path in args.legacy_json:
-        legacy = json.loads(legacy_path.read_text())
-        for row in legacy.get("table", []):
-            key = (row["task"], row["metric"])
-            target = merged.setdefault(key, {"task": row["task"], "metric": row["metric"], "framework": row["framework"], "cells": {}})
-            for model, cell in row["cells"].items():
-                if model not in target["cells"]:
-                    target["cells"][model] = dict(cell, legacy=True)
-                    n_legacy += 1
-                    if model not in models:
-                        models.append(model)
+    n_legacy = import_legacy(merged, models, args.legacy_json)
     if n_legacy:
         print(f"legacy: imported {n_legacy} cells from {len(args.legacy_json)} earlier build(s)")
     table = [merged[key] for key in sorted(merged)]
@@ -976,15 +997,14 @@ def main():
         f"<b>{len(models)}</b> checkpoints · <b>{len(cells_rows)}</b> metric rows · "
         f"{sources} · generated {datetime.datetime.now():%Y-%m-%d %H:%M}"
     )
-    manifest_roots = [r for r in args.runs_root] + ([args.vlmeval_results_root] if args.vlmeval_results_root else [])
-    manifests = collect_manifests(manifest_roots, REGISTRY, canonical_model_key)
+    manifest_cells = manifests.by_cell(REGISTRY, canonical_model_key)
     if aliases:
-        manifests = {(t, aliases.get(mk, mk)): man for (t, mk), man in manifests.items()}
-    cov = coverage_report(cells_rows, models, REGISTRY, manifests,
-                   tasks=[t.name for t in REGISTRY.tasks.values() if t.card or t.report])
+        manifest_cells = {(t, aliases.get(mk, mk)): man for (t, mk), man in manifest_cells.items()}
+    cov = coverage_report(cells_rows, models, REGISTRY, manifest_cells,
+                          tasks=[t.name for t in REGISTRY.tasks.values() if t.card or t.report])
     data["coverage"] = cov["counts"]
     for key in list(args.only or []):
-        if not any(key in r["cells"] for r in cells_rows) and not any(mk == key for (_t, mk) in manifests):
+        if not any(key in r["cells"] for r in cells_rows) and not any(mk == key for (_t, mk) in manifest_cells):
             print(f"registry: column {key!r} has no results and no manifests")
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
     html_text = HTML_TEMPLATE.replace("__DATA__", payload).replace("__META__", meta)
