@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from suite.tasks import Registry
+from suite.result_selection import ineligible_reason
 
 
 class Manifests:
@@ -18,20 +19,23 @@ class Manifests:
     def __init__(self, roots):
         self.entries: list[tuple[Path, Path, dict]] = []
         self.by_dir: dict[Path, dict] = {}
-        for root in map(Path, roots):
+        self.rejected_results: set[tuple[str, str, str, str]] = set()
+        for root in sorted({Path(root).resolve() for root in roots}):
             if not root.is_dir():
                 continue
-            for path in root.rglob("run_meta.json"):
+            for path in sorted(root.rglob("run_meta.json")):
                 try:
                     man = json.loads(path.read_text())
-                except (OSError, json.JSONDecodeError):
-                    continue
+                    if not isinstance(man, dict):
+                        raise ValueError("manifest must be an object")
+                except (OSError, ValueError):
+                    man = {"status": "invalid", "error": "unreadable or malformed manifest"}
                 self.entries.append((root, path, man))
-                self.by_dir[path.parent] = man
+                self.by_dir[path.parent.resolve()] = man
 
     def for_result(self, path: Path) -> dict | None:
         """The manifest of the run that produced a results file, or None."""
-        for parent in Path(path).parents:
+        for parent in Path(path).resolve().parents:
             if parent in self.by_dir:
                 return self.by_dir[parent]
         return None
@@ -44,16 +48,45 @@ class Manifests:
             if len(rel) < 3:
                 continue
             if man.get("framework") == "VLMEvalKit":
-                model_dir, harness_id = rel[1], man.get("task") or rel[2]
+                # Shared output roots omit the outer suite run directory.
+                model_dir = rel[0] if len(rel) == 3 else rel[1]
+                harness_id = man.get("task") or rel[-2]
                 task = registry.resolve("VLMEvalKit", harness_id)
                 task_name = task.name if task else harness_id.lower()
             else:
                 model_dir, task_name = rel[0], man.get("task") or rel[2]
+                task = registry.resolve(man.get("framework", "lmms-eval"), task_name)
+                task_name = task.name if task else task_name
             key = (task_name, canonical_key(model_dir))
             prev = out.get(key)
             if prev is None or (man.get("started_at") or 0) >= (prev.get("started_at") or 0):
                 out[key] = man
         return out
+
+    def rejected_runs(self, registry: Registry, canonical_key, aliases: dict) -> set[tuple[str, str, str]]:
+        """Known rejected run identities must not reappear through a legacy snapshot."""
+        rejected = {(task, aliases.get(model, model), run)
+                    for task, model, run, _source in self.rejected_results}
+        for root, path, man in self.entries:
+            if ineligible_reason(man) is None:
+                continue
+            rel = path.relative_to(root).parts
+            if len(rel) < 4:
+                continue
+            vk = man.get("framework") == "VLMEvalKit"
+            model, run = (rel[1], rel[0]) if vk else (rel[0], rel[1])
+            task_id = man.get("task") or rel[2]
+            task = registry.resolve(man.get("framework", "lmms-eval"), task_id)
+            key = canonical_key(model)
+            rejected.add((task.name if task else task_id, aliases.get(key, key), man.get("run_id") or run))
+            if vk:
+                # Earlier dashboard builds stored the bridge directory name.
+                rejected.add((task.name if task else task_id, aliases.get(key, key), f"{rel[2]}__{run}"))
+        return rejected
+
+    def reject_result(self, path: Path, task: str, model: str, run: str) -> None:
+        """Keep result-level rejection evidence for the later legacy import."""
+        self.rejected_results.add((task, model, run, str(path.resolve())))
 
 
 def cell_provenance(manifest: dict | None) -> dict | None:

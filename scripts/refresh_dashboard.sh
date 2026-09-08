@@ -18,7 +18,7 @@ OUT="${OUT:-$SUITE/docs/index.html}"
 # the symlinks.
 # Derive acc.csv for VLMEvalKit judge benchmarks whose headline score lives only
 # in the run log (this fork doesn't persist a result file for judge tasks).
-"$PY" "$HERE/derive_vlmeval_acc.py" 2>/dev/null || true
+"$PY" "$HERE/derive_vlmeval_acc.py"
 
 rm -rf "$BRIDGE"; mkdir -p "$BRIDGE"
 # Link per-benchmark with a run-id suffix so every run's copy stays visible;
@@ -61,6 +61,11 @@ LEGACY_ARGS=()
 for legacy in "$SUITE"/docs/legacy/dashboard-*.json; do
   [[ -f "$legacy" ]] && LEGACY_ARGS+=(--legacy-json "$legacy")
 done
+# Refuse to replace the published artifacts when distinct source directories
+# disagree under a shared model identity. Use the same roots and aliases as build.
+"$PY" "$HERE/verify_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" \
+  --vlmeval-root "$BRIDGE" --vlmeval-results-root "$SUITE_VLMEVAL" \
+  --lm-eval-root "$SUITE/results/lm-eval" --models-file "$MODELS_FILE"
 "$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --vlmeval-results-root "$SUITE_VLMEVAL" \
   --lm-eval-root "$SUITE/results/lm-eval" --models-file "$MODELS_FILE" "${LEGACY_ARGS[@]}" -o "$OUT"
 # internal checkpoint results: keep out of search indexes

@@ -77,6 +77,26 @@ def test_dangling_weight_symlink(tmp_path):
     assert "model:weights" in _failed(_run(reg, m, t, v, img, "lmms-eval", ["pope"], {}))
 
 
+def test_weight_index_references_missing_shard(tmp_path):
+    reg, m, t, v, img, fr = _setup(tmp_path)
+    (m / "model.safetensors.index.json").write_text(
+        '{"weight_map": {"layer.weight": "model-00002-of-00002.safetensors"}}'
+    )
+    assert "model:weights" in _failed(_run(reg, m, t, v, img, "lmms-eval", ["pope"], {}))
+
+
+def test_empty_weight_index(tmp_path):
+    reg, m, t, v, img, fr = _setup(tmp_path)
+    (m / "model.safetensors.index.json").write_text('{"weight_map": {}}')
+    assert "model:weights" in _failed(_run(reg, m, t, v, img, "lmms-eval", ["pope"], {}))
+
+
+def test_dangling_weight_index(tmp_path):
+    reg, m, t, v, img, fr = _setup(tmp_path)
+    (m / "model.safetensors.index.json").symlink_to(tmp_path / "missing-index")
+    assert "model:weights" in _failed(_run(reg, m, t, v, img, "lmms-eval", ["pope"], {}))
+
+
 def test_missing_asset_judge_and_context(tmp_path):
     reg, m, t, v, img, fr = _setup(tmp_path)
     assert "task:frieda:assets" in _failed(_run(reg, m, t, v, img, "lmms-eval", ["frieda"], {"FRIEDA_DIR": str(tmp_path / "nowhere")}))

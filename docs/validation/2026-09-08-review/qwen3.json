@@ -1,0 +1,23 @@
+{
+  "model": "/capstor/store/cscs/swissai/infra01/MLLM/model_baseline/Qwen3-VL-8B-Instruct",
+  "baseline": "e8e1b2accd0603996b717130ad20ebca89c94efd",
+  "candidate": "63dafbbe806730947237f50220864d34e1f2da36",
+  "vllm": "0.26.1rc1.dev687+g324f452f6",
+  "requests": 2,
+  "before": [
+    "Red",
+    "blue"
+  ],
+  "after": [
+    "Red",
+    "blue"
+  ],
+  "exact_matches": 2,
+  "nonempty": true,
+  "image_sha256": [
+    "ae57d049c37fbbf91f4595bb27cf43ef0ed08db17503bbd3a4eb3d18f203fa5a",
+    "9fec6ffbf66db069c4d189b7ed76e7237f6c2c2c76586cf3a5e6394dc9741b6f"
+  ],
+  "elapsed_seconds": 122.24803018569946,
+  "scope": "Actual simple VLLM wrapper, same loaded engine, synthetic images; no accuracy or speed claim."
+}

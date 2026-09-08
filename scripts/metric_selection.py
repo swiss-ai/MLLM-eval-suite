@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+import math
 
 
 def metric_display_name(metric: str) -> str:
@@ -170,6 +171,8 @@ def iter_headline_metrics(task: str, metrics: dict[str, Any], headline: tuple[st
 
 
 def normalize_score(metric: str, value: float) -> float | None:
+    if not math.isfinite(value):
+        return None
     lowered = metric.lower()
     if "cider" in lowered:
         return value

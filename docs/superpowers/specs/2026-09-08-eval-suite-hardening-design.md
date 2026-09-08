@@ -165,7 +165,7 @@ Pointers move on `yxu/harness-sync-2026-09-08`, stacked on the hardening branch 
 
 ### 12.5 Does the sync change inference speed?
 
-Wall-clock seconds per run on one node of the coding allocation, warm caches, the same 8B and settings, each pair run in both orders. Whichever run comes second in a pair is faster, on every harness, so run order dominates and no harness-version effect is measurable. The engine is the same container image (vLLM 0.26.1) on both sides; inference speed is a property of the image, and a speedup would come from the vLLM 0.28 trial image, which is a separate validation.
+Wall-clock seconds per run on one node of the coding allocation, the same 8B and settings. These small comparisons include cold initialization and variable cache state; the table does not show a consistent benefit from either the candidate or running second. They establish no reliable harness-version speedup. Both sides use the same engine image (vLLM 0.26.1). The vLLM 0.28 trial image requires a separate controlled comparison before making a speed claim.
 
 | Pair | Pinned first | Merged second | Merged first | Pinned second |
 |---|---|---|---|---|
