@@ -364,6 +364,9 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
             if not include_spatial and framework_for(task) == "VLMEvalKit":
                 continue
             for row_task, metric, value in iter_headline_metrics(task, metrics):
+                registered = REGISTRY.resolve("lmms-eval", row_task)
+                if registered is not None:
+                    row_task = registered.name
                 # mathvista is judge-canonical now, so keep ONLY its judge metric
                 # (drop the stale pre-switch extraction relic); every other task's
                 # judge metric is dummy-prone, so drop that. (XOR.)

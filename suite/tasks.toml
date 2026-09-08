@@ -736,7 +736,7 @@ judge_env = "HEALTHBENCH_GRADER_BASE_URL"
 
 [tasks.slake]
 framework = "lmms-eval"
-harness_task = "slake"
+harness_task = "slake_medevalkit"
 card = true
 
 [tasks.path_vqa]
