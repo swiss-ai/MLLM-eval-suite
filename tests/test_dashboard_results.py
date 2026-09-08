@@ -417,3 +417,33 @@ def test_gather_cli_keeps_older_eligible_result(tmp_path, monkeypatch, capsys):
     gather_results.main()
     output = capsys.readouterr().out
     assert "0.6000" in output and "0.9900" not in output
+
+
+@pytest.mark.parametrize('task, metrics, expected', [
+    ('mmlu_flan_cot_zeroshot', {'exact_match,strict-match': .1, 'exact_match,flexible-extract': .7}, 70),
+    ('squadv2', {'f1,none': .5, 'exact,none': .2}, .5),
+    ('squadv2', {'f1,none': 75, 'exact,none': 50}, 75),
+    ('drop', {'f1,none': .5, 'em,none': .2}, 50),
+    ('alpaca_eval', {'length_controlled_winrate,none': .65, 'avg_word_count,none': 500}, 65),
+    ('humaneval_instruct', {'pass@1,create_test': .75}, 75),
+    ('mbpp_instruct', {'pass_at_1,extract_code': .6}, 60),
+    ('global_mmlu_gen_0shot', {'exact_match,extract-answer': .6}, 60),
+    ('bbh', {'exact_match,get-answer': .6}, 60),
+])
+def test_requested_text_metric_filters_and_units(tmp_path, task, metrics, expected):
+    path = result(tmp_path, 'full', .1, 100, task=task, framework='lm-eval')
+    path.write_text(json.dumps({'results': {task: metrics}}))
+    _, rows = dashboard.collect_lm_eval(tmp_path, None, Manifests([tmp_path]))
+    assert len(rows) == 1
+    assert rows[0]['cells']['model']['v'] == expected
+
+
+def test_acp_tag_keeps_both_component_families_without_inventing_overall(tmp_path):
+    path = result(tmp_path, 'full', .1, 100, task='acp_bench', framework='lm-eval')
+    path.write_text(json.dumps({'results': {
+        'acp_areach_bool': {'exact_match,extract-yes-no': .4},
+        'acp_areach_mcq': {'exact_match,mcq-extract': .8},
+    }}))
+    _, rows = dashboard.collect_lm_eval(tmp_path, None, Manifests([tmp_path]))
+    assert {row['task']: row['cells']['model']['v'] for row in rows} == {
+        'acp_areach_bool': 40, 'acp_areach_mcq': 80}

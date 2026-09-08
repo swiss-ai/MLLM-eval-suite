@@ -18,6 +18,7 @@ HF_HOME_PATH="${HF_HOME:-${ORCH_REPO_ROOT}/cache/hf}"
 GEN_KWARGS=""
 EXTRA_MODEL_ARGS=""
 APPLY_CHAT_TEMPLATE=0
+CONFIRM_RUN_UNSAFE_CODE=0
 CHAT_TEMPLATE_NAME=""
 LIMIT=""
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.85}"
@@ -28,6 +29,7 @@ usage() {
 eval_job.slurm --model-path P --tasks T --output-path O
   [--num-processes N] [--hf-home P] [--gen-kwargs K] [--extra-model-args A]
   [--apply-chat-template] [--limit N] [--gpu-memory-utilization F] [--max-model-len N]
+  [--confirm-run-unsafe-code]  Enable generated-code scoring for HumanEval/MBPP.
 EOF
 }
 
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
     --limit)                  LIMIT="$2"; shift 2 ;;
     --gpu-memory-utilization) GPU_MEMORY_UTILIZATION="$2"; shift 2 ;;
     --max-model-len)          MAX_MODEL_LEN="$2"; shift 2 ;;
+    --confirm-run-unsafe-code) CONFIRM_RUN_UNSAFE_CODE=1; shift ;;
     -h|--help)                usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage; exit 1 ;;
   esac
@@ -99,6 +102,10 @@ if [[ "$APPLY_CHAT_TEMPLATE" -eq 1 ]]; then
   [[ -n "$CHAT_TEMPLATE_NAME" ]] && CMD+=("$CHAT_TEMPLATE_NAME")
 fi
 [[ -n "$LIMIT" ]] && CMD+=(--limit "$LIMIT")
+if [[ "$CONFIRM_RUN_UNSAFE_CODE" -eq 1 ]]; then
+  export HF_ALLOW_CODE_EVAL=1
+  CMD+=(--confirm_run_unsafe_code)
+fi
 
 echo "========== lm-eval launch =========="
 echo "LM_EVAL_COMMIT=${LM_EVAL_COMMIT}"

@@ -15,9 +15,9 @@ JUDGE_ENV = {"openai": "OPENAI_API_KEY"}
 SUITE_LIST_FILES = {"lmms-eval": "task_suites/lmms-eval/visual_llm_judge.txt",
                     "VLMEvalKit": "task_suites/VLMEvalKit/llm_judge.txt"}
 TASK_FIELDS = {"framework", "harness_task", "judge", "judge_env", "lmms_task", "assets",
-               "max_model_len", "multi_image", "card", "report"}
+               "max_model_len", "multi_image", "card", "report", "result_tasks"}
 ASSET_FIELDS = {"env", "relative", "source", "extract", "min_files"}
-DASHBOARD_FIELDS = {"cat", "cat_prefix", "vk", "vk_prefix", "headline", "lmms_headline", "headline_strict", "lm_metric"}
+DASHBOARD_FIELDS = {"cat", "cat_prefix", "vk", "vk_prefix", "headline", "lmms_headline", "headline_strict", "lm_metric", "lm_metric_unit"}
 
 
 @dataclass(frozen=True)
@@ -47,6 +47,7 @@ class Task:
     multi_image: bool = False
     card: bool = False
     report: bool = False
+    result_tasks: tuple[str, ...] = ()
 
     def harness_id_for(self, framework: str) -> str | None:
         """The id this task has on a harness: its own id on the owning harness, the lmms-eval alias elsewhere."""
@@ -133,7 +134,7 @@ def _task(name: str, raw: dict, defaults: dict) -> Task:
                 judge_env=judge_env, lmms_task=raw.get("lmms_task"), assets=tuple(assets),
                 max_model_len=int(raw.get("max_model_len", defaults.get("max_model_len", 131072))),
                 multi_image=bool(raw.get("multi_image", False)), card=bool(raw.get("card", False)),
-                report=bool(raw.get("report", False)))
+                report=bool(raw.get("report", False)), result_tasks=tuple(raw.get("result_tasks", ())))
 
 
 def _dashboard(name: str, raw: dict) -> dict:
@@ -141,6 +142,8 @@ def _dashboard(name: str, raw: dict) -> dict:
     if unknown:
         raise ValueError(f"dashboard {name!r}: unknown fields {sorted(unknown)}")
     entry = dict(raw)
+    if "lm_metric_unit" in entry and entry["lm_metric_unit"] not in {"fraction", "percent"}:
+        raise ValueError(f"dashboard {name!r}: lm_metric_unit must be fraction or percent")
     for key in ("headline", "lmms_headline"):
         if key in entry:
             entry[key] = tuple(entry[key])

@@ -1101,7 +1101,7 @@ harness_task = "PathMMU_TEST"
 framework = "VLMEvalKit"
 harness_task = "VLMBlind"
 
-# Text tasks (lm-eval-harness); judge-free.
+# Text tasks (lm-eval-harness); optional judges are declared per task.
 [tasks.aime24]
 framework = "lm-eval"
 harness_task = "aime24"
@@ -1181,3 +1181,307 @@ max_model_len = 65536
 framework = "lm-eval"
 harness_task = "winogrande"
 max_model_len = 65536
+
+[tasks.mmlu_flan_cot_zeroshot]
+framework = "lm-eval"
+harness_task = "mmlu_flan_cot_zeroshot"
+max_model_len = 65536
+
+[dashboard.mmlu_flan_cot_zeroshot]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,flexible-extract"
+
+[tasks.commonsense_qa]
+framework = "lm-eval"
+harness_task = "commonsense_qa"
+max_model_len = 65536
+
+[dashboard.commonsense_qa]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[tasks.squadv2]
+framework = "lm-eval"
+harness_task = "squadv2"
+max_model_len = 65536
+
+[dashboard.squadv2]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "f1,none"
+lm_metric_unit = "percent"
+
+[tasks.multi-if]
+framework = "lm-eval"
+harness_task = "multi-if"
+max_model_len = 65536
+
+[dashboard.multi-if]
+cat = "Instruction Following (Text)"
+lm_metric = "prompt_level_strict_acc,none"
+
+[tasks.alpaca_eval]
+framework = "lm-eval"
+harness_task = "alpaca_eval"
+max_model_len = 65536
+judge = "alpaca_eval"
+judge_env = "ALPACA_EVAL_ANNOTATORS_CONFIG"
+
+[dashboard.alpaca_eval]
+cat = "Instruction Following (Text)"
+lm_metric = "length_controlled_winrate,none"
+
+[tasks.gsm8k_cot]
+framework = "lm-eval"
+harness_task = "gsm8k_cot"
+max_model_len = 65536
+
+[dashboard.gsm8k_cot]
+cat = "Math (Text)"
+lm_metric = "exact_match,flexible-extract"
+
+[tasks.hendrycks_math]
+framework = "lm-eval"
+harness_task = "hendrycks_math"
+max_model_len = 65536
+
+[dashboard.hendrycks_math]
+cat = "Math (Text)"
+lm_metric = "exact_match,none"
+
+[tasks.minerva_math]
+framework = "lm-eval"
+harness_task = "minerva_math"
+max_model_len = 65536
+
+[dashboard.minerva_math]
+cat = "Math (Text)"
+lm_metric = "exact_match,none"
+
+[tasks.mathqa]
+framework = "lm-eval"
+harness_task = "mathqa"
+max_model_len = 65536
+
+[dashboard.mathqa]
+cat = "Math (Text)"
+lm_metric = "acc_norm,none"
+
+[tasks.humaneval_instruct]
+framework = "lm-eval"
+harness_task = "humaneval_instruct"
+max_model_len = 65536
+
+[dashboard.humaneval_instruct]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "pass@1,create_test"
+
+[tasks.mbpp_instruct]
+framework = "lm-eval"
+harness_task = "mbpp_instruct"
+max_model_len = 65536
+
+[dashboard.mbpp_instruct]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "pass_at_1,extract_code"
+
+[tasks.bbh]
+framework = "lm-eval"
+harness_task = "bbh"
+max_model_len = 65536
+
+[dashboard.bbh]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,get-answer"
+
+[tasks.acp_bench]
+framework = "lm-eval"
+harness_task = "acp_bench"
+max_model_len = 65536
+# Upstream tag: require every component; it has no aggregate result row.
+result_tasks = [
+  "acp_areach_bool", "acp_areach_mcq",
+  "acp_app_bool", "acp_app_mcq",
+  "acp_just_bool", "acp_just_mcq",
+  "acp_land_bool", "acp_land_mcq",
+  "acp_prog_bool", "acp_prog_mcq",
+  "acp_reach_bool", "acp_reach_mcq",
+  "acp_val_bool", "acp_val_mcq",
+]
+
+[dashboard.acp_bench]
+cat = "Knowledge & Reasoning (Text)"
+
+[tasks.drop]
+framework = "lm-eval"
+harness_task = "drop"
+max_model_len = 65536
+
+[dashboard.drop]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "f1,none"
+
+[tasks.global_mmlu_gen_0shot]
+framework = "lm-eval"
+harness_task = "global_mmlu_gen_0shot"
+max_model_len = 65536
+
+[dashboard.global_mmlu_gen_0shot]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-answer"
+
+[tasks.mgsm_en_cot_en]
+framework = "lm-eval"
+harness_task = "mgsm_en_cot_en"
+max_model_len = 65536
+
+[dashboard.mgsm_en_cot_en]
+cat = "Math (Text)"
+lm_metric = "exact_match,flexible-extract"
+
+[tasks.truthfulqa_multilingual_mc2]
+framework = "lm-eval"
+harness_task = "truthfulqa_multilingual_mc2"
+max_model_len = 65536
+
+[dashboard.truthfulqa_multilingual_mc2]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[tasks.include_base_44_gen_0shot]
+framework = "lm-eval"
+harness_task = "include_base_44_gen_0shot"
+max_model_len = 65536
+
+[dashboard.include_base_44_gen_0shot]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-answer"
+
+[tasks.include_base_new_45_gen_0shot]
+framework = "lm-eval"
+harness_task = "include_base_new_45_gen_0shot"
+max_model_len = 65536
+
+[dashboard.include_base_new_45_gen_0shot]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-answer"
+
+[tasks.xnli]
+framework = "lm-eval"
+harness_task = "xnli"
+max_model_len = 65536
+
+[dashboard.xnli]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[tasks.blend_sample]
+framework = "lm-eval"
+harness_task = "blend_sample"
+max_model_len = 65536
+
+[dashboard.blend_sample]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[tasks.cultural_bench]
+framework = "lm-eval"
+harness_task = "cultural_bench"
+max_model_len = 65536
+
+[dashboard.cultural_bench]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[tasks.switzerland_qa_0shot]
+framework = "lm-eval"
+harness_task = "switzerland_qa_0shot"
+max_model_len = 65536
+
+[dashboard.switzerland_qa_0shot]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-answer"
+
+[tasks.bbq]
+framework = "lm-eval"
+harness_task = "bbq"
+max_model_len = 65536
+
+[dashboard.bbq]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[tasks.toxigen]
+framework = "lm-eval"
+harness_task = "toxigen"
+max_model_len = 65536
+
+[dashboard.toxigen]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+[tasks.wmdp]
+framework = "lm-eval"
+harness_task = "wmdp"
+max_model_len = 65536
+
+[dashboard.wmdp]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "acc,none"
+
+# ACPBench tag components: bool and MCQ use distinct extraction filters.
+
+[dashboard.acp_areach_bool]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-yes-no"
+
+[dashboard.acp_areach_mcq]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,mcq-extract"
+
+[dashboard.acp_app_bool]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-yes-no"
+
+[dashboard.acp_app_mcq]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,mcq-extract"
+
+[dashboard.acp_just_bool]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-yes-no"
+
+[dashboard.acp_just_mcq]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,mcq-extract"
+
+[dashboard.acp_land_bool]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-yes-no"
+
+[dashboard.acp_land_mcq]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,mcq-extract"
+
+[dashboard.acp_prog_bool]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-yes-no"
+
+[dashboard.acp_prog_mcq]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,mcq-extract"
+
+[dashboard.acp_reach_bool]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-yes-no"
+
+[dashboard.acp_reach_mcq]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,mcq-extract"
+
+[dashboard.acp_val_bool]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,extract-yes-no"
+
+[dashboard.acp_val_mcq]
+cat = "Knowledge & Reasoning (Text)"
+lm_metric = "exact_match,mcq-extract"

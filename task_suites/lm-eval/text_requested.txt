@@ -1,0 +1,33 @@
+# Requested 31-task battery; optional AlpacaEval judge and code execution require explicit setup.
+# Multi-IF evaluates the first turn only. ACPBench reports 14 component rows.
+mmlu_flan_cot_zeroshot
+mmlu_pro
+truthfulqa_mc2
+commonsense_qa
+squadv2
+hellaswag
+ifeval
+ifbench
+multi-if
+alpaca_eval
+gsm8k_cot
+hendrycks_math
+minerva_math
+mathqa
+humaneval_instruct
+mbpp_instruct
+bbh
+acp_bench
+drop
+global_mmlu_gen_0shot
+mgsm_en_cot_en
+truthfulqa_multilingual_mc2
+include_base_44_gen_0shot
+include_base_new_45_gen_0shot
+xnli
+blend_sample
+cultural_bench
+switzerland_qa_0shot
+bbq
+toxigen
+wmdp
