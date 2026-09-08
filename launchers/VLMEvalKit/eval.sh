@@ -26,6 +26,8 @@ WORK_BASE="${WORK_BASE:-${REPO_ROOT}/results/VLMEvalKit}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)_$$}"
 WORK_BASE="${WORK_BASE}/${RUN_ID}"
 RUNTIME_CACHE="${RUNTIME_CACHE:-${REPO_ROOT}/cache}"
+DEFAULT_APERTUS_TOKENIZER="/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed"
+[[ -n "${APERTUS_MAX_MODEL_LEN+x}" ]] && USER_APERTUS_MAX_MODEL_LEN="${APERTUS_MAX_MODEL_LEN}"
 LOG_BASE="${LOG_DIR:-${REPO_ROOT}/logs/VLMEvalKit}"
 LOG_DIR="${LOG_BASE}/${RUN_ID}"
 
@@ -279,6 +281,29 @@ while IFS= read -r DATASET; do
       MODEL_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
     else
       MODEL_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
+    fi
+    # Preflight (suite/preflight.py): refuse to submit what cannot succeed.
+    TASK_MAX_MODEL_LEN="$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework VLMEvalKit --max-model-len "${DATASET}")"
+    if [[ "${TASK_MAX_MODEL_LEN}" -gt "${USER_APERTUS_MAX_MODEL_LEN:-131072}" ]]; then
+      echo "    context: ${DATASET} needs max_model_len ${TASK_MAX_MODEL_LEN}; overriding"
+      export APERTUS_MAX_MODEL_LEN="${TASK_MAX_MODEL_LEN}"
+    elif [[ -n "${USER_APERTUS_MAX_MODEL_LEN+x}" ]]; then
+      export APERTUS_MAX_MODEL_LEN="${USER_APERTUS_MAX_MODEL_LEN}"
+    else
+      unset APERTUS_MAX_MODEL_LEN
+    fi
+    if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
+      PREFLIGHT_ARGS=(--framework VLMEvalKit --tasks "${DATASET}" --container-image "${SUITE_CONTAINER_IMAGE:-}"
+                      --max-model-len "${APERTUS_MAX_MODEL_LEN:-131072}")
+      if [[ "${MODEL_FOREIGN}" == "1" ]]; then
+        PREFLIGHT_ARGS+=(--model "${MODEL}" --skip-model)
+      else
+        PREFLIGHT_ARGS+=(--model "${APERTUS_MODEL_PATH:-${MODEL}}" --tokenizer "${APERTUS_TOKENIZER_PATH:-${DEFAULT_APERTUS_TOKENIZER}}"
+                         --vision-tokenizer "${RUNTIME_CACHE}/models/BAAI/Emu3.5-VisionTokenizer")
+        [[ -n "${APERTUS_ENABLE_THINKING:-}" ]] && PREFLIGHT_ARGS+=(--thinking)
+      fi
+      PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m suite.preflight "${PREFLIGHT_ARGS[@]}" \
+        || { echo "preflight failed for ${DATASET} / ${MODEL}; not submitting (SKIP_PREFLIGHT=1 overrides)" >&2; exit 2; }
     fi
     JOB_NAME="vlmeval-${DATA_SLUG}"
     WORK_DIR="${WORK_BASE}/${MODEL_SLUG}/${DATA_SLUG}"

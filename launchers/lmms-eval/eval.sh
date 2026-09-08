@@ -57,6 +57,7 @@ XDG_CACHE_HOME_PATH="${XDG_CACHE_HOME:-${REPO_ROOT}/cache/xdg}"
 VLLM_CACHE_ROOT_PATH="${VLLM_CACHE_ROOT:-${REPO_ROOT}/cache/vllm}"
 LMMS_EVAL_MODELS_CACHE_PATH="${LMMS_EVAL_MODELS_CACHE:-${REPO_ROOT}/cache/models}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)_$$}"
+declare -A PREFLIGHTED
 OUTPUT_BASE="${OUTPUT_PATH}"
 OUTPUT_PATH="${OUTPUT_BASE}/${RUN_ID}"
 LOG_DIR="${LOG_BASE}/${RUN_ID}"
@@ -294,6 +295,8 @@ echo "========================================"
 # ------------------------------------------------------------------
 while IFS= read -r TASK; do
   [[ -z "$TASK" ]] && continue
+  TASK_MAX_MODEL_LEN="$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lmms-eval --max-model-len "$TASK")"
+  [[ -z "$TASK" ]] && continue
   TASK_CACHE_DIR="$CACHE_BASE/$TASK"
   mkdir -p "$TASK_CACHE_DIR"
 
@@ -322,6 +325,16 @@ while IFS= read -r TASK; do
       continue
     fi
 
+    # Preflight (suite/preflight.py): refuse to submit what cannot succeed.
+    if [[ "${SKIP_PREFLIGHT:-0}" != "1" && -z "${PREFLIGHTED[$MODEL_PATH]:-}" ]]; then
+      PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}" python3 -m suite.preflight --framework lmms-eval \
+        --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" ${ENABLE_THINKING:+--thinking} \
+        --tokenizer "$TOKENIZER_PATH" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
+        --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "$TASK_MAX_MODEL_LEN" \
+        || { echo "preflight failed for $MODEL_PATH; not submitting (SKIP_PREFLIGHT=1 overrides)" >&2; exit 2; }
+      PREFLIGHTED[$MODEL_PATH]=1
+    fi
+
     # Derive a stable model label: parent dir name if path ends in /HF, else basename.
     MODEL_LABEL="$(basename "$MODEL_PATH")"
     [[ "$MODEL_LABEL" == "HF" ]] && MODEL_LABEL="$(basename "$(dirname "$MODEL_PATH")")"
@@ -334,6 +347,12 @@ while IFS= read -r TASK; do
     # Per-task subdir: lmms-eval names results.json by wall-clock timestamp, so two
     # single-task jobs finishing in the same second clobber each other in a shared dir.
     MODEL_OUTPUT_PATH="${OUTPUT_BASE}/${MODEL_LABEL}/${RUN_ID}/${TASK}"
+    if [[ "$TASK_MAX_MODEL_LEN" -gt "${MAX_MODEL_LEN:-131072}" ]]; then
+      echo "    context: ${TASK} needs max_model_len ${TASK_MAX_MODEL_LEN}; overriding"
+      PASSTHROUGH_TASK=(--max-model-len "$TASK_MAX_MODEL_LEN")
+    else
+      PASSTHROUGH_TASK=()
+    fi
     mkdir -p "$MODEL_OUTPUT_PATH"
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
@@ -374,7 +393,7 @@ while IFS= read -r TASK; do
       --wandb-log-samples "$WANDB_LOG_SAMPLES"
       --wandb-api-key "${WANDB_API_KEY:-}"
     )
-    JOB_ARGS+=("${PASSTHROUGH[@]}")
+    JOB_ARGS+=("${PASSTHROUGH[@]}" "${PASSTHROUGH_TASK[@]}")
 
     if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
       JOB_ARGS+=(--extra-model-args "$EXTRA_MODEL_ARGS")

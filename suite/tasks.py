@@ -164,8 +164,13 @@ def main(argv=None) -> int:
     p.add_argument("--list", choices=["card", "report", "all"], help="print task names in a set")
     p.add_argument("--harness-to-name", action="store_true", help="print '<harness_task>\\t<name>' for --framework")
     p.add_argument("--framework", choices=FRAMEWORKS)
+    p.add_argument("--max-model-len", metavar="TASK", help="print the context length TASK needs on --framework")
     a = p.parse_args(argv)
     reg = load_registry()
+    if a.max_model_len:
+        task = reg.tasks.get(a.max_model_len) or (reg.resolve(a.framework, a.max_model_len) if a.framework else None)
+        print(task.max_model_len if task else reg.defaults.get("max_model_len", 131072))
+        return 0
     if a.write_suite_lists:
         for framework, rel in SUITE_LIST_FILES.items():
             (REPO_ROOT / rel).write_text(suite_list_text(reg, framework))

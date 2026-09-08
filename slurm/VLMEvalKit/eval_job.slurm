@@ -383,6 +383,18 @@ echo "======================================="
 
 # Run manifest (suite/manifest.py): identity before inference, status after.
 export PYTHONPATH="${ORCH_REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
+  PREFLIGHT_ARGS=(--framework VLMEvalKit --tasks "${DATASET}" --container-image "${SUITE_CONTAINER_IMAGE:-}"
+                  --max-model-len "${APERTUS_MAX_MODEL_LEN:-131072}")
+  if [[ -n "${APERTUS_MODEL_PATH}" ]]; then
+    PREFLIGHT_ARGS+=(--model "${APERTUS_MODEL_PATH}" --vision-tokenizer "${VLLM_APERTUS_MODELS_CACHE}/BAAI/Emu3.5-VisionTokenizer"
+                     --tokenizer "${APERTUS_TOKENIZER_PATH:-/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed}")
+    [[ -n "${APERTUS_ENABLE_THINKING:-}" ]] && PREFLIGHT_ARGS+=(--thinking)
+  else
+    PREFLIGHT_ARGS+=(--model "${MODEL}" --skip-model)
+  fi
+  "${PYTHON_BIN}" -m suite.preflight "${PREFLIGHT_ARGS[@]}" || exit 2
+fi
 MANIFEST_RUN_ID="$(basename "$(dirname "$(dirname "${WORK_DIR}")")")"
 MANIFEST_THINKING=()
 case "$(printf '%s' "${APERTUS_ENABLE_THINKING:-}" | tr '[:upper:]' '[:lower:]')" in 1|true|t|yes|y|on) MANIFEST_THINKING=(--thinking) ;; esac

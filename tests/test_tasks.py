@@ -135,3 +135,13 @@ def test_real_registry_sets():
     assert len([t for t in reg.tasks.values() if t.report]) == 19
     assert reg.tasks["mmsi_bench"].framework == "VLMEvalKit" and reg.tasks["frieda"].assets
     assert all(reg.category(t.name) for t in reg.tasks.values() if t.card), "every card task needs a dashboard category"
+
+
+def test_cli_max_model_len(capsys):
+    from suite.tasks import main
+    assert main(["--framework", "VLMEvalKit", "--max-model-len", "ViewSpatialBench"]) == 0
+    assert capsys.readouterr().out.strip() == "262144"
+    assert main(["--framework", "lmms-eval", "--max-model-len", "pope"]) == 0
+    assert capsys.readouterr().out.strip() == "131072"
+    assert main(["--framework", "lmms-eval", "--max-model-len", "not_a_task"]) == 0
+    assert capsys.readouterr().out.strip() == "131072"

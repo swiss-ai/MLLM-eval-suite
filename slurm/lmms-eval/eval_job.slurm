@@ -566,6 +566,13 @@ echo "==========================================="
 # Run manifest (suite/manifest.py): identity before inference, status after.
 SUITE_PY="${SUITE_PY:-/opt/venv/bin/python}"
 export PYTHONPATH="${ORCH_REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+if [[ "${SKIP_PREFLIGHT:-0}" != "1" ]]; then
+  PREFLIGHT_THINKING=()
+  case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) PREFLIGHT_THINKING=(--thinking) ;; esac
+  "${SUITE_PY}" -m suite.preflight --framework lmms-eval --model "${MODEL_PATH}" --tasks "${TASKS}" "${PREFLIGHT_THINKING[@]}" \
+    --tokenizer "${TOKENIZER_PATH}" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
+    --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}" || exit 2
+fi
 MANIFEST_RUN_ID="$(basename "$(dirname "${OUTPUT_PATH}")")"
 MANIFEST_TP="$(sed -n 's/.*tensor_parallel_size=\([0-9]*\).*/\1/p' <<<"${MODEL_ARGS}" | tail -n1)"
 MANIFEST_THINKING=()

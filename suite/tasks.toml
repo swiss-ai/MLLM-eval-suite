@@ -771,7 +771,6 @@ framework = "VLMEvalKit"
 harness_task = "BLINK"
 lmms_task = "blink"
 multi_image = true
-max_model_len = 262144
 report = true
 
 [tasks.muirbench]
@@ -779,7 +778,6 @@ framework = "VLMEvalKit"
 harness_task = "MUIRBench"
 lmms_task = "muirbench"
 multi_image = true
-max_model_len = 262144
 
 [tasks.embspatial]
 framework = "VLMEvalKit"
@@ -793,7 +791,6 @@ framework = "VLMEvalKit"
 harness_task = "MMSIBench_wo_circular"
 lmms_task = "mmsi_bench"
 multi_image = true
-max_model_len = 262144
 card = true
 
 [tasks.mindcube]
@@ -801,7 +798,6 @@ framework = "VLMEvalKit"
 harness_task = "MindCubeBench_tiny_raw_qa"
 lmms_task = "mindcube_tiny"
 multi_image = true
-max_model_len = 262144
 card = true
 
 [tasks.viewspatial]
@@ -824,7 +820,6 @@ framework = "VLMEvalKit"
 harness_task = "ERQA"
 lmms_task = "erqa"
 multi_image = true
-max_model_len = 262144
 
 [tasks.sparbench]
 framework = "VLMEvalKit"
@@ -843,7 +838,6 @@ harness_task = "OmniSpatialBench_manual_cot"
 framework = "VLMEvalKit"
 harness_task = "Spatial-DISE_BENCH"
 multi_image = true
-max_model_len = 262144
 
 [tasks.robospatial]
 framework = "VLMEvalKit"
@@ -858,13 +852,11 @@ framework = "VLMEvalKit"
 harness_task = "3DSRBench"
 lmms_task = "3dsrbench"
 multi_image = true
-max_model_len = 262144
 
 [tasks.vsibench_debiased]
 framework = "VLMEvalKit"
 harness_task = "VSI-Bench-Debiased"
 multi_image = true
-max_model_len = 262144
 
 [tasks.mathvista_mini]
 framework = "VLMEvalKit"
