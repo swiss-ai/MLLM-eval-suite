@@ -308,6 +308,8 @@ echo "========================================"
 while IFS= read -r TASK; do
   [[ -z "$TASK" ]] && continue
   TASK_MAX_MODEL_LEN="$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lmms-eval --max-model-len "$TASK")"
+  # The registry name keys directories and rows; the harness runs the id it declares.
+  HARNESS_TASK="$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lmms-eval --harness-id "$TASK")"
   TASK_CACHE_DIR="$CACHE_BASE/$TASK"
   mkdir -p "$TASK_CACHE_DIR"
 
@@ -378,7 +380,7 @@ while IFS= read -r TASK; do
       --model-path "$MODEL_PATH"
       --tokenizer-path "$TOKENIZER_PATH"
       --chat-template "$CHAT_TEMPLATE"
-      --tasks "$TASK"
+      --tasks "$HARNESS_TASK"
       --output-path "$MODEL_OUTPUT_PATH"
       --log-dir "$LOG_DIR"
       --hf-home "$HF_HOME_PATH"

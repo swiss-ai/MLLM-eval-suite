@@ -197,8 +197,13 @@ def main(argv=None) -> int:
     p.add_argument("--harness-to-name", action="store_true", help="print '<harness_task>\\t<name>' for --framework")
     p.add_argument("--framework", choices=FRAMEWORKS)
     p.add_argument("--max-model-len", metavar="TASK", help="print the context length TASK needs on --framework")
+    p.add_argument("--harness-id", metavar="TASK", help="print the id --framework runs TASK under (TASK itself if unregistered)")
     a = p.parse_args(argv)
     reg = load_registry()
+    if a.harness_id:
+        task = reg.lookup(a.framework, a.harness_id) if a.framework else reg.tasks.get(a.harness_id)
+        print((task.harness_id_for(a.framework) if task and a.framework else None) or a.harness_id)
+        return 0
     if a.max_model_len:
         task = reg.lookup(a.framework, a.max_model_len) if a.framework else reg.tasks.get(a.max_model_len)
         print(task.max_model_len if task else reg.defaults.get("max_model_len", 131072))

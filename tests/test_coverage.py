@@ -56,3 +56,12 @@ def test_manifests_by_cell_all_layouts(tmp_path):
     assert got[("gqa", "8b-final")]["status"] == "ok"
     assert got[("blink", "8b-final")]["error"] == "ctx"
     assert got[("gsm8k", "8b-final")]["status"] == "ok"
+
+
+def test_manifests_by_cell_maps_harness_ids_to_registry_names(tmp_path):
+    reg = Registry(tasks={"slake": Task("slake", "lmms-eval", "slake_medevalkit", card=True)}, dashboard={})
+    run = tmp_path / "lmms-eval" / "8B-Final" / "r1" / "slake"
+    run.mkdir(parents=True)
+    (run / "run_meta.json").write_text(json.dumps({"framework": "lmms-eval", "task": "slake_medevalkit", "status": "ok"}))
+    got = Manifests([tmp_path / "lmms-eval"]).by_cell(reg, canonical_key=str.lower)
+    assert ("slake", "8b-final") in got and ("slake_medevalkit", "8b-final") not in got
