@@ -844,15 +844,16 @@
      "raw": 0.4705140108602315,
      "run": "20260908T_70b_cardfill"
     },
-    "8b-final-correct-rope": {
-     "v": 44.96,
-     "raw": 0.44959007264301853,
-     "run": "20260908T_8b_trialimage"
-    },
     "8b-final-correct-rope [thinking-32k]": {
      "v": 63.11,
      "raw": 0.6310830896349651,
      "run": "20260908T_8b_think_report"
+    },
+    "8b-final-correct-rope": {
+     "v": 45.16,
+     "raw": 0.45162880706355957,
+     "run": "20260818T074833Z_289385",
+     "legacy": true
     },
     "apertus-1.5-70b-sft-rl-dpo-final": {
      "v": 45.02,
@@ -1547,15 +1548,16 @@
      "raw": 0.7033333333333334,
      "run": "20260908T_70b_cardfill"
     },
-    "8b-final-correct-rope": {
-     "v": 69.0,
-     "raw": 0.69,
-     "run": "20260908T_8b_trialimage"
-    },
     "8b-final-correct-rope [thinking-32k]": {
      "v": 76.0,
      "raw": 0.76,
      "run": "20260908T_8b_think_report"
+    },
+    "8b-final-correct-rope": {
+     "v": 69.0,
+     "raw": 0.69,
+     "run": "20260818T074833Z_289385",
+     "legacy": true
     },
     "apertus-1.5-70b-sft-rl-dpo-final": {
      "v": 68.33,
@@ -1679,15 +1681,16 @@
      "raw": 0.4266666666666667,
      "run": "20260908T_70b_cardfill"
     },
-    "8b-final-correct-rope": {
-     "v": 41.33,
-     "raw": 0.41333333333333333,
-     "run": "20260908T_8b_trialimage"
-    },
     "8b-final-correct-rope [thinking-32k]": {
      "v": 54.67,
      "raw": 0.5466666666666666,
      "run": "20260908T_8b_think_report"
+    },
+    "8b-final-correct-rope": {
+     "v": 41.33,
+     "raw": 0.41333333333333333,
+     "run": "20260818T074833Z_289385",
+     "legacy": true
     },
     "apertus-1.5-70b-sft-rl-dpo-final": {
      "v": 39.33,
@@ -9343,15 +9346,16 @@
      "raw": 0.8677777777777778,
      "run": "20260908T_70b_cardfill"
     },
-    "8b-final-correct-rope": {
-     "v": 86.18,
-     "raw": 0.8617777777777778,
-     "run": "20260908T_8b_trialimage"
-    },
     "8b-final-correct-rope [thinking-32k]": {
      "v": 85.96,
      "raw": 0.8595555555555555,
      "run": "20260908T_8b_think_report"
+    },
+    "8b-final-correct-rope": {
+     "v": 86.1,
+     "raw": 0.861,
+     "run": "20260818T074833Z_289385",
+     "legacy": true
     },
     "apertus-1.5-70b-sft-rl-dpo-final": {
      "v": 86.7,
