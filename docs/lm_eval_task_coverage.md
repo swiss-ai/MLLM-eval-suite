@@ -6,6 +6,11 @@ pinned Swiss AI `lm-eval-harness` branch based on upstream v0.4.13. Existing
 separate text launcher; the production dispatcher still serves the two
 multimodal frameworks.
 
+The harness's personal integration branch is `yxu/main` in
+`swiss-ai/lm-evaluation-harness`. Submodule updates track that branch, while
+each suite commit retains an exact harness commit for reproducible evaluations.
+Creating the baseline branch does not change the evaluated submodule pin.
+
 ```bash
 export ORCH_REPO_ROOT="$PWD"
 bash launchers/lm-eval/eval.sh /path/to/model --tasks mmlu_pro
