@@ -20,6 +20,11 @@ jobs:
         with:
           node-version: '24'
       - run: python -m unittest discover -s tests -v
+      - name: Apertus constructor and audio routing contracts
+        run: |
+          git submodule update --init --depth 1 --filter=blob:none -- third_party/lmms-eval
+          python third_party/lmms-eval/test/models/test_apertus_thinking_constructor.py -v
+          python third_party/lmms-eval/test/models/test_apertus_audio_routing.py -v
       - name: Published dashboard behavior
         run: node tests/dashboard_audio_behavior.cjs docs/index.html
       - name: Shell syntax
