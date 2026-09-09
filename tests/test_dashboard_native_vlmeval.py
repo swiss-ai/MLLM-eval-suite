@@ -193,3 +193,27 @@ def test_native_source_changes_after_audit_refuse_publication(tmp_path, monkeypa
         dashboard.main()
     assert raised.value.code == 1
     assert all(path.read_text() == "existing" for path in outputs)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_failed_suite_run_does_not_reject_unrelated_shared_legacy_cell(tmp_path, monkeypatch, native):
+    suite, bridge, empty = tmp_path / "suite", tmp_path / "bridge", tmp_path / "empty"
+    empty.mkdir()
+    failed = artifact(suite / "failed-run", "model", "BLINK", "acc", .9, 100,
+                      run="failed-run", status="failed")
+    link = bridge / "model" / "BLINK__failed-run"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(failed.parent, target_is_directory=True)
+    legacy = tmp_path / "legacy.json"
+    legacy.write_text(json.dumps({"table": [
+        {"task": "blink", "metric": "acc", "framework": "VLMEvalKit",
+         "cells": {"model": {"v": value, "raw": value, "run": run}}}
+        for run, value in (("BLINK__failed-run", 90), ("BLINK__outputs", 20))
+    ]}))
+    args = ["--vlmeval-results-root", suite] if native else ["--vlmeval-root", bridge, "--vlmeval-results-root", suite]
+    data = build(tmp_path, monkeypatch, [empty], *args, "--legacy-json", legacy)
+    assert data["models"] == ["model"]
+    cell = data["table"][0]["cells"]["model"]
+    assert cell["v"] == 20
+    assert cell["run"] == "BLINK__outputs"
+    assert cell["legacy"] is True
