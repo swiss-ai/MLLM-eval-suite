@@ -164,35 +164,38 @@ def _sample_summary(sample_files, *, skip_unreadable=False) -> tuple[int | None,
     for path in ordered:
         fallback_task = _sample_task(Path(path))
         resolved = str(Path(path).resolve())
+        # Standalone counting skips an unreadable file in its entirety.
+        file_records = {} if skip_unreadable else records
         try:
-            fh = open(path)
+            with open(path) as fh:
+                for line_no, line in enumerate(fh):
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(rec, dict):
+                        continue
+                    task = str(rec.get("task") or fallback_task)
+                    doc_id = rec.get("doc_id")
+                    try:
+                        doc_key = json.dumps(doc_id, sort_keys=True) if doc_id is not None else f"{resolved}:{line_no}"
+                    except (TypeError, ValueError):
+                        doc_key = f"{resolved}:{line_no}"
+                    tc = rec.get("token_counts")
+                    while isinstance(tc, list) and tc:
+                        tc = tc[0]
+                    tokens = tc.get("output_tokens") if isinstance(tc, dict) else None
+                    if (isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0
+                            or isinstance(tokens, float) and math.isfinite(tokens) and tokens >= 0 and tokens.is_integer()):
+                        file_records[(task, doc_key)] = int(tokens)
+                    else:
+                        file_records[(task, doc_key)] = None
         except OSError:
             if skip_unreadable:
                 continue
             raise
-        with fh:
-            for line_no, line in enumerate(fh):
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(rec, dict):
-                    continue
-                task = str(rec.get("task") or fallback_task)
-                doc_id = rec.get("doc_id")
-                try:
-                    doc_key = json.dumps(doc_id, sort_keys=True) if doc_id is not None else f"{resolved}:{line_no}"
-                except (TypeError, ValueError):
-                    doc_key = f"{resolved}:{line_no}"
-                tc = rec.get("token_counts")
-                while isinstance(tc, list) and tc:
-                    tc = tc[0]
-                tokens = tc.get("output_tokens") if isinstance(tc, dict) else None
-                if (isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0
-                        or isinstance(tokens, float) and math.isfinite(tokens) and tokens >= 0 and tokens.is_integer()):
-                    records[(task, doc_key)] = int(tokens)
-                else:
-                    records[(task, doc_key)] = None
+        if skip_unreadable:
+            records.update(file_records)
     counts = [count for count in records.values() if count is not None]
     total = len(records) or None
     if not counts:

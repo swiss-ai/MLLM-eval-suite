@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 import suite.manifest as manifest
 
 
@@ -122,3 +124,29 @@ def test_finalize_reads_each_multidataset_csv_once(tmp_path, monkeypatch):
     assert status == "ok", data["error"]
     assert set(data["results"]["artifacts"]) == {str(path.resolve()) for path in files}
     assert counts == {path: 1 for path in files}
+
+
+def test_count_skips_entire_file_on_read_error_but_statistics_fail(tmp_path, monkeypatch):
+    paths = [tmp_path / f"{i}_samples_gqa.jsonl" for i in range(3)]
+    for i, path in enumerate(paths):
+        path.write_text(json.dumps({"doc_id": i}) + "\n")
+    real_open = builtins.open
+
+    class InterruptedRead:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def __iter__(self):
+            yield json.dumps({"doc_id": 1}) + "\n"
+            raise OSError("sample read interrupted")
+
+    def interrupted_open(path, *args, **kwargs):
+        return InterruptedRead() if Path(path) == paths[1] else real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", interrupted_open)
+    assert manifest.sample_record_count(paths) == 2
+    with pytest.raises(OSError, match="sample read interrupted"):
+        manifest.output_token_stats(paths)
