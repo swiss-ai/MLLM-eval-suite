@@ -157,65 +157,60 @@ def _sample_task(path: Path) -> str:
     return match.group(1) if match else re.sub(r"_\d+$", "", stem)
 
 
-def output_token_stats(sample_files) -> dict | None:
+def _sample_summary(sample_files, *, skip_unreadable=False) -> tuple[int | None, dict | None]:
+    """Count samples and summarize their latest token evidence in one pass."""
     records: dict[tuple[str, str], int | None] = {}
     ordered = sorted(sample_files, key=lambda path: (((sig := _artifact_signature(Path(path))) or {}).get("mtime_ns", 0), str(path)))
     for path in ordered:
-        with open(path) as fh:
-            for line_no, line in enumerate(fh):
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(rec, dict):
-                    continue
-                task = str(rec.get("task") or _sample_task(Path(path)))
-                doc_id = rec.get("doc_id")
-                try:
-                    doc_key = json.dumps(doc_id, sort_keys=True) if doc_id is not None else f"{Path(path).resolve()}:{line_no}"
-                except (TypeError, ValueError):
-                    doc_key = f"{Path(path).resolve()}:{line_no}"
-                tc = rec.get("token_counts")
-                while isinstance(tc, list) and tc:
-                    tc = tc[0]
-                tokens = tc.get("output_tokens") if isinstance(tc, dict) else None
-                if (isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0
-                        or isinstance(tokens, float) and math.isfinite(tokens) and tokens >= 0 and tokens.is_integer()):
-                    records[(task, doc_key)] = int(tokens)
-                else:
-                    records[(task, doc_key)] = None
+        fallback_task = _sample_task(Path(path))
+        resolved = str(Path(path).resolve())
+        # Standalone counting skips an unreadable file in its entirety.
+        file_records = {} if skip_unreadable else records
+        try:
+            with open(path) as fh:
+                for line_no, line in enumerate(fh):
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(rec, dict):
+                        continue
+                    task = str(rec.get("task") or fallback_task)
+                    doc_id = rec.get("doc_id")
+                    try:
+                        doc_key = json.dumps(doc_id, sort_keys=True) if doc_id is not None else f"{resolved}:{line_no}"
+                    except (TypeError, ValueError):
+                        doc_key = f"{resolved}:{line_no}"
+                    tc = rec.get("token_counts")
+                    while isinstance(tc, list) and tc:
+                        tc = tc[0]
+                    tokens = tc.get("output_tokens") if isinstance(tc, dict) else None
+                    if (isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0
+                            or isinstance(tokens, float) and math.isfinite(tokens) and tokens >= 0 and tokens.is_integer()):
+                        file_records[(task, doc_key)] = int(tokens)
+                    else:
+                        file_records[(task, doc_key)] = None
+        except OSError:
+            if skip_unreadable:
+                continue
+            raise
+        if skip_unreadable:
+            records.update(file_records)
     counts = [count for count in records.values() if count is not None]
+    total = len(records) or None
     if not counts:
-        return None
-    return {"n": len(counts), "records": len(records), "mean": statistics.fmean(counts),
-            "median": statistics.median(counts), "max": max(counts)}
+        return total, None
+    return total, {"n": len(counts), "records": len(records), "mean": statistics.fmean(counts),
+                   "median": statistics.median(counts), "max": max(counts)}
+
+
+def output_token_stats(sample_files) -> dict | None:
+    return _sample_summary(sample_files)[1]
 
 
 def sample_record_count(sample_files) -> int | None:
     """Count deduplicated sample records, even if no output-token data was logged."""
-    # Reuse the same replacement semantics as token statistics without treating
-    # an absent token count as a zero-token generation.
-    records: dict[tuple[str, str], None] = {}
-    for path in sample_files:
-        fallback_task = _sample_task(Path(path))
-        try:
-            # JSON strings may carry raw U+2028 or U+0085, which splitlines() treats as line ends.
-            lines = Path(path).read_text().split("\n")
-        except OSError:
-            continue
-        for line_no, line in enumerate(lines):
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(rec, dict):
-                continue
-            try:
-                doc_key = json.dumps(rec.get("doc_id"), sort_keys=True) if rec.get("doc_id") is not None else f"{Path(path).resolve()}:{line_no}"
-            except (TypeError, ValueError):
-                doc_key = f"{Path(path).resolve()}:{line_no}"
-            records[(str(rec.get("task") or fallback_task), doc_key)] = None
-    return len(records) if records else None
+    return _sample_summary(sample_files, skip_unreadable=True)[0]
 
 
 def _scan_logs(log_paths) -> tuple[str | None, list[str], bool | None, str]:
@@ -251,12 +246,6 @@ def _newest(paths) -> Path | None:
     return max(stamped)[1] if stamped else None
 
 
-def _find_results(results_dir: Path, framework: str) -> tuple[Path | None, list[Path]]:
-    """The newest headline result file for the framework's layout, plus lmms-eval sample logs."""
-    result_paths, sample_paths = _result_paths(results_dir, framework)
-    return _newest(result_paths), sample_paths
-
-
 def _is_fresh(path: Path, manifest: dict) -> bool:
     signature = _artifact_signature(path)
     if signature is None:
@@ -274,14 +263,11 @@ def _requested_tasks(manifest: dict) -> list[str]:
     return list(dict.fromkeys(task for task in re.split(r"[,\s]+", str(manifest["task"]).strip()) if task))
 
 
-def _task_ids(manifest: dict) -> set[str]:
+def _task_ids(manifest: dict, registry) -> set[str]:
     ids = set()
     for task in _requested_tasks(manifest):
         ids.add(task)
-        try:
-            registered = load_registry().lookup(manifest["framework"], task)
-        except (OSError, ValueError):
-            registered = None
+        registered = registry.lookup(manifest["framework"], task) if registry else None
         if registered:
             ids.add(registered.name)
             if harness_id := registered.harness_id_for(manifest["framework"]):
@@ -324,12 +310,16 @@ def _has_numeric_metrics(record: dict) -> bool:
                for key, value in record.items())
 
 
-def _validate_json_result(path: Path, manifest: dict) -> tuple[str | None, dict | None]:
+def _validate_json_result(path: Path, manifest: dict, registry) -> tuple[str | None, dict | None]:
     """Validate lm-eval/lmms-eval structure and return a known effective count."""
     try:
         data = json.loads(path.read_text())
     except (OSError, UnicodeError, json.JSONDecodeError):
         return f"result file {path} is not valid JSON", None
+    return _validate_json_data(path, data, manifest, registry)
+
+
+def _validate_json_data(path: Path, data: dict, manifest: dict, registry) -> tuple[str | None, dict | None]:
     if not isinstance(data, dict) or not isinstance(data.get("results"), dict) or not data["results"]:
         return f"result file {path} has no non-empty results mapping", None
     results = data["results"]
@@ -337,7 +327,7 @@ def _validate_json_result(path: Path, manifest: dict) -> tuple[str | None, dict 
     if len(requested) > 1:
         leaves = set()
         for task in requested:
-            error, evidence = _validate_json_result(path, {**manifest, "task": task})
+            error, evidence = _validate_json_data(path, data, {**manifest, "task": task}, registry)
             if error:
                 return error, None
             if evidence["effective"] == 0:
@@ -345,7 +335,7 @@ def _validate_json_result(path: Path, manifest: dict) -> tuple[str | None, dict 
             leaves.update(evidence["tasks"])
         sample_map = data.get("n-samples") if isinstance(data.get("n-samples"), dict) else {}
         return None, _sample_evidence(sample_map, sorted(leaves))
-    expected = _task_ids(manifest)
+    expected = _task_ids(manifest, registry)
     if manifest.get("framework") == "lm-eval":
         for task_id in sorted(expected):
             declared = declared_chat_template(task_id)
@@ -413,7 +403,7 @@ def _csv_metric_name(value: object) -> bool:
     return name not in metadata and not name.startswith("unnamed") and "stderr" not in name
 
 
-def _csv_filename_matches(path: Path, task_ids: set[str]) -> bool:
+def _csv_filename_matches(path: Path, task_ids: set[str], registry) -> bool:
     def key(value):
         return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
 
@@ -421,11 +411,9 @@ def _csv_filename_matches(path: Path, task_ids: set[str]) -> bool:
     # arbitrary judge suffixes. A task-like model prefix must not override the
     # actual dataset later in the filename; overlapping IDs prefer the longest.
     known_ids = set(task_ids)
-    try:
-        for task in load_registry().tasks.values():
+    if registry:
+        for task in registry.tasks.values():
             known_ids.update(name for name in (task.name, task.harness_task, task.lmms_task) if name)
-    except (OSError, ValueError):
-        pass
     stem = key(re.sub(r"_(?:acc|score)$", "", path.stem, flags=re.I))
     matches = [(match.end(), len(name), name)
                for name in {key(task) for task in known_ids}
@@ -433,15 +421,15 @@ def _csv_filename_matches(path: Path, task_ids: set[str]) -> bool:
     return bool(matches) and max(matches)[2] in {key(task) for task in task_ids}
 
 
-def _validate_vlmeval_csv(path: Path, manifest: dict) -> str | None:
+def _read_vlmeval_csv(path: Path) -> tuple[str | None, list[str]]:
     try:
         with open(path, newline="") as fh:
             reader = csv.DictReader(fh)
             rows = list(reader)
     except (OSError, UnicodeError, csv.Error):
-        return f"result file {path} is not parseable CSV"
+        return f"result file {path} is not parseable CSV", []
     if not reader.fieldnames or not rows:
-        return f"result file {path} has no CSV rows"
+        return f"result file {path} has no CSV rows", []
     metric_columns = [field for field in reader.fieldnames if _csv_metric_name(field)]
     metric_labels = [field for field in reader.fieldnames if _normalized(field) == "metric"]
     numeric = any(
@@ -450,14 +438,21 @@ def _validate_vlmeval_csv(path: Path, manifest: dict) -> str | None:
         for row in rows for field in metric_columns
     )
     if not numeric:
-        return f"result file {path} has no numeric CSV metrics"
-    task_ids = _task_ids(manifest)
-    expected = {_normalized(name) for name in task_ids}
+        return f"result file {path} has no numeric CSV metrics", []
     metadata_values = [_normalized(value) for row in rows for field, value in row.items()
                        if value and _normalized(field) in {"dataset", "task", "benchmark", "suite"}]
+    return None, metadata_values
+
+
+def _validate_vlmeval_csv(path: Path, manifest: dict, registry, parsed) -> str | None:
+    error, metadata_values = parsed
+    if error:
+        return error
+    task_ids = _task_ids(manifest, registry)
+    expected = {_normalized(name) for name in task_ids}
     if any(value not in expected for value in metadata_values):
         return f"result file {path} has metadata contradicting requested task {manifest['task']}"
-    filename_matches = _csv_filename_matches(path, task_ids)
+    filename_matches = _csv_filename_matches(path, task_ids, registry)
     generic_filename = path.stem.lower() in {"derived_acc", "derived_score", "results_acc", "results_score"}
     if not filename_matches and not (generic_filename and metadata_values):
         return f"result file {path} does not identify requested task {manifest['task']}"
@@ -479,18 +474,22 @@ def finalize(manifest_path: Path, log_paths, results_dir: Path, harness_rc: int,
     manifest["thinking"]["effective"] = effective
     manifest["thinking"]["canary"] = canary
     manifest["warnings"] = warnings
-    result_file, samples = _find_results(results_dir, manifest["framework"])
+    all_results, all_samples = _result_paths(results_dir, manifest["framework"])
+    result_file = _newest(all_results)
     status = "ok"
     if error or harness_rc != 0 or result_file is None:
         status = "failed"
         error = error or (f"harness exit code {harness_rc}" if harness_rc else "no results file produced")
     else:
-        all_results, all_samples = _result_paths(results_dir, manifest["framework"])
         fresh_results = [path for path in all_results if _is_fresh(path, manifest)]
         fresh_samples = [path for path in all_samples if _is_fresh(path, manifest)]
         if not fresh_results:
             status, error = "invalid", "all result files predate this run"
         else:
+            try:
+                registry = load_registry()
+            except (OSError, ValueError):
+                registry = None
             result_file = _newest(fresh_results)
             validated_files = [result_file]
             result_error, evidence = (None, {"effective": None, "original": None, "partial": False})
@@ -498,19 +497,19 @@ def finalize(manifest_path: Path, log_paths, results_dir: Path, harness_rc: int,
                 requested = _requested_tasks(manifest)
                 if len(requested) > 1:
                     validated_files = []
+                    parsed = {path: _read_vlmeval_csv(path) for path in fresh_results}
                     for task in requested:
                         candidates = [path for path in fresh_results
-                                      if _validate_vlmeval_csv(path, {**manifest, "task": task}) is None]
+                                      if _validate_vlmeval_csv(path, {**manifest, "task": task}, registry, parsed[path]) is None]
                         if not candidates:
                             result_error = f"no valid fresh result for requested dataset {task}"
                             break
                         validated_files.append(_newest(candidates))
                 else:
-                    result_error = _validate_vlmeval_csv(result_file, manifest)
+                    result_error = _validate_vlmeval_csv(result_file, manifest, registry, _read_vlmeval_csv(result_file))
             else:
-                result_error, evidence = _validate_json_result(result_file, manifest)
-            stats = output_token_stats(fresh_samples) if fresh_samples else None
-            sample_records = sample_record_count(fresh_samples) if fresh_samples else None
+                result_error, evidence = _validate_json_result(result_file, manifest, registry)
+            sample_records, stats = _sample_summary(fresh_samples)
             result_samples = evidence["effective"] if evidence else None
             manifest["results"] = {"file": str(result_file), "n_samples": sample_records, "artifacts": {},
                                    "result_samples": result_samples,
