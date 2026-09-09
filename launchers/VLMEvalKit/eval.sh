@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Submit Apertus VLMEvalKit jobs with the dedicated Apertus vLLM runtime.
 #
-# Examples:
-#   bash launchers/VLMEvalKit/eval.sh
-#   bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --model Apertus-1p5-8B
-#   bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --mode infer
-#   bash launchers/VLMEvalKit/eval.sh --data @datasets.txt --model @models.txt
-#   bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --model Apertus-1p5-8B --submit-mode interactive
+# Invoked by launchers/eval.sh (which sets ORCH_REPO_ROOT). Direct examples:
+#   ORCH_REPO_ROOT=$PWD bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --model Apertus-1p5-8B
+#   ORCH_REPO_ROOT=$PWD bash launchers/VLMEvalKit/eval.sh --data 3DSRBench --mode infer
+#   ORCH_REPO_ROOT=$PWD bash launchers/VLMEvalKit/eval.sh --data @datasets.txt --model @models.txt
 
 set -euo pipefail
 
@@ -18,9 +16,10 @@ fi
 REPO_ROOT="${ORCH_REPO_ROOT}"
 REPO_DIR="${REPO_DIR:-${REPO_ROOT}/third_party/VLMEvalKit}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/VLMEvalKit/eval_job.slurm}"
+source "${REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
 
 RESPONSE_CACHE="${VLMEVAL_RESPONSE_CACHE:-${REPO_ROOT}/cache/VLMEvalKit}"
-IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-${RESPONSE_CACHE}/image_token_cache}"
+IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-}"
 LMU_DATA="${LMUData:-${REPO_ROOT}/cache/VLMEvalKit/LMUData}"
 WORK_BASE="${WORK_BASE:-${REPO_ROOT}/results/VLMEvalKit}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)_$$}"
@@ -39,8 +38,6 @@ SUBMIT_MODE="batch"
 NODES="${NODES:-1}"
 SIZE="${SIZE:-8b}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
-SKIP_MM_PROFILING="${VLLM_APERTUS_SKIP_MM_PROFILING:-}"
-ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
 IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
 SBATCH_TIME="${SBATCH_TIME:-04:00:00}"
 MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-29541}"
@@ -71,8 +68,6 @@ Options:
   --tensor-parallel-size <int>      Override vLLM tensor_parallel_size (advanced; --size sets it).
   --gpu-memory-utilization <float>  Override vLLM gpu_memory_utilization (advanced; --size sets it).
   --batch-size <int>                Batch size value passed through/logged for the framework. Default: 512.
-  --skip-mm-profiling
-                                    Keep Apertus vLLM skip_mm_profiling enabled.
   --work-base <path>                Root for VLMEvalKit outputs.
   --response-cache <path>           SQLite response cache root.
   --image-token-cache-base <path>   Apertus image-token cache base. Default: response-cache/image_token_cache.
@@ -132,10 +127,6 @@ while [[ $# -gt 0 ]]; do
       GPU_MEMORY_UTILIZATION="$2"; shift 2 ;;
     --batch-size)
       BATCH_SIZE="$2"; shift 2 ;;
-    --skip-mm-profiling)
-      SKIP_MM_PROFILING=true; shift ;;
-    --no-skip-mm-profiling)
-      SKIP_MM_PROFILING=false; shift ;;
     --work-base)
       WORK_BASE="$2"; shift 2 ;;
     --response-cache)
@@ -217,6 +208,36 @@ fi
 
 MODELS="$(resolve_list "${MODELS_RAW}")"
 [[ -n "${DATASETS}" ]] || { echo "no datasets resolved" >&2; exit 1; }
+
+# Derived after flag parsing so --response-cache moves the image-token cache
+# with it (a fresh-inference canary must not replay prod VQ frames).
+IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-${RESPONSE_CACHE}/image_token_cache}"
+
+# Image-token caching and the job-side Apertus registry override apply only to
+# Apertus-native models. Classified per model at submit time (jobs are per
+# model x dataset, so a mixed list must not share one classification); the
+# orchestrator's explicit APERTUS_MODEL_PATH marks a checkpoint-path run as
+# native. Explicit FOREIGN_MODEL / --enable-image-token-cache always win.
+USER_FOREIGN_MODEL="${FOREIGN_MODEL:-}"
+classify_foreign() {
+  [[ -n "${USER_FOREIGN_MODEL}" ]] && { echo "${USER_FOREIGN_MODEL}"; return; }
+  [[ -n "${APERTUS_MODEL_PATH:-}" ]] && { echo 0; return; }
+  case "$1" in [Aa]pertus*) echo 0 ;; *) echo 1 ;; esac
+}
+
+# Judge datasets score via an OpenAI-compatible judge; without a key VLMEvalKit
+# silently falls back to regex parsing and produces wrong-looking-real numbers.
+# Fail loud instead (ALLOW_NO_JUDGE=1 to override).
+JUDGE_SUITE="${REPO_ROOT}/task_suites/VLMEvalKit/llm_judge.txt"
+if [[ -f "${JUDGE_SUITE}" && "${ALLOW_NO_JUDGE:-0}" != "1" ]]; then
+  JUDGE_HITS="$(comm -12 <(echo "${DATASETS}" | sort -u) <(resolve_list "@${JUDGE_SUITE}" | sort -u) || true)"
+  if [[ -n "${JUDGE_HITS}" && -z "${OPENAI_API_KEY:-}" ]] && ! grep -qs '^OPENAI_API_KEY=' "${REPO_DIR}/.env"; then
+    echo "ERROR: judge dataset(s) [$(echo "${JUDGE_HITS}" | tr '\n' ' ')] need OPENAI_API_KEY" >&2
+    echo "       (env var or ${REPO_DIR}/.env). Set ALLOW_NO_JUDGE=1 to run anyway" >&2
+    echo "       with regex-fallback scoring." >&2
+    exit 1
+  fi
+fi
 [[ -n "${MODELS}" ]] || { echo "no models resolved" >&2; exit 1; }
 [[ -f "${SLURM_TEMPLATE}" ]] || { echo "slurm template not found: ${SLURM_TEMPLATE}" >&2; exit 1; }
 
@@ -230,10 +251,6 @@ export LD_LIBRARY_PATH="/capstor/store/cscs/swissai/infra01/MLLM/wheelhouse:${LD
 mkdir -p "${LOG_DIR}" "${RESPONSE_CACHE}" "${LMU_DATA}" "${WORK_BASE}" "${RUNTIME_CACHE}"
 cd "${REPO_ROOT}"
 
-if [[ -n "${SKIP_MM_PROFILING}" ]]; then
-  export VLLM_APERTUS_SKIP_MM_PROFILING="${SKIP_MM_PROFILING}"
-fi
-
 echo "========================================"
 echo "Apertus VLMEvalKit submit"
 echo "  repo:           ${REPO_DIR}"
@@ -244,9 +261,9 @@ echo "  mode:           ${MODE}"
 echo "  nodes:          ${NODES}"
 echo "  dp workers:     ${NUM_PROCESSES} per node (world_size = ${NODES} * ${NUM_PROCESSES})"
 echo "  batch size:     ${BATCH_SIZE}"
-echo "  skip mm prof:   ${VLLM_APERTUS_SKIP_MM_PROFILING:-<default true>}"
 echo "  response cache: ${RESPONSE_CACHE}"
-echo "  image cache:    ${ENABLE_IMAGE_TOKEN_CACHE} ${IMAGE_TOKEN_CACHE_MODE} (${IMAGE_TOKEN_CACHE_BASE})"
+echo "  image cache:    ${ENABLE_IMAGE_TOKEN_CACHE:-<per-model>} ${IMAGE_TOKEN_CACHE_MODE} (${IMAGE_TOKEN_CACHE_BASE})"
+echo "  foreign model:  ${USER_FOREIGN_MODEL:-per-model}"
 echo "  LMUData:        ${LMU_DATA}"
 echo "  work base:      ${WORK_BASE}"
 echo "  run id:         ${RUN_ID}"
@@ -259,7 +276,13 @@ while IFS= read -r DATASET; do
 
   while IFS= read -r MODEL; do
     [[ -z "${MODEL}" ]] && continue
-    MODEL_SLUG="$(safe_name "${MODEL}")"
+    MODEL_SLUG="$(safe_name "$(basename "${MODEL}")")"
+    MODEL_FOREIGN="$(classify_foreign "${MODEL}")"
+    if [[ "${MODEL_FOREIGN}" == "1" ]]; then
+      MODEL_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
+    else
+      MODEL_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
+    fi
     JOB_NAME="vlmeval-${DATA_SLUG}"
     WORK_DIR="${WORK_BASE}/${MODEL_SLUG}/${DATA_SLUG}"
     if [[ "${SUBMIT_MODE}" == "interactive" ]]; then
@@ -277,7 +300,7 @@ while IFS= read -r DATASET; do
       --mode "${MODE}"
       --work-dir "${WORK_DIR}"
       --response-cache "${RESPONSE_CACHE}"
-      --enable-image-token-cache "${ENABLE_IMAGE_TOKEN_CACHE}"
+      --enable-image-token-cache "${MODEL_IMAGE_TOKEN_CACHE}"
       --image-token-cache-mode "${IMAGE_TOKEN_CACHE_MODE}"
       --image-token-cache-base "${IMAGE_TOKEN_CACHE_BASE}"
       --lmu-data "${LMU_DATA}"
@@ -297,6 +320,7 @@ while IFS= read -r DATASET; do
     else
       CMD=(
         sbatch
+        "${SBATCH_OVERRIDES[@]}"
         --job-name "${JOB_NAME}"
         --output "${JOB_OUTPUT}"
         --error "${JOB_ERROR}"
@@ -307,7 +331,8 @@ while IFS= read -r DATASET; do
       )
     fi
 
-    echo "--- submit: data=${DATASET} model=${MODEL} work=${WORK_DIR} ---"
+    export FOREIGN_MODEL="${MODEL_FOREIGN}"
+    echo "--- submit: data=${DATASET} model=${MODEL} foreign=${MODEL_FOREIGN} work=${WORK_DIR} ---"
     echo "    logs:   ${JOB_OUTPUT} / ${JOB_ERROR}"
     if [[ "${DRY_RUN}" -eq 1 ]]; then
       printf ' %q' "${CMD[@]}"

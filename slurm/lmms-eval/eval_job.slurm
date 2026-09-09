@@ -1,10 +1,11 @@
 #!/bin/bash
-#SBATCH --account=infra01
+# account / environment / reservation come from the launcher via
+# slurm/shared/sbatch_overrides.sh (EVAL_ACCOUNT / EVAL_ENVIRONMENT /
+# EVAL_RESERVATION). For direct submission: source that snippet and pass
+# "${SBATCH_OVERRIDES[@]}" to sbatch.
 #SBATCH --job-name=lmms-eval-apertus
-#SBATCH --environment=/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/toml/shared/apertus-vllm-vision-eval-prod.toml
 #SBATCH --nodes=1
 #SBATCH --exclusive
-#SBATCH --reservation=SD-69241-apertus-1-5-0
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=285
 #SBATCH --time=12:00:00
@@ -28,11 +29,12 @@
 #     --image-token-cache-dir /capstor/.../benchmark/image_token_cache/mmmu_val \
 #     --image-token-cache-local-copy 0
 set -euo pipefail
+# vLLM worker aborts otherwise dump multi-GB cores into the submodule cwd.
+ulimit -c 0
 
 SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 ORCH_REPO_ROOT="${ORCH_REPO_ROOT:-${SUBMIT_DIR}}"
 CACHE_ROOT="${CACHE_ROOT:-${ORCH_REPO_ROOT}/cache/lmms-eval}"
-CONTAINER_REPO_ROOT="${CONTAINER_REPO_ROOT:-/workspace}"
 
 ########################################
 # Required runtime configuration
@@ -88,9 +90,6 @@ WANDB_LOG_SAMPLES="${WANDB_LOG_SAMPLES:-false}"
 WANDB_ARGS="${WANDB_ARGS:-}"
 WANDB_API_KEY="${WANDB_API_KEY:-}"
 EXTRA_FRAMEWORK_ARGS=()
-
-VLLM_REPO="${VLLM_REPO:-${CONTAINER_REPO_ROOT}/vllm}"
-LMMS_EVAL_REPO="${LMMS_EVAL_REPO:-${CONTAINER_REPO_ROOT}/lmms-eval}"
 
 usage() {
   cat <<'EOF'
@@ -214,29 +213,30 @@ is_true() {
   esac
 }
 
-# Ensure OCR-safe default generation cap.
-# If max_new_tokens is absent, append/set it to 32768.
-# If caller already set max_new_tokens, keep caller value.
+# Default generation cap: 16384 for non-thinking runs (Artificial Analysis
+# standard). Thinking recipes pass their own 32k cap explicitly.
 if [[ -z "${GEN_KWARGS}" ]]; then
-  GEN_KWARGS="max_new_tokens=32768"
+  GEN_KWARGS="max_new_tokens=16384"
 elif [[ ! "${GEN_KWARGS}" =~ (^|,)max_new_tokens= ]]; then
-  GEN_KWARGS="${GEN_KWARGS},max_new_tokens=32768"
+  GEN_KWARGS="${GEN_KWARGS},max_new_tokens=16384"
 fi
 
 ########################################
 # Runtime environment
 ########################################
-export API_TYPE=dummy
+# Dummy judge by default so fleet jobs never spend API budget by accident;
+# judge-intended submissions opt in with API_TYPE=openai.
+export API_TYPE="${API_TYPE:-dummy}"
 export PATH="/opt/venv/bin:${PATH}"
-# Optional dev-tree override: prepend a user-local lmms-eval checkout to PYTHONPATH
-# so changes in dev are picked up without writing to the shared prod tree.
-# Usage: LMMS_EVAL_DEV_PATH=/path/to/your/lmms-eval bash scripts/eval.sh ...
-LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH:-}"
-if [[ -n "${LMMS_EVAL_DEV_PATH}" ]]; then
-  echo "PYTHONPATH dev-tree override: ${LMMS_EVAL_DEV_PATH}"
-  export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${LMMS_EVAL_REPO}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
-else
-  export PYTHONPATH="${LMMS_EVAL_REPO}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
+# The submodule checkout is the only code source; the image carries engine and
+# dependencies but no harness code.
+LMMS_EVAL_DEV_PATH="${LMMS_EVAL_DEV_PATH:-${ORCH_REPO_ROOT}/third_party/lmms-eval}"
+export PYTHONPATH="${LMMS_EVAL_DEV_PATH}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
+# Same hook as slurm/VLMEvalKit/eval_job.slurm: the container image sets its own
+# PYTHONPATH, so submission-env values are lost; EXTRA_PYTHONPATH survives and is
+# prepended (e.g. a staged package the container build predates).
+if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
+  export PYTHONPATH="${EXTRA_PYTHONPATH}:${PYTHONPATH}"
 fi
 export LD_LIBRARY_PATH="/opt/venv/lib/python3.12/site-packages/torch/lib:${LD_LIBRARY_PATH:-}"
 export HF_HOME="${HF_HOME_PATH}"
@@ -244,9 +244,18 @@ export NLTK_DATA="${NLTK_DATA_PATH}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME_PATH}"
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT_PATH}"
 export LMMS_EVAL_MODELS_CACHE="${LMMS_EVAL_MODELS_CACHE_PATH}"
+# Prepared arrow + extracted archives on shared storage; unset, lmms-eval falls
+# back to node-local scratch and every fresh node re-extracts the datasets.
+export LMMS_EVAL_DATASETS_CACHE="${LMMS_EVAL_DATASETS_CACHE:-/capstor/store/cscs/swissai/infra01/vision-datasets/benchmark/lmms_eval_datasets_cache}"
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export TOKENIZERS_PARALLELISM=false
+# Remote-sensing task image trees (geospatial suite), staged under cache/rs_datasets.
+RS_DATASETS_ROOT="${RS_DATASETS_ROOT:-${ORCH_REPO_ROOT}/cache/rs_datasets}"
+export VRSBENCH_DIR="${VRSBENCH_DIR:-${RS_DATASETS_ROOT}/vrsbench}"
+export GEOBENCH_DIR="${GEOBENCH_DIR:-${RS_DATASETS_ROOT}/geobench}"
+export FRIEDA_DIR="${FRIEDA_DIR:-${RS_DATASETS_ROOT}/frieda}"
+export BIGEARTH_S2_DIR="${BIGEARTH_S2_DIR:-${RS_DATASETS_ROOT}/bigearth/BigEarthNet-S2}"
 if is_true "${ENABLE_WANDB}"; then
   if [[ -z "${WANDB_API_KEY}" && -t 0 ]]; then
     read -r -s -p "Enter WANDB_API_KEY: " WANDB_API_KEY
@@ -327,7 +336,7 @@ if [[ "${NUM_GPUS}" -lt "${NUM_PROCESSES}" ]]; then
   exit 1
 fi
 
-mkdir -p "${OUTPUT_PATH}" "${NLTK_DATA}" "${LOG_DIR}" "${HF_HOME}" "${XDG_CACHE_HOME}" "${VLLM_CACHE_ROOT}" "${LMMS_EVAL_MODELS_CACHE}"
+mkdir -p "${OUTPUT_PATH}" "${NLTK_DATA}" "${LOG_DIR}" "${HF_HOME}" "${XDG_CACHE_HOME}" "${VLLM_CACHE_ROOT}" "${LMMS_EVAL_MODELS_CACHE}" "${LMMS_EVAL_DATASETS_CACHE}"
 
 # Ensure ANTLR runtime version expected by OmegaConf/Emu3.5 tokenizer path.
 # This keeps jobs robust even if the base image has a newer incompatible ANTLR.
@@ -335,6 +344,8 @@ if [[ "${PIN_ANTLR_RUNTIME:-true}" == "true" ]]; then
   /opt/venv/bin/pip install --disable-pip-version-check --no-cache-dir --quiet --force-reinstall \
     "antlr4-python3-runtime==4.9.3"
 fi
+
+source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
 
 # Fail fast on known ANTLR/OmegaConf mismatch that otherwise appears late.
 python - <<'PY'
@@ -349,7 +360,7 @@ except Exception as exc:
     print(f"Root cause: {exc}", file=sys.stderr)
     sys.exit(2)
 
-emu35_root = os.getenv("VLLM_APERTUS_EMU35_CODEBASE", "/workspace/Emu3.5")
+emu35_root = os.environ["VLLM_APERTUS_EMU35_CODEBASE"]
 module_path = os.path.join(emu35_root, "src", "vision_tokenizer", "__init__.py")
 if not os.path.isfile(module_path):
     print(f"Preflight failed: missing Emu3.5 vision tokenizer module: {module_path}", file=sys.stderr)
@@ -390,10 +401,34 @@ PY
   fi
 fi
 
+if [[ "${MODEL_BACKEND}" != apertus* ]]; then
+  # Foreign backends (emu3, llava_hf, qwen3_vl, ...) own their own arg schema;
+  # the vLLM/Apertus-shaped string below would be rejected. Pass through only
+  # what the caller supplies (wrapper defaults cover the rest, e.g. emu3 ->
+  # BAAI/Emu3-Chat).
+  MODEL_ARGS="${EXTRA_MODEL_ARGS}"
+  EXTRA_MODEL_ARGS=""
+  # Without this the wrapper falls back to its own default checkpoint and the run
+  # silently evaluates a different model than --model-path names. vLLM-style
+  # and emu3 wrappers take model=; HF-style wrappers take pretrained=.
+  if [[ "${MODEL_ARGS}" != *model=* && "${MODEL_ARGS}" != *pretrained=* ]]; then
+    case "${MODEL_BACKEND}" in
+      emu3*|*vllm*) MODEL_ARGS="model=${MODEL_PATH}${MODEL_ARGS:+,${MODEL_ARGS}}" ;;
+      *)            MODEL_ARGS="pretrained=${MODEL_PATH}${MODEL_ARGS:+,${MODEL_ARGS}}" ;;
+    esac
+  fi
+  # Gemma 3's encoder is fixed at 896x896, so high-resolution pages are squashed
+  # until pan-and-scan tiles them; the shipped preprocessor leaves it off while
+  # the published scores assume it on (InfoVQA 52.6 -> 68.7 here).
+  if [[ "${MODEL_PATH}" == *gemma-3* && "${MODEL_ARGS}" != *do_pan_and_scan* ]]; then
+    MODEL_ARGS="${MODEL_ARGS:+${MODEL_ARGS},}mm_processor_kwargs={\"do_pan_and_scan\":true}"
+  fi
+else
 MODEL_ARGS="model=${MODEL_PATH},tokenizer=${TOKENIZER_PATH},tensor_parallel_size=1,gpu_memory_utilization=${GPU_MEMORY_UTILIZATION},trust_remote_code=${TRUST_REMOTE_CODE},max_model_len=${MAX_MODEL_LEN},hf_overrides=${HF_OVERRIDES}"
-MODEL_ARGS="${MODEL_ARGS},max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS},enable_prefix_caching=${ENABLE_PREFIX_CACHING},enforce_eager=${ENFORCE_EAGER},skip_mm_profiling=True"
+MODEL_ARGS="${MODEL_ARGS},max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS},enable_prefix_caching=${ENABLE_PREFIX_CACHING},enforce_eager=${ENFORCE_EAGER}"
+fi
 
-if [[ -n "${CHAT_TEMPLATE}" ]]; then
+if [[ -n "${CHAT_TEMPLATE}" && "${MODEL_BACKEND}" == apertus* ]]; then
   MODEL_ARGS="${MODEL_ARGS},chat_template=${CHAT_TEMPLATE}"
 fi
 if [[ -n "${EXTRA_MODEL_ARGS}" ]]; then
@@ -486,8 +521,8 @@ CMD+=("${EXTRA_FRAMEWORK_ARGS[@]}")
 /opt/venv/bin/python -c "import nltk; nltk.download('wordnet')"
 
 echo "========== lmms-eval prod launch =========="
-echo "VLLM_REPO=${VLLM_REPO}"
-echo "LMMS_EVAL_REPO=${LMMS_EVAL_REPO}"
+echo "LMMS_EVAL_RESOLVED=$(python -c 'import lmms_eval,os;print(os.path.dirname(lmms_eval.__file__))' 2>/dev/null || echo '<import failed>')"
+echo "LMMS_EVAL_COMMIT=$(git -C "${LMMS_EVAL_DEV_PATH}" rev-parse --short HEAD 2>/dev/null || echo '<unknown>')"
 echo "MODEL_PATH=${MODEL_PATH}"
 echo "TOKENIZER_PATH=${TOKENIZER_PATH}"
 echo "CHAT_TEMPLATE=${CHAT_TEMPLATE:-<tokenizer default>}"

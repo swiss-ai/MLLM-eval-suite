@@ -16,9 +16,25 @@ def is_main_metric(metric: str) -> bool:
     return not ("stderr" in lowered or "_clt" in lowered or "_clustered" in lowered)
 
 
+# Fraction of failed grader calls above which a graded score is void.
+MAX_GRADER_FAILURE = 0.05
+
+
 # Task-specific headline metrics. Order matters: more specific task names must
 # precede broader substring matches such as seedbench and 3dsrbench.
 TASK_METRIC_PRIORITY: list[tuple[str, tuple[str, ...]]] = [
+    ("babyvision", ("babyvision_overall_accuracy",)),
+    ("healthbench", ("healthbench_score",)),
+    # Remote-sensing geospatial tasks.
+    ("rsrcc", ("accuracy",)),
+    ("vrsbench_vqa", ("vqa_accuracy",)),
+    ("vrsbench_cap", ("cap_CIDEr",)),
+    ("vrsbench_ref", ("ref_acc50",)),
+    ("geobench_single", ("per_task", "single_accuracy")),
+    ("geobench_temporal", ("temporal_per_task", "temporal_accuracy")),
+    ("geobench_cap", ("cap_CIDEr",)),
+    ("geobench_ref", ("ref_acc50",)),
+    ("frieda", ("f1", "exact_match")),
     # EASI spatial-intelligence metrics.
     ("3dsrbench_circular", ("circular_accuracy", "vanilla_accuracy")),
     ("3dsrbench", ("circular_accuracy", "vanilla_accuracy")),
@@ -33,6 +49,9 @@ TASK_METRIC_PRIORITY: list[tuple[str, tuple[str, ...]]] = [
     ("blink", ("blink_acc",)),
     ("cv_bench", ("cv_bench_acc",)),
     # Other locally important multi-metric benchmarks.
+    # generative MMLU: pin the flexible filter. strict-match does no answer
+    # extraction at all and scores 0.0 for every model.
+    ("mmlu_medical", ("exact_match,flexible-extract", "exact_match")),
     ("seedbench_2_plus", ("seedbench_2_plus_all",)),
     ("seedbench", ("seed_image", "seed_all")),  # image-only headline (skip video dims)
     ("mmstar", ("average",)),
@@ -84,6 +103,14 @@ def _numeric_metric(metrics: dict[str, Any], wanted: str) -> tuple[str, float] |
     nested_key = ""
     if wanted.startswith(("accuracy_by_task.", "accuracy_by_topic.")):
         wanted_metric, _, nested_key = wanted.partition(".")
+    # A wanted name carrying a filter ("exact_match,flexible-extract") pins that
+    # filter; otherwise filters share a display name and the winner would be
+    # whichever the harness happened to serialize first.
+    if "," in wanted_metric:
+        for metric, value in metrics.items():
+            if metric == wanted_metric and isinstance(value, (int, float)):
+                return metric_display_name(metric), float(value)
+        return None
     for metric, value in metrics.items():
         if not is_main_metric(metric):
             continue
@@ -117,6 +144,13 @@ def pick_headline_metric(task: str, metrics: dict[str, Any]) -> tuple[str | None
     metric, and EASI spatial benchmarks define specific headline metrics.
     """
     task_lower = task.lower()
+
+    # A graded score is meaningless when the grader itself failed; same
+    # contract as the VLMEvalKit judge-failure guard in derive_vlmeval_acc.
+    for key, value in metrics.items():
+        if (metric_display_name(key).endswith("grader_failure_rate") and is_main_metric(key)
+                and isinstance(value, (int, float)) and value > MAX_GRADER_FAILURE):
+            return None, None
 
     # MME headline = full score (perception + cognition). A perception-only
     # headline drops the reasoning half and undersells thinking checkpoints.
@@ -176,6 +210,8 @@ def iter_headline_metrics(task: str, metrics: dict[str, Any]) -> list[tuple[str,
 
 def normalize_score(metric: str, value: float) -> float | None:
     lowered = metric.lower()
+    if "cider" in lowered:
+        return value
     if "mme_total" in lowered:
         return value / 2800.0
     if "mme_perception" in lowered:

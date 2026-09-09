@@ -36,14 +36,14 @@ def task_values(mdir: Path) -> dict[tuple[str, str], float]:
     return out
 
 
-def audit(roots: list[Path], lm_eval_roots: list[Path] | None = None) -> int:
+def audit(roots: list[Path], lm_eval_roots: list[Path] | None = None, lm_eval_layout: str = "run-first") -> int:
     by_key: dict[str, list[Path]] = defaultdict(list)
     for root in roots:
         for d in sorted(root.iterdir()):
             if d.is_dir():
                 by_key[canonical_model_key(d.name)].append(d)
     for root in lm_eval_roots or []:
-        for d in _lm_eval_model_dirs(root):
+        for d in _lm_eval_model_dirs(root, lm_eval_layout):
             by_key[canonical_model_key(d.name)].append(d)
 
     bad = 0
@@ -74,10 +74,12 @@ def main() -> None:
     p.add_argument("--runs-root", required=True, type=Path)
     p.add_argument("--vlmeval-root", type=Path)
     p.add_argument("--lm-eval-root", type=Path)
+    p.add_argument("--lm-eval-layout", choices=("run-first", "model-first"), default="run-first",
+                   help="lm-eval layout; must match make_dashboard.py")
     args = p.parse_args()
     roots = [args.runs_root.resolve()] + ([args.vlmeval_root.resolve()] if args.vlmeval_root else [])
     lm_eval_roots = [args.lm_eval_root.resolve()] if args.lm_eval_root else []
-    sys.exit(1 if audit(roots, lm_eval_roots) else 0)
+    sys.exit(1 if audit(roots, lm_eval_roots, args.lm_eval_layout) else 0)
 
 
 if __name__ == "__main__":

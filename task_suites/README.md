@@ -1,8 +1,9 @@
 # Suites
 
-Suite files define task groups that can be passed directly to the launchers with `--tasks`.
+Suite files define task groups; each named `--suite` maps to one file here. These files are the
+source of truth (stale copies inside the submodules are not used by the launchers).
 
-- `lmms-eval/`: lmms-eval suites, including visual smoke/full suites and audio suites.
-- `VLMEvalKit/`: VLMEvalKit suites copied from `third_party/VLMEvalKit/scripts/apertus-vllm/suites`.
+- `lmms-eval/`: visual, geospatial (needs staged RS imagery via `RS_DATASETS_ROOT`), and audio suites.
+- `VLMEvalKit/`: smoke, full, spatial (EASI set), and llm_judge (OpenAI-judge-scored; key required).
 - `Evaluator/`: NeMo Evaluator text suites.
 - `lm-evaluation-harness/`: direct EleutherAI lm-evaluation-harness suites for text generation and loglikelihood benchmarks.

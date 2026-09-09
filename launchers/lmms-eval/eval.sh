@@ -2,7 +2,7 @@
 # eval.sh — Apertus VLM eval CLI (per-task SQLite cache, single user entry point).
 #
 # Usage:
-#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval] [--mode fill|readonly] [--submit-mode batch|interactive] [--help]
+#   bash eval.sh <model> [--tasks T | --suite full|smoke|audio-full|audio-smoke|audio-llm-eval|visual-llm-judge|geospatial-full|geospatial-smoke] [--mode fill|readonly] [--submit-mode batch|interactive] [--help] [-- job args...]
 #
 # <model> forms:
 #   /path/to/ckpt                       single path
@@ -10,16 +10,17 @@
 #   @file.txt                           one path per line (comments # and blanks OK)
 #
 # --tasks   comma-separated, @file.txt, or direct path to a suite file.
-# --suite   named curation: full (default), smoke, audio-full, audio-smoke, audio-llm-eval.
+# --suite   named curation: full (default), smoke, audio-full, audio-smoke, audio-llm-eval,
+#           visual-llm-judge, geospatial-full, geospatial-smoke.
+#           visual-llm-judge holds the judge-scored visual tasks; it is disjoint
+#           from full and the launcher refuses to submit it without a judge.
 # --mode    fill|readonly. Both modes use the shared cache directly with preload
 #           on and writes enabled.
+# --size         8b|70b parallelism profile: 8b = 4 DP workers (TP=1); 70b = 1 worker,
+#                model sharded across 4 GPUs (TP=4, gpu-mem 0.85). Default: 8b.
 # --submit-mode  batch|interactive. Batch submits one sbatch per task/model pair.
 #                Interactive runs the job script directly with bash so it uses
 #                the current shell's node allocation.
-# --extra-model-args  Extra lmms-eval --model_args suffix, comma-separated.
-# --debug-mode  Enable Apertus image token cache debug logging.
-# --extra-framework-config  Extra lmms-eval argv token. Repeat for each token.
-# --dry-run  Print submissions without executing them.
 #
 # Examples:
 #   bash eval.sh /path/to/ckpt                          # full suite, fill mode
@@ -29,6 +30,7 @@
 #   bash eval.sh @models.txt --tasks @custom.txt
 #   bash eval.sh /path/to/ckpt --mode fill              # explicit default
 #   bash eval.sh /path/to/ckpt --submit-mode interactive --suite audio-smoke
+#   bash eval.sh /path/to/ckpt --tasks google_fleurs -- --gpu-memory-utilization 0.75
 #
 # Cache layout (per-task SQLite, bounded growth per file):
 #   $CACHE_BASE/{task}/image_tokens/apertus_image_token_cache.sqlite3
@@ -42,8 +44,10 @@ if [[ -z "${ORCH_REPO_ROOT:-}" ]]; then
 fi
 REPO_ROOT="${ORCH_REPO_ROOT}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/lmms-eval/eval_job.slurm}"
+source "${ORCH_REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
 LMMS_CACHE_ROOT="${LMMS_CACHE_ROOT:-${REPO_ROOT}/cache/lmms-eval}"
 CACHE_BASE="${CACHE_BASE:-${LMMS_CACHE_ROOT}/image_token_cache}"
+declare -A HF_AUTH_CHECKED
 LOG_BASE="${LOG_DIR:-${REPO_ROOT}/logs/lmms-eval}"
 OUTPUT_PATH="${OUTPUT_PATH:-${REPO_ROOT}/results/lmms-eval}"
 HF_HOME_PATH="${HF_HOME:-${REPO_ROOT}/cache/hf}"
@@ -66,6 +70,9 @@ SUITE_FULL="${SUITE_FULL:-${SUITE_DIR}/visual_full.txt}"
 SUITE_AUDIO_SMOKE="${SUITE_AUDIO_SMOKE:-${SUITE_DIR}/audio_smoke.txt}"
 SUITE_AUDIO_FULL="${SUITE_AUDIO_FULL:-${SUITE_DIR}/audio_full.txt}"
 SUITE_AUDIO_LLM_EVAL="${SUITE_AUDIO_LLM_EVAL:-${SUITE_DIR}/audio_llm_eval.txt}"
+SUITE_VISUAL_LLM_JUDGE="${SUITE_VISUAL_LLM_JUDGE:-${SUITE_DIR}/visual_llm_judge.txt}"
+SUITE_GEOSPATIAL_FULL="${SUITE_GEOSPATIAL_FULL:-${SUITE_DIR}/geospatial_full.txt}"
+SUITE_GEOSPATIAL_SMOKE="${SUITE_GEOSPATIAL_SMOKE:-${SUITE_DIR}/geospatial_smoke.txt}"
 
 # ------------------------------------------------------------------
 # CLI parsing
@@ -80,11 +87,12 @@ MODELS_RAW=""
 TASKS_RAW=""
 SUITE=""
 MODE="fill"
+SIZE="8b"
 SUBMIT_MODE="batch"
 ENABLE_THINKING=""
 GEN_KWARGS_OVERRIDE=""
 LABEL_SUFFIX=""
-EXTRA_MODEL_ARGS=""
+PASSTHROUGH=()
 EXTRA_FRAMEWORK_ARGS=()
 DEBUG_MODE=0
 DRY_RUN=0
@@ -95,6 +103,7 @@ while [[ $# -gt 0 ]]; do
     --tasks)    TASKS_RAW="$2"; shift 2 ;;
     --suite)    SUITE="$2"; shift 2 ;;
     --mode)     MODE="$2"; shift 2 ;;
+    --size)     SIZE="$2"; shift 2 ;;
     --submit-mode) SUBMIT_MODE="$2"; shift 2 ;;
     --enable-thinking) ENABLE_THINKING=1; shift ;;
     --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
@@ -109,7 +118,8 @@ while [[ $# -gt 0 ]]; do
       fi
       shift 2
       ;;
-    --dry-run) DRY_RUN=1; shift ;;
+    --dry-run)  DRY_RUN=1; shift ;;
+    --)         shift; PASSTHROUGH+=("$@"); break ;;
     --*)        echo "unknown flag: $1" >&2; usage; exit 1 ;;
     *)
       # First positional = model(s)
@@ -123,6 +133,17 @@ done
 if [[ -z "$MODELS_RAW" ]]; then echo "missing <model> argument" >&2; usage; exit 1; fi
 
 case "$MODE" in fill|readonly) ;; *) echo "--mode must be fill|readonly (got: $MODE)" >&2; exit 1 ;; esac
+# Parallelism profile, mirroring the VLMEvalKit launcher: 8b = 4 DP workers on one
+# node; 70b = one worker with the model tensor-sharded across all 4 GPUs.
+case "$SIZE" in
+  8b)  SIZE_NUM_PROCESSES=4; SIZE_EXTRA_MODEL_ARGS="";                       SIZE_GPU_MEM="" ;;
+  70b) SIZE_NUM_PROCESSES=1; SIZE_EXTRA_MODEL_ARGS="tensor_parallel_size=4"; SIZE_GPU_MEM="0.85" ;;
+  *) echo "--size must be 8b|70b (got: $SIZE)" >&2; exit 1 ;;
+esac
+EXTRA_MODEL_ARGS="${EXTRA_MODEL_ARGS:-$SIZE_EXTRA_MODEL_ARGS}"
+if [[ -n "$ENABLE_THINKING" ]]; then
+  EXTRA_MODEL_ARGS="${EXTRA_MODEL_ARGS:+$EXTRA_MODEL_ARGS,}enable_thinking=True"
+fi
 case "$SUBMIT_MODE" in batch|interactive) ;; *) echo "--submit-mode must be batch|interactive (got: $SUBMIT_MODE)" >&2; exit 1 ;; esac
 
 # ------------------------------------------------------------------
@@ -158,10 +179,35 @@ else
     audio-full) TASKS=$(resolve_list "$SUITE_AUDIO_FULL") ;;
     audio-smoke) TASKS=$(resolve_list "$SUITE_AUDIO_SMOKE") ;;
     audio-llm-eval) TASKS=$(resolve_list "$SUITE_AUDIO_LLM_EVAL") ;;
-    *) echo "--suite must be full|smoke|audio-full|audio-smoke|audio-llm-eval (got: $SUITE)" >&2; exit 1 ;;
+    visual-llm-judge) TASKS=$(resolve_list "$SUITE_VISUAL_LLM_JUDGE") ;;
+    geospatial-full) TASKS=$(resolve_list "$SUITE_GEOSPATIAL_FULL") ;;
+    geospatial-smoke) TASKS=$(resolve_list "$SUITE_GEOSPATIAL_SMOKE") ;;
+    *) echo "--suite must be full|smoke|audio-full|audio-smoke|audio-llm-eval|visual-llm-judge|geospatial-full|geospatial-smoke (got: $SUITE)" >&2; exit 1 ;;
   esac
 fi
 [[ -z "$TASKS" ]] && { echo "no tasks resolved" >&2; exit 1; }
+
+# Judge-scored tasks silently mark every sample wrong when the judge is absent
+# (dummy provider, or a client that never constructs). Fail loud instead, the
+# same contract the VLMEvalKit launcher enforces. ALLOW_NO_JUDGE=1 overrides.
+if [[ -f "$SUITE_VISUAL_LLM_JUDGE" && "${ALLOW_NO_JUDGE:-0}" != "1" ]]; then
+  JUDGE_HITS="$(comm -12 <(echo "$TASKS" | sort -u) <(resolve_list "@${SUITE_VISUAL_LLM_JUDGE}" | sort -u) || true)"
+  if [[ -n "$JUDGE_HITS" ]]; then
+    for t in $JUDGE_HITS; do
+      case "$t" in
+        babyvision)
+          [[ -n "${BABYVISION_API_KEY:-}" ]] || { echo "ERROR: task 'babyvision' needs BABYVISION_API_KEY (set ALLOW_NO_JUDGE=1 to override)" >&2; exit 1; } ;;
+        healthbench)
+          [[ -n "${HEALTHBENCH_GRADER_BASE_URL:-}" ]] || { echo "ERROR: task 'healthbench' needs HEALTHBENCH_GRADER_BASE_URL (a live grader endpoint)" >&2; exit 1; } ;;
+        *)
+          if [[ "${API_TYPE:-}" != "openai" || -z "${OPENAI_API_KEY:-}" ]]; then
+            echo "ERROR: judge task '$t' needs API_TYPE=openai and OPENAI_API_KEY; without them it is scored by the dummy judge (all-zero)." >&2
+            exit 1
+          fi ;;
+      esac
+    done
+  fi
+fi
 
 # ------------------------------------------------------------------
 # Container-environment fixes for sbatch from inside Pyxis container.
@@ -198,25 +244,32 @@ CHAT_TEMPLATE="${CHAT_TEMPLATE:-}"
 if [[ -z "${CHAT_TEMPLATE}" && "${TOKENIZER_PATH}" == "${DEFAULT_TOKENIZER_PATH}" ]]; then
   CHAT_TEMPLATE="${TOKENIZER_PATH}/chat_template.jinja"
 fi
-# 8192 covers ~85% of reasoning-task generations without truncation. Math/reasoning
-# tasks at lower budgets show 30-50% mid-response truncation. MCQ hits EOS well
-# before this, so no cost for short-answer tasks.
-GEN_KWARGS="${GEN_KWARGS:-max_new_tokens=8192,temperature=0}"
+# 16384 is the Artificial Analysis standard cap for non-thinking evals; MCQ hits
+# EOS well before this, so no cost for short-answer tasks.
+GEN_KWARGS="${GEN_KWARGS:-max_new_tokens=16384,temperature=0}"
 if [[ -n "$GEN_KWARGS_OVERRIDE" ]]; then GEN_KWARGS="$GEN_KWARGS_OVERRIDE"; fi
 # 4 vLLM workers per node = 1 per GH200 GPU (4 GPUs). Per-task SQLite handles
 # 4 concurrent writers via WAL with sub-ms lock overhead.
-NUM_PROCESSES="${NUM_PROCESSES:-4}"
+NUM_PROCESSES="${NUM_PROCESSES:-$SIZE_NUM_PROCESSES}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
+# The image-token cache memoizes the discrete image->VQ-token conversion shared
+# by every Apertus checkpoint; foreign continuous-encoder models run once and
+# have nothing to amortize.
+if [[ "${MODEL_BACKEND:-apertus_1p5_vllm}" == apertus* ]]; then
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
+else
+  ENABLE_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-false}"
+fi
 
 # WandB config
-ENABLE_WANDB="${ENABLE_WANDB:-true}"
+ENABLE_WANDB="${ENABLE_WANDB:-false}"
 WANDB_ENTITY="${WANDB_ENTITY:-alvor}"
 WANDB_PROJECT="${WANDB_PROJECT:-apertus-1p5-eval}"
 WANDB_GROUP_PREFIX="${WANDB_GROUP_PREFIX:-}"
 WANDB_LOG_SAMPLES="${WANDB_LOG_SAMPLES:-false}"
 
-if [[ "$ENABLE_WANDB" == "true" && -z "${WANDB_API_KEY:-}" ]]; then
-  echo "WARNING: ENABLE_WANDB=true but WANDB_API_KEY is empty (not in ~/.netrc). Jobs will fail fast."
+if [[ "$ENABLE_WANDB" == "true" ]]; then
+  echo "NOTE: the slurm template currently forces W&B off; --enable-wandb has no effect."
 fi
 
 # ------------------------------------------------------------------
@@ -236,6 +289,7 @@ echo "  models:     $(echo "$MODELS" | tr '\n' ',' | sed 's/,$//')"
 echo "  tasks:      $(echo "$TASKS"  | tr '\n' ',' | sed 's/,$//')"
 echo "  tokenizer:  $TOKENIZER_PATH"
 echo "  template:   ${CHAT_TEMPLATE:-<tokenizer default>}"
+echo "  gen kwargs: $GEN_KWARGS"
 echo "  cache base: $CACHE_BASE"
 echo "  output:     $OUTPUT_PATH"
 echo "  run id:     $RUN_ID"
@@ -256,8 +310,26 @@ while IFS= read -r TASK; do
 
   while IFS= read -r MODEL_PATH; do
     [[ -z "$MODEL_PATH" ]] && continue
-    if [[ ! -d "$MODEL_PATH" ]]; then
+    # Foreign backends may take HF ids; only path-shaped models must exist.
+    if [[ ! -d "$MODEL_PATH" && ( "$MODEL_PATH" == /* || "${MODEL_BACKEND:-apertus_1p5_vllm}" == apertus* ) ]]; then
       echo "WARNING: model path not found, skipping: $MODEL_PATH" >&2
+      continue
+    fi
+
+    # A gated repo we cannot read 401s at load time, which slurm records as a
+    # two-minute COMPLETED with no score. Check the hub once per model before
+    # spending an allocation, against the same HF_HOME the job will use.
+    if [[ ! -d "$MODEL_PATH" && -z "${HF_AUTH_CHECKED[$MODEL_PATH]:-}" ]]; then
+      if HF_HOME="$HF_HOME_PATH" python3 -c \
+          'import sys; from huggingface_hub import auth_check; auth_check(sys.argv[1])' \
+          "$MODEL_PATH" 2>/dev/null; then
+        HF_AUTH_CHECKED[$MODEL_PATH]=ok
+      else
+        HF_AUTH_CHECKED[$MODEL_PATH]=denied
+      fi
+    fi
+    if [[ "${HF_AUTH_CHECKED[$MODEL_PATH]:-}" == "denied" ]]; then
+      echo "ERROR: no read access to '$MODEL_PATH' (gated repo, or no token at \$HF_HOME/token); skipping" >&2
       continue
     fi
 
@@ -270,15 +342,17 @@ while IFS= read -r TASK; do
     # The dashboard's run identity is the dir one level under runs-root, so nest
     # <MODEL_LABEL>/<RUN_ID>: the suffix becomes the canonical key and two models
     # in one call never share a dir.
-    MODEL_OUTPUT_PATH="${OUTPUT_BASE}/${MODEL_LABEL}/${RUN_ID}"
+    # Per-task subdir: lmms-eval names results.json by wall-clock timestamp, so two
+    # single-task jobs finishing in the same second clobber each other in a shared dir.
+    MODEL_OUTPUT_PATH="${OUTPUT_BASE}/${MODEL_LABEL}/${RUN_ID}/${TASK}"
     mkdir -p "$MODEL_OUTPUT_PATH"
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
       JOB_OUTPUT="${LOG_DIR}/eval_${MODE}_${TASK}_${MODEL_LABEL}_interactive.out"
       JOB_ERROR="${LOG_DIR}/eval_${MODE}_${TASK}_${MODEL_LABEL}_interactive.err"
     else
-      JOB_OUTPUT="${LOG_DIR}/eval_${MODE}_${TASK}_%j.out"
-      JOB_ERROR="${LOG_DIR}/eval_${MODE}_${TASK}_%j.err"
+      JOB_OUTPUT="${LOG_DIR}/eval_${MODE}_%j.out"
+      JOB_ERROR="${LOG_DIR}/eval_${MODE}_%j.err"
     fi
 
     echo "--- submit: task=$TASK  model=$MODEL_LABEL ---"
@@ -300,7 +374,7 @@ while IFS= read -r TASK; do
       --num-processes "$NUM_PROCESSES"
       --batch-size "$BATCH_SIZE"
       --gen-kwargs "$GEN_KWARGS"
-      --enable-image-token-cache true
+      --enable-image-token-cache "$ENABLE_IMAGE_TOKEN_CACHE"
       --image-token-cache-dir "$TASK_CACHE_DIR"
       --image-token-cache-mode "$MODE"
       --enable-wandb "$ENABLE_WANDB"
@@ -310,16 +384,18 @@ while IFS= read -r TASK; do
       --wandb-log-samples "$WANDB_LOG_SAMPLES"
       --wandb-api-key "${WANDB_API_KEY:-}"
     )
+    JOB_ARGS+=("${PASSTHROUGH[@]}")
 
-    if [[ -n "$ENABLE_THINKING" ]]; then
-      THINKING_MODEL_ARGS="enable_thinking=True"
-      if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
-        THINKING_MODEL_ARGS="${THINKING_MODEL_ARGS},${EXTRA_MODEL_ARGS}"
-      fi
-      JOB_ARGS+=(--extra-model-args "$THINKING_MODEL_ARGS" --wandb-run-name "$MODEL_LABEL")
-    elif [[ -n "$EXTRA_MODEL_ARGS" ]]; then
+    if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
       JOB_ARGS+=(--extra-model-args "$EXTRA_MODEL_ARGS")
     fi
+    if [[ -n "$SIZE_GPU_MEM" ]]; then
+      JOB_ARGS+=(--gpu-memory-utilization "$SIZE_GPU_MEM")
+    fi
+    if [[ -n "$ENABLE_THINKING" ]]; then
+      JOB_ARGS+=(--wandb-run-name "$MODEL_LABEL")
+    fi
+
     if [[ "${DEBUG_MODE}" -eq 1 ]]; then
       JOB_ARGS+=(--debug-mode)
     fi
@@ -327,24 +403,27 @@ while IFS= read -r TASK; do
       JOB_ARGS+=(--extra-framework-config "${ARG}")
     done
 
-    if [[ "$SUBMIT_MODE" == "interactive" ]]; then
-      CMD=(bash "$SLURM_TEMPLATE" "${JOB_ARGS[@]}")
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      REDACTED=(); MASK_NEXT=0
+      for a in "$SLURM_TEMPLATE" "${JOB_ARGS[@]}"; do
+        if [[ "$MASK_NEXT" -eq 1 ]]; then REDACTED+=("***"); MASK_NEXT=0
+        else REDACTED+=("$a"); [[ "$a" == "--wandb-api-key" ]] && MASK_NEXT=1; fi
+      done
+      printf '    dry-run:'; printf ' %q' "${REDACTED[@]}"; printf '\n'
+    elif [[ "$SUBMIT_MODE" == "interactive" ]]; then
       echo "    submit: interactive bash ${SLURM_TEMPLATE}"
-      if [[ "${DRY_RUN}" -eq 1 ]]; then
-        printf ' %q' "${CMD[@]}"
-        printf ' >%q 2>%q\n' "$JOB_OUTPUT" "$JOB_ERROR"
-      else
-        "${CMD[@]}" >"$JOB_OUTPUT" 2>"$JOB_ERROR"
-      fi
+      bash "$SLURM_TEMPLATE" "${JOB_ARGS[@]}" >"$JOB_OUTPUT" 2>"$JOB_ERROR"
     else
-      CMD=(sbatch --output "$JOB_OUTPUT" --error "$JOB_ERROR" "$SLURM_TEMPLATE" "${JOB_ARGS[@]}")
       echo "    submit: sbatch ${SLURM_TEMPLATE}"
-      if [[ "${DRY_RUN}" -eq 1 ]]; then
-        printf ' %q' "${CMD[@]}"
-        printf '\n'
-      else
-        "${CMD[@]}"
-      fi
+      TIME_ARGS=()
+      [[ -n "${SBATCH_TIME:-}" ]] && TIME_ARGS=(--time "${SBATCH_TIME}")
+      sbatch \
+        "${SBATCH_OVERRIDES[@]}" \
+        "${TIME_ARGS[@]}" \
+        --output "$JOB_OUTPUT" \
+        --error  "$JOB_ERROR" \
+        "$SLURM_TEMPLATE" \
+        "${JOB_ARGS[@]}"
     fi
   done <<< "$MODELS"
 done <<< "$TASKS"

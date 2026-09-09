@@ -25,30 +25,123 @@ from metric_selection import iter_headline_metrics, normalize_score
 # Spatial-intelligence benchmarks are tracked on EASI via VLMEvalKit
 # (https://easi.lmms-lab.com/leaderboard/), not here. Matches the EASI block
 # in metric_selection.TASK_METRIC_PRIORITY.
-EASI_SPATIAL_PREFIXES = (
-    "3dsrbench",
-    "site_bench",
-    "mmsi_bench",
-    "viewspatial",
-    "embspatial",
-    "mindcube",
-    "sparbench",
-    "omnispatial",
-    "erqa",
-    "blink",
-    "cv_bench",
-    "vsibench",
-    "refspatial",
-    "where2place",
-    # UI grounding, also not reported from this harness.
-    "screenspot",
-    "osworld",
-)
+# ---------------------------------------------------------------------------
+# The benchmark registry: one record per dashboard task key. Everything the
+# dashboard needs to know about a benchmark lives here — its category, the
+# VLMEvalKit dataset name(s) when that harness owns it, a headline-metric
+# override, and whether the key/category match by prefix. The legacy
+# structures below are derived views of this table; edit the table, not them.
+# ---------------------------------------------------------------------------
+BENCHMARKS = {
+    "3dsrbench": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk": "3DSRBench", "vk_prefix": True},
+    "ai2d": {"cat": "STEM & Knowledge"},
+    "babyvision": {"cat": "Math & Logic"},
+    "bigearth": {"cat": "Remote Sensing", "cat_prefix": True},
+    "blink": {"cat": "Multi-Image", "vk": "BLINK", "vk_prefix": True},
+    "chartqa": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_doc_parsing": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_kie": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_multi_lan_ocr": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_multi_scene_ocr": {"cat": "Docs, Charts & OCR"},
+    "charxiv_descriptive": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_descriptive_val"},
+    "charxiv_reasoning": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_reasoning_val"},
+    "countbench": {"cat": "Counting & Grounding"},
+    "cv_bench": {"vk_prefix": True},
+    "cv_bench_2d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-2D"},
+    "cv_bench_3d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-3D"},
+    "docvqa_val": {"cat": "Docs, Charts & OCR"},
+    "embspatial": {"cat": "Spatial & Embodied", "vk": "EmbSpatialBench", "vk_prefix": True},
+    "erqa": {"cat": "Spatial & Embodied", "vk": "ERQA", "vk_prefix": True},
+    "frieda": {"cat": "Remote Sensing"},
+    "geobench": {"cat": "Remote Sensing", "cat_prefix": True},
+    "gqa": {"cat": "General VQA & Perception"},
+    "hallusionbench": {"cat": "Alignment", "vk": "HallusionBench"},
+    "healthbench": {"cat": "Medical", "cat_prefix": True},
+    "iconqa_val": {"cat": "Docs, Charts & OCR"},
+    "infovqa_val": {"cat": "Docs, Charts & OCR"},
+    "logicvista": {"cat": "Math & Logic", "vk": "LogicVista"},
+    "mathverse": {"cat": "Math & Logic", "vk": "MathVerse_MINI"},
+    "mathvision": {"cat": "Math & Logic", "cat_prefix": True},
+    "mathvista_mini": {"cat": "Math & Logic", "vk": "MathVista_MINI"},
+    "medmcqa": {"cat": "Medical"},
+    "medqa": {"cat": "Medical"},
+    "medxpertqa_mm": {"cat": "Medical VQA"},
+    "medxpertqa_text": {"cat": "Medical"},
+    "mia_bench": {"cat": "Alignment", "vk": "MIA-Bench"},
+    "mindcube": {"cat": "Spatial & Embodied", "vk": "MindCubeBench_tiny_raw_qa", "vk_prefix": True},
+    "mm_ifeval": {"cat": "Instruction Following", "vk": "MM-IFEval"},
+    "mm_safetybench": {"cat": "Alignment", "vk": "MMSafetyBench", "headline": ('safety_rate',)},
+    "mmbench_en_dev": {"cat": "General VQA & Perception"},
+    "mme": {"cat": "General VQA & Perception"},
+    "mme_cognition": {"cat": "General VQA & Perception"},
+    "mme_perception": {"cat": "General VQA & Perception"},
+    "mmerealworld": {"cat": "General VQA & Perception"},
+    "mmlu_medical": {"cat": "Medical"},
+    "mmmu_pro_standard": {"cat": "STEM & Knowledge"},
+    "mmmu_pro_vision": {"cat": "STEM & Knowledge"},
+    "mmmu_val": {"cat": "STEM & Knowledge"},
+    "mmsi_bench": {"cat": "Spatial & Embodied", "vk": "MMSIBench_wo_circular", "vk_prefix": True},
+    "mmstar": {"cat": "General VQA & Perception"},
+    "mmvet": {"cat": "General VQA & Perception", "vk": "MMVet"},
+    "mmvp": {"cat": "Robustness & Bias"},
+    "mmvp_pair": {"cat": "Robustness & Bias"},
+    "mtvqa": {"cat": "Docs, Charts & OCR"},
+    "muirbench": {"cat": "Multi-Image", "vk": "MUIRBench"},
+    "ocrbench": {"cat": "Docs, Charts & OCR"},
+    "ocrbench_v2": {"cat": "Docs, Charts & OCR"},
+    "omnidocbench": {"cat": "Docs, Charts & OCR"},
+    "omnispatial": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk_prefix": True},
+    "omnispatial_manual_cot": {"vk": "OmniSpatialBench_manual_cot"},
+    "osworld": {"vk": "OSWorld_G", "vk_prefix": True},
+    "path_mmu": {"cat": "Medical VQA", "cat_prefix": True},
+    "path_mmu_test": {"cat": "Medical VQA"},
+    "path_vqa": {"cat": "Medical VQA"},
+    "pixmo_count": {"cat": "Counting & Grounding"},
+    "pmc_vqa": {"cat": "Medical VQA"},
+    "pope": {"cat": "Alignment"},
+    "pubmedqa": {"cat": "Medical"},
+    "realworldqa": {"cat": "General VQA & Perception"},
+    "refcoco": {"cat": "Counting & Grounding", "cat_prefix": True},
+    "refspatial": {"cat": "Spatial & Embodied", "vk": "RefSpatial_wo_unseen", "vk_prefix": True},
+    "robospatial": {"cat": "Spatial & Embodied", "vk": "RoboSpatialHome"},
+    "rsrcc": {"cat": "Remote Sensing", "cat_prefix": True},
+    "scienceqa": {"cat": "STEM & Knowledge"},
+    "screenspot": {"vk": "ScreenSpot", "vk_prefix": True},
+    "screenspot_pro": {"vk": "ScreenSpot_Pro"},
+    "screenspot_v2": {"vk": "ScreenSpot_v2"},
+    "seedbench": {"cat": "General VQA & Perception"},
+    "seedbench_2_plus": {"cat": "Docs, Charts & OCR"},
+    "site_bench": {"cat": "Spatial & Embodied", "vk": "SiteBenchImage", "vk_prefix": True, "headline": ('overall_caa', 'overall_accuracy', 'accuracy')},
+    "slake": {"cat": "Medical VQA"},
+    "sparbench": {"cat": "Spatial & Embodied", "vk": "SparBench", "vk_prefix": True},
+    "spatial_dise": {"cat": "Spatial & Embodied", "vk": "Spatial-DISE_BENCH", "vk_prefix": True},
+    "textvqa_val": {"cat": "Docs, Charts & OCR"},
+    "viewspatial": {"cat": "Spatial & Embodied", "vk": "ViewSpatialBench", "vk_prefix": True},
+    "visualpuzzles_direct": {"cat": "Math & Logic"},
+    "visulogic": {"cat": "Math & Logic"},
+    "vlms_are_biased": {"cat": "Robustness & Bias"},
+    "vlmsareblind": {"cat": "Robustness & Bias"},
+    "vqa_rad": {"cat": "Medical VQA"},
+    "vqav2_val": {"cat": "General VQA & Perception"},
+    "vrsbench": {"cat": "Remote Sensing", "cat_prefix": True},
+    "vsibench": {"vk_prefix": True},
+    "vsibench_debiased": {"cat": "Spatial & Embodied", "vk": ['VSI-Bench-Debiased', 'VSI-Bench-Debiased_32frame']},
+    "vstar_bench": {"cat": "General VQA & Perception"},
+    "where2place": {"vk_prefix": True},
+}
+
+
+# Categories in display order, with modality.
+CATEGORIES = [('General VQA & Perception', 'vision'), ('Robustness & Bias', 'vision'), ('Spatial & Embodied', 'vision'), ('Multi-Image', 'vision'), ('Instruction Following', 'vision'), ('Counting & Grounding', 'vision'), ('Docs, Charts & OCR', 'vision'), ('Math & Logic', 'vision'), ('STEM & Knowledge', 'vision'), ('Remote Sensing', 'vision'), ('Alignment', 'vision'), ('Medical VQA', 'vision'), ('Medical', 'text')]
+
+EXTRA_VK_PREFIXES = ('muirbench', 'mm_ifeval', 'mia_bench')
+
+EASI_SPATIAL_PREFIXES = tuple(k for k, b in BENCHMARKS.items() if b.get("vk_prefix"))
 
 # Spatial-intelligence + multi-image benchmarks are owned by VLMEvalKit/EASI
 # (correct interleaving + EASI protocol); everything else by lmms-eval. The
 # badge shows which harness produced each benchmark's number, EASI-style.
-VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + ("muirbench",)
+VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + EXTRA_VK_PREFIXES
 
 
 def framework_for(task: str) -> str:
@@ -62,7 +155,15 @@ LM_EVAL_FRAMEWORK = "lm-evaluation-harness"
 # generative-medical subjects (exact-match scorer is format-fragile),
 # ok_vqa / simplevqa (low-signal, not widely reported), and refspatial (a true
 # zero-shot floor — Apertus never trained on it; points parse but always ~0).
-DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial")
+DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial", "mathvista_testmini", "logicvista_reasoning",
+                         # lmms duplicate of the VLMEvalKit-owned HallusionBench row
+                         # (VK runs the judge; the lmms copy scored 0.0 keyless).
+                         "hallusion_bench_image",
+                         # n-gram captioning metrics (CIDEr/BLEU) measure prompt-style overlap, not
+                         # caption quality, on free-form RS output; results stay on disk.
+                         # Run/schedule policy lives in task_suites/*; entries here only
+                         # suppress artifacts already on disk.
+                         "vrsbench_cap", "geobench_cap", "bigearth_cap")
 
 _TRUNC_CACHE: dict | None = None
 
@@ -109,6 +210,11 @@ def canonical_model_key(name: str) -> str:
     (online vs mixed vs base) never merge.
     """
     s = name.lower()
+    # VLMEval runs launched by checkpoint path carry a slugified absolute path
+    # (capstor_store_..._<ckpt>); reduce to the final checkpoint name so they
+    # canonicalize like the clean run-name launches.
+    if s.startswith("capstor_store_"):
+        s = re.split(r"(?:hf_checkpoints|hf-checkpoints|rleval|final_8b)_", s)[-1]
     mode = None
     if (t := _THINKING_RE.search(s)):
         s, mode = s[: t.start()], "thinking" + (t.group(1) or "")
@@ -140,27 +246,49 @@ def canonical_model_key(name: str) -> str:
     return f"{key} [{mode}]" if mode else key
 
 
+def parse_models_manifest(path: Path) -> tuple[list, list, dict, dict]:
+    """Parse dashboard_models.txt: 'key[|alias...]=Label' lines, # comments.
+
+    A '# group: Name' comment starts a selector section; subsequent keys
+    belong to it. Returns (only_keys, label_specs, alias_map, group_map)
+    where alias_map sends each alias key to its primary (foreign models whose
+    lmms label and VLMEvalKit registry name canonicalize differently, e.g.
+    gemma-3-27b-it vs gemma3-27b) and group_map sends each key to its section.
+    """
+    only, labels, aliases, groups = [], [], {}, {}
+    group = "Models"
+    for raw in path.read_text().splitlines():
+        stripped = raw.strip()
+        if stripped.lower().startswith("# group:"):
+            group = stripped.split(":", 1)[1].strip() or group
+            continue
+        line = raw.split("#", 1)[0].strip()
+        if not line or "=" not in line:
+            continue
+        keypart, label = line.split("=", 1)
+        keys = [k.strip() for k in keypart.split("|")]
+        only.append(keys[0])
+        labels.append(f"{keys[0]}={label.strip()}")
+        groups[keys[0]] = group
+        for alias in keys[1:]:
+            aliases[alias] = keys[0]
+    return only, labels, aliases, groups
+
+
 # VLMEvalKit dataset dir -> canonical task name, restricted to the benchmarks
 # VLMEvalKit owns (spatial + multi-image + UI grounding). Everything else in a
 # VLMEval_Outputs tree is lmms-eval-owned and ignored here.
 VK_OWNED_TASKS = {
-    "BLINK": "blink", "MUIRBench": "muirbench", "EmbSpatialBench": "embspatial",
-    "MMSIBench_wo_circular": "mmsi_bench", "3DSRBench": "3dsrbench",
-    "CV-Bench-2D": "cv_bench_2d", "CV-Bench-3D": "cv_bench_3d", "ERQA": "erqa",
-    "MindCubeBench_tiny_raw_qa": "mindcube", "OmniSpatialBench_default": "omnispatial",
-    "SparBench": "sparbench", "SiteBenchImage": "site_bench", "ViewSpatialBench": "viewspatial",
-    "VSI-Bench-Debiased": "vsibench", "RefSpatial_wo_unseen": "refspatial",
-    "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
-    "ScreenSpot_v2": "screenspot_v2", "ScreenSpot_Pro": "screenspot_pro", "OSWorld_G": "osworld",
+    vk: key
+    for key, b in BENCHMARKS.items()
+    for vk in ([b["vk"]] if isinstance(b.get("vk"), str) else b.get("vk", []))
 }
 _VK_HEADLINE = ("overall", "overall_accuracy", "acc", "accuracy")
 _VK_AGG_LABELS = ("all", "overall", "none")
 # Per-benchmark headline override where the EASI-canonical metric is not plain
 # accuracy. site_bench reports chance-adjusted accuracy (overall_caa); raw
 # accuracy ~2x inflates it relative to the EASI leaderboard.
-VK_HEADLINE_BY_TASK = {
-    "site_bench": ("overall_caa", "overall_accuracy", "accuracy"),
-}
+VK_HEADLINE_BY_TASK = {k: b["headline"] for k, b in BENCHMARKS.items() if "headline" in b}
 
 
 def _vk_norm(name: str) -> str:
@@ -185,7 +313,7 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
     data = rows[1:]
 
     def scale(value: float) -> float:
-        return value * 100 if value <= 1.0 else value
+        return value * 100 if 0 <= value <= 1.0 else value
 
     if len(header) == 2 and header[1] == "value":
         cells = {_vk_norm(r[0]): r[1] for r in data if len(r) >= 2}
@@ -208,34 +336,66 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
 def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
     model_dirs = sorted(d for d in vk_root.iterdir() if d.is_dir())
     if model_filters:
-        model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
+        model_dirs = [d for d in model_dirs
+                      if any(s in d.name or s in canonical_model_key(d.name) for s in model_filters)]
 
     rows: dict[tuple[str, str], dict[str, dict]] = {}
     models: set[str] = set()
     skipped: list[str] = []
+    cell_mtimes: dict = {}
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
         for vk_name, task in VK_OWNED_TASKS.items():
             if task.lower().startswith(DROPPED_TASK_PREFIXES):
                 continue
-            bench_dir = mdir / vk_name
-            if not bench_dir.is_dir():
+            bench_dirs = [d for d in ([mdir / vk_name] + sorted(mdir.glob(f"{vk_name}__*")))
+                          if d.is_dir()]
+            if not bench_dirs:
                 continue
-            accs = sorted(glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True))
-            if not accs:
-                skipped.append(f"{mdir.name}/{vk_name}")
-                continue
-            acc = Path(accs[-1])
-            try:
-                value = parse_vk_acc(acc, VK_HEADLINE_BY_TASK.get(task, _VK_HEADLINE))
-            except (OSError, ValueError, IndexError):
-                value = None
+            shadows = [k for k in VK_OWNED_TASKS if k != vk_name and k.startswith(vk_name)]
+
+            def owned(name: str) -> bool:
+                return vk_name in name and not any(s in name for s in shadows)
+
+            def by_mtime(paths):
+                # transient judge artifacts in the shared outputs tree can
+                # vanish between glob and stat
+                stamped = []
+                for p in paths:
+                    try:
+                        stamped.append((Path(p).stat().st_mtime, p))
+                    except OSError:
+                        continue
+                return [p for _, p in sorted(stamped)]
+
+            all_accs, all_scores = [], []
+            for bench_dir in bench_dirs:
+                all_accs += glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True)
+                all_scores += glob.glob(f"{bench_dir}/**/*_score.csv", recursive=True)
+            real = by_mtime(a for a in all_accs if owned(Path(a).name))
+            scores = by_mtime(a for a in all_scores if owned(Path(a).name))
+            derived = by_mtime(a for a in all_accs if Path(a).name == "derived_acc.csv")
+
+            # Newest real judge acc wins; score.csv next; broken-era derived files
+            # only when nothing better parses.
+            acc, value = None, None
+            for candidate in real[::-1] + scores[::-1] + derived[::-1]:
+                try:
+                    value = parse_vk_acc(Path(candidate), VK_HEADLINE_BY_TASK.get(task, _VK_HEADLINE))
+                except (OSError, ValueError, IndexError):
+                    value = None
+                if value is not None:
+                    acc = Path(candidate)
+                    break
             if value is None:
                 skipped.append(f"{mdir.name}/{vk_name}")
                 continue
             models.add(canon)
             cell = {"v": round(value, 2), "raw": value, "run": acc.parent.name}
-            rows.setdefault((task, "acc"), {})[canon] = cell
+            # mm_safetybench is direction-normalized to safety_rate at derivation
+            # (attack_rate is lower-better); label it so readers see which it is.
+            metric = "safety_rate" if task == "mm_safetybench" else "acc"
+            rows.setdefault((task, metric), {})[canon] = cell
 
     if skipped:
         print(f"VLMEval: skipped {len(skipped)} benchmark(s) with no parseable acc.csv "
@@ -268,6 +428,7 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
         return [], []
 
     rows: dict[tuple[str, str], dict[str, dict]] = {}
+    cell_mtimes: dict = {}
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
         trunc = _truncation_for(mdir.name)
@@ -296,7 +457,13 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
                 cell = {"v": round(norm * 100, 2), "raw": value, "run": run_id}
                 if task in trunc:
                     cell["t"] = round(trunc[task] * 100, 1)
-                rows.setdefault((row_task, metric), {})[canon] = cell
+                # Two result dirs can canonicalize to one column (label case,
+                # path-slug variants); the newest artifact wins, not dir order.
+                mt = path.stat().st_mtime
+                key = (row_task, metric, canon)
+                if cell_mtimes.get(key, -1) <= mt:
+                    rows.setdefault((row_task, metric), {})[canon] = cell
+                    cell_mtimes[key] = mt
 
     models = sorted({canonical_model_key(d.name) for d in model_dirs})
     table = [
@@ -310,22 +477,21 @@ def _looks_like_result_tree(path: Path) -> bool:
     return any(path.rglob("*_results.json")) or any(path.rglob("results_*.json"))
 
 
-def _lm_eval_model_dirs(root: Path) -> list[Path]:
-    """Return model-level dirs for both <model>/<run> and <run>/<model> layouts."""
-    dirs: dict[str, Path] = {}
-    for child in sorted(d for d in root.iterdir() if d.is_dir()):
-        found_nested = False
-        for grandchild in sorted(d for d in child.iterdir() if d.is_dir()):
-            if _looks_like_result_tree(grandchild):
-                found_nested = True
-                dirs[str(grandchild.resolve())] = grandchild
-        if not found_nested and _looks_like_result_tree(child):
-            dirs[str(child.resolve())] = child
-    return list(dirs.values())
+def _lm_eval_model_dirs(root: Path, layout: str) -> list[Path]:
+    """Locate model directories using an explicit layout, never run-name guesses."""
+    if layout not in {"run-first", "model-first"}:
+        raise ValueError(f"unknown lm-eval layout: {layout}")
+    if not root.is_dir():
+        return []
+    children = sorted(d for d in root.iterdir() if d.is_dir())
+    candidates = children if layout == "model-first" else [
+        model for run in children for model in sorted(run.iterdir()) if model.is_dir()
+    ]
+    return [d for d in candidates if _looks_like_result_tree(d)]
 
 
-def collect_lm_eval_harness(root: Path, model_filters: list[str] | None):
-    model_dirs = _lm_eval_model_dirs(root)
+def collect_lm_eval_harness(root: Path, model_filters: list[str] | None, layout: str = "run-first"):
+    model_dirs = _lm_eval_model_dirs(root, layout)
     if model_filters:
         model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
     if not model_dirs:
@@ -344,7 +510,7 @@ def collect_lm_eval_harness(root: Path, model_filters: list[str] | None):
             except (OSError, json.JSONDecodeError):
                 continue
             metrics = data.get("results", {}).get(task, {})
-            run_id = path.relative_to(mdir).parts[0] if path.is_relative_to(mdir) else ""
+            run_id = mdir.parent.name if layout == "run-first" else path.relative_to(mdir).parts[0]
             for row_task, metric, value in iter_headline_metrics(task, metrics):
                 norm = normalize_score(metric, value)
                 if norm is None:
@@ -364,6 +530,36 @@ def collect_lm_eval_harness(root: Path, model_filters: list[str] | None):
         for (task, metric), cells in sorted(rows.items())
     ]
     return sorted(models), table
+
+
+# Benchmark taxonomy for the matrix band grouping. Bands follow the category
+# conventions of recent VLM reports (Qwen3-VL, InternVL3.5): pure-text evals get
+# their own top-level band instead of mixing into multimodal domains. One
+# declarative structure — dict order is display order, modality defaults to
+# "vision", tasks match by exact name or prefix.
+TAXONOMY = {
+    cat: {
+        **({"modality": modality} if modality != "vision" else {}),
+        "exact": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and not b.get("cat_prefix")],
+        "prefix": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and b.get("cat_prefix")],
+    }
+    for cat, modality in CATEGORIES
+}
+
+CATEGORY_ORDER = list(TAXONOMY)
+CATEGORY_MODALITY = {cat: spec.get("modality", "vision") for cat, spec in TAXONOMY.items()}
+_TASK_TO_CAT = {t: cat for cat, spec in TAXONOMY.items() for t in spec.get("exact", ())}
+_CAT_PREFIX = [(p, cat) for cat, spec in TAXONOMY.items() for p in spec.get("prefix", ())]
+
+
+def category_for(task: str) -> str | None:
+    lowered = task.lower()
+    if lowered in _TASK_TO_CAT:
+        return _TASK_TO_CAT[lowered]
+    for prefix, cat in _CAT_PREFIX:
+        if lowered.startswith(prefix):
+            return cat
+    return None
 
 
 HTML_TEMPLATE = """<!doctype html>
@@ -414,12 +610,16 @@ h1 { font-size: clamp(26px, 3.5vw, 40px); font-weight: 500; letter-spacing: -.01
   border-bottom: 1px solid var(--hair); background: var(--paper-2);
 }
 .picker-head .lbl { font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.picker-head button {
+.picker-head button, .chip-group-head button {
   font: 11px ui-monospace, Menlo, monospace; color: var(--ink); background: none;
   border: 1px solid var(--hair); padding: 3px 10px; cursor: pointer;
 }
-.picker-head button:hover { border-color: var(--red); color: var(--red); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px; max-height: 170px; overflow: auto; }
+.picker-head button:hover, .chip-group-head button:hover { border-color: var(--red); color: var(--red); }
+.chip-group-head button { padding: 1px 8px; font-size: 10px; }
+.chips { padding: 6px 14px 12px; max-height: 230px; overflow: auto; }
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 6px; }
+.chip-group-head { flex-basis: 100%; display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.chip-group-head .lbl { font-size: 11px; }
 .chip {
   display: inline-flex; align-items: center; gap: 7px;
   font: 11.5px ui-monospace, Menlo, monospace;
@@ -456,54 +656,56 @@ input[type=search]:focus, select:focus { border-bottom-color: var(--red); }
   background: none; border: 0; padding: 6px 16px; cursor: pointer; color: var(--muted);
 }
 .viewtab button.on { background: var(--ink); color: var(--paper); }
+.nodata { color: var(--muted); font-size: 12px; padding: 18px 14px; }
 
-/* charts: one panel per benchmark */
-.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
-.panel { border: 1px solid var(--hair); background: var(--paper); padding: 12px 14px 12px; }
-.panel h3 { margin: 0; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; font-weight: 600; }
-.panel .pm { font-size: 11px; color: var(--muted); margin: 1px 0 10px; }
 /* harness badge — which eval framework produced this benchmark (EASI-style) */
 .hbadge { display: inline-block; font-family: ui-monospace, Menlo, monospace; font-size: 9.5px; letter-spacing: .03em; font-weight: 600; padding: 1px 5px; border-radius: 2px; vertical-align: middle; margin-left: 7px; }
 .hbadge.lmms { color: #2c5f7a; background: #dceaf1; }
 .hbadge.vlme { color: #7a3d1e; background: #f1e2d6; }
 .hbadge.lmeh { color: #4d5f1f; background: #e5e8c9; }
-.panel h3 .hbadge { margin-left: 6px; }
-.brow { display: grid; grid-template-columns: 1fr 44px; align-items: center; gap: 8px; margin: 3px 0; }
-.btrack { position: relative; height: 13px; background: var(--paper-2); }
-.bfill { position: absolute; inset: 0 auto 0 0; background: var(--c); opacity: .85; }
-.brow .bv { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; text-align: right; }
-.brow.best .bv { color: var(--red); font-weight: 600; }
-.brow.best .bfill { opacity: 1; }
-.panel .nodata { color: var(--muted); font-size: 12px; }
 
 /* matrix */
 .matrix-wrap { overflow: auto; max-height: 76vh; border: 1px solid var(--hair); background: var(--paper); }
 table { border-collapse: separate; border-spacing: 0; min-width: 100%; width: max-content; }
 thead th {
-  position: sticky; top: 0; z-index: 3; background: var(--paper-2);
+  position: sticky; top: 0; z-index: 5; background: var(--paper-2);
   font-family: ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 600;
   text-align: right; padding: 9px 13px; border-bottom: 1px solid var(--ink);
   cursor: pointer; white-space: nowrap; user-select: none;
 }
-thead th.task-h { text-align: left; left: 0; z-index: 4; }
+thead th.task-h { text-align: left; left: 0; z-index: 6; }
 thead th .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 6px; vertical-align: baseline; }
 thead th .dir { color: var(--red); }
 tbody td, tbody th { padding: 6px 13px; border-bottom: 1px solid var(--hair); font-size: 13px; }
+tbody tr.catrow th, tbody tr.catrow td {
+  background: var(--paper-2); border-bottom: 1px solid var(--ink); padding: 12px 13px 5px;
+  position: sticky; top: var(--thead-h, 34px); z-index: 3;
+}
+tbody tr.catrow th {
+  left: 0; z-index: 4; text-align: left;
+  font: 600 10.5px ui-monospace, Menlo, monospace; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted);
+}
+tbody tr.catrow td.cmean {
+  text-align: right; white-space: nowrap;
+  font-size: 11.5px; color: var(--muted);
+}
+tbody tr.catrow td.cmean.best { color: var(--red); font-weight: 600; }
 tbody th.task { position: sticky; left: 0; background: var(--paper); text-align: left; font-weight: 400; z-index: 2; max-width: 330px; }
 tbody tr:hover td, tbody tr:hover th.task { background: var(--paper-2); }
 .task .t { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .task .m { font-size: 11px; color: var(--muted); }
-td.cell { text-align: right; white-space: nowrap; min-width: 92px; }
+td.cell { text-align: right; white-space: nowrap; min-width: 92px; position: relative; }
 thead th:not(.task-h) { min-width: 92px; }
-sup.tr { color: #c87f0a; font-size: 0.62em; margin-left: 1px; font-weight: 600; cursor: help; }
+sup.tr { color: #c87f0a; font-size: 0.62em; font-weight: 600; cursor: help; position: absolute; top: 3px; right: 3px; }
 .cell.best { color: var(--red); font-weight: 600; }
-.delta { font-size: 11px; margin-left: 7px; font-weight: 400; }
+.delta-slot { display: inline-block; min-width: 6ch; text-align: left; margin-left: 7px; }
+.delta { font-size: 11px; font-weight: 400; }
 .delta.up { color: var(--green); } .delta.down { color: var(--red); }
 .missing { color: var(--hair); text-align: center; }
 
 footer { margin-top: 26px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--hair); padding-top: 12px; }
 footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
-.hidden { display: none; }
 </style>
 </head>
 <body>
@@ -518,6 +720,7 @@ footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
   <div class="picker-head">
     <span class="lbl">Models — <span id="selcount"></span></span>
     <button id="selall">all</button><button id="selnone">none</button>
+    <span class="viewtab" style="margin-left:14px"><button id="avg-micro" class="on">Micro</button><button id="avg-macro">Macro</button></span>
     <span class="lbl" style="margin-left:auto">click to toggle</span>
   </div>
   <div class="chips" id="chips"></div>
@@ -527,20 +730,20 @@ footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 <div class="cards-note" id="cards-note"></div>
 
 <div class="controls">
-  <span class="viewtab"><button id="tab-charts">Charts</button><button id="tab-matrix" class="on">Matrix</button></span>
+  <span class="viewtab"><button id="tab-vision" class="on">Vision</button><button id="tab-audio">Audio</button><button id="tab-text">Text</button></span>
   <span><label>filter&nbsp;</label><input id="q" type="search" placeholder="benchmark substring…" spellcheck="false"></span>
+  <span><label>category&nbsp;</label><select id="cfilter"><option value="">all</option></select></span>
   <span><label>harness&nbsp;</label><select id="hfilter"><option value="">all</option><option value="lmms-eval">lmms-eval</option><option value="VLMEvalKit">VLMEvalKit</option><option value="lm-evaluation-harness">lm-evaluation-harness</option></select></span>
-  <span id="basewrap" class="hidden"><label>baseline&nbsp;</label><select id="base"><option value="">none</option></select></span>
+  <span><label>baseline&nbsp;</label><select id="base"><option value="">none</option></select></span>
   <span class="hint" style="margin-left:auto"><span class="hbadge lmms">lmms-eval</span> <span class="hbadge vlme">VLMEvalKit</span> <span class="hbadge lmeh">lm-evaluation-harness</span></span>
 </div>
 
-<div class="charts hidden" id="charts"></div>
 <div class="matrix-wrap" id="matrix-view"><table id="matrix"></table></div>
 
 <footer>
-  Bars share one absolute 0–100 scale · newest result per task across each model's runs ·
+  Scores share one absolute 0–100 scale · newest result per task across each model's runs ·
   canonical headline metrics via <code>metric_selection.py</code> · hover for raw value and source run ·
-  generated by <code>make_dashboard.py</code>
+  generated by <a href="https://github.com/swiss-ai/MLLM-eval-suite/blob/yxu/bump-lmms-eval/scripts/make_dashboard.py" target="_blank" rel="noopener"><code>make_dashboard.py</code></a>
 </footer>
 </div>
 <script id="data" type="application/json">__DATA__</script>
@@ -552,10 +755,11 @@ const coverage = {}; D.models.forEach(m => coverage[m] = D.table.filter(r => r.c
 
 let state = {
   sel: new Set(D.defaultSelected),
-  view: "matrix", q: "", sort: null, dir: -1, base: "", harness: "",
+  mod: "vision", avg: "micro", q: "", cat: "", sort: null, dir: -1, base: "", harness: "",
 };
 
 const fmt = v => v.toFixed(1);
+const avg = vs => vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
 const hbadge = fw => fw === "VLMEvalKit"
   ? '<span class="hbadge vlme">VLMEvalKit</span>'
   : fw === "lm-evaluation-harness"
@@ -565,29 +769,55 @@ const selModels = () => D.models.filter(m => state.sel.has(m));
 const visRows = () => {
   const q = state.q.toLowerCase();
   return D.table.filter(r =>
+    (D.modality[r.cat] || "vision") === state.mod &&
     (!q || r.task.toLowerCase().includes(q) || r.metric.toLowerCase().includes(q)) &&
+    (!state.cat || r.cat === state.cat) &&
     (!state.harness || r.framework === state.harness) &&
     selModels().some(m => r.cells[m]));
 };
 
 function renderChips() {
-  document.getElementById("chips").innerHTML = D.models.map(m =>
+  const groupNames = [];
+  for (const m of D.models) {
+    const g = D.groups[m] || "Models";
+    if (!groupNames.includes(g)) groupNames.push(g);
+  }
+  const chipHtml = m =>
     `<span class="chip ${state.sel.has(m) ? "on" : ""}" data-m="${m}" style="--c:${color[m]}" title="${m}">` +
-    `<span class="dot"></span>${D.labels[m]} <span class="cov">${coverage[m]}</span></span>`).join("");
+    `<span class="dot"></span>${D.labels[m]} <span class="cov">${coverage[m]}</span></span>`;
+  document.getElementById("chips").innerHTML = groupNames.map(g => {
+    const members = D.models.filter(m => (D.groups[m] || "Models") === g);
+    return `<div class="chip-group"><div class="chip-group-head"><span class="lbl">${g}</span>` +
+      `<button class="grp-all" data-g="${g}">all</button><button class="grp-none" data-g="${g}">none</button></div>` +
+      members.map(chipHtml).join("") + `</div>`;
+  }).join("");
   document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
     const m = c.dataset.m;
     state.sel.has(m) ? state.sel.delete(m) : state.sel.add(m);
     renderAll();
+  });
+  const grpMembers = g => D.models.filter(m => (D.groups[m] || "Models") === g);
+  document.querySelectorAll(".grp-all").forEach(b => b.onclick = () => {
+    grpMembers(b.dataset.g).forEach(m => state.sel.add(m)); renderAll();
+  });
+  document.querySelectorAll(".grp-none").forEach(b => b.onclick = () => {
+    grpMembers(b.dataset.g).forEach(m => state.sel.delete(m)); renderAll();
   });
   document.getElementById("selcount").textContent = `${state.sel.size}/${D.models.length} selected`;
 }
 
 function renderCards() {
   const sel = selModels();
-  const common = D.table.filter(r => sel.length && sel.every(m => r.cells[m]));
+  const inMod = D.table.filter(r => (D.modality[r.cat] || "vision") === state.mod);
+  const common = inMod.filter(r => sel.length && sel.every(m => r.cells[m]));
+  const nCats = new Set(common.map(r => r.cat)).size;
   const means = sel.map(m => {
-    const vs = common.map(r => r.cells[m].v);
-    return { m, mean: vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null };
+    if (state.avg === "macro") {
+      const byCat = {};
+      for (const r of common) (byCat[r.cat] ??= []).push(r.cells[m].v);
+      return { m, mean: avg(Object.values(byCat).map(avg)) };
+    }
+    return { m, mean: avg(common.map(r => r.cells[m].v)) };
   });
   const top = Math.max(...means.map(x => x.mean ?? -Infinity));
   document.getElementById("cards").innerHTML = means.map(x =>
@@ -596,24 +826,10 @@ function renderCards() {
     `<div class="big mono">${x.mean == null ? "—" : fmt(x.mean)}<small> / 100</small></div>` +
     `<div class="cov">${coverage[x.m]} tasks covered</div></div>`).join("");
   document.getElementById("cards-note").textContent = sel.length
-    ? `macro mean over the ${common.length} benchmarks covered by all ${sel.length} selected models`
+    ? (state.avg === "macro"
+        ? `macro mean: equal weight per category, over ${nCats} ${state.mod} categories (${common.length} benchmarks covered by all ${sel.length} selected models)`
+        : `micro mean: equal weight per benchmark, over the ${common.length} ${state.mod} benchmarks covered by all ${sel.length} selected models`)
     : "select models above";
-}
-
-function renderCharts() {
-  const sel = selModels();
-  document.getElementById("charts").innerHTML = visRows().map(r => {
-    const present = sel.filter(m => r.cells[m]);
-    const best = Math.max(...present.map(m => r.cells[m].v));
-    const bars = present.map(m => {
-      const c = r.cells[m];
-      return `<div class="brow ${c.v === best && present.length > 1 ? "best" : ""}" ` +
-        `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}">` +
-        `<span class="btrack"><span class="bfill" style="--c:${color[m]};width:${Math.max(1, c.v)}%"></span></span>` +
-        `<span class="bv">${fmt(c.v)}</span></div>`;
-    }).join("");
-    return `<div class="panel"><h3>${r.task}${hbadge(r.framework)}</h3><div class="pm">${r.metric}</div>${bars || "<div class='nodata'>no data</div>"}</div>`;
-  }).join("") || "<div class='nodata' style='color:var(--muted)'>nothing matches</div>";
 }
 
 function renderMatrix() {
@@ -634,29 +850,52 @@ function renderMatrix() {
     h += `<th data-k="${m}" title="${m}" style="--c:${color[m]}"><span class="dot"></span>${D.labels[m]}${dir}</th>`;
   }
   h += "</tr></thead><tbody>";
+  const baseOn = state.base && state.sel.has(state.base);
+  const deltaFor = (v, b) => {
+    if (!baseOn || b == null || v == null) return "";
+    const d = v - b;
+    return `<span class="delta ${d >= 0 ? "up" : "down"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`;
+  };
+  const slotFor = (m, v, bv) => baseOn ? `<span class="delta-slot">${state.base === m ? "" : deltaFor(v, bv)}</span>` : "";
+  let lastCat = null;
   for (const r of rows) {
+    if (!state.sort && r.cat !== lastCat) {
+      lastCat = r.cat;
+      const catRows = rows.filter(x => x.cat === r.cat);
+      const covered = sel.filter(m => catRows.some(x => x.cells[m]));
+      const commonCat = catRows.filter(x => covered.every(m => x.cells[m]));
+      const cm = {};
+      for (const m of sel) cm[m] = covered.includes(m) ? avg(commonCat.map(x => x.cells[m].v)) : null;
+      const bestM = Math.max(...sel.map(m => cm[m] ?? -Infinity));
+      h += `<tr class="catrow"><th>${r.cat}</th>` + sel.map(m => {
+        const v = cm[m];
+        if (v == null) return "<td class='cmean'>·</td>";
+        const slot = slotFor(m, v, cm[state.base]);
+        return `<td class="cmean mono ${v === bestM && sel.length > 1 ? "best" : ""}" ` +
+               `title="mean over the ${commonCat.length} ${r.cat} benchmarks common to the ${covered.length} models with coverage">${fmt(v)}${slot}</td>`;
+      }).join("") + "</tr>";
+    }
     const present = sel.filter(m => r.cells[m]);
     const best = Math.max(...present.map(m => r.cells[m].v));
     h += `<tr><th class="task"><div class="t">${r.task}${hbadge(r.framework)}</div><div class="m">${r.metric}</div></th>`;
     for (const m of sel) {
       const c = r.cells[m];
       if (!c) { h += "<td class='missing'>·</td>"; continue; }
-      let delta = "";
-      if (state.base && state.base !== m && state.sel.has(state.base)) {
-        const b = r.cells[state.base];
-        if (b) {
-          const d = c.v - b.v;
-          delta = `<span class="delta ${d >= 0 ? "up" : "down"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`;
-        }
-      }
+      const slot = slotFor(m, c.v, r.cells[state.base]?.v);
       const trtip = c.t != null ? `\\ntruncated: ${c.t}% hit the 32k cap` : "";
       const tr = c.t != null ? `<sup class="tr" title="${c.t}% of outputs hit the 32k token cap (non-terminating)">⌁${Math.round(c.t)}</sup>` : "";
       h += `<td class="cell mono ${c.v === best && present.length > 1 ? "best" : ""}" ` +
-           `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}${trtip}">${fmt(c.v)}${delta}${tr}</td>`;
+           `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}${trtip}">${fmt(c.v)}${slot}${tr}</td>`;
     }
     h += "</tr>";
   }
-  document.getElementById("matrix").innerHTML = h + "</tbody>";
+  document.getElementById("matrix").innerHTML = rows.length
+    ? h + "</tbody>"
+    : `<tbody><tr><td class="nodata">${state.sel.size
+        ? `no ${state.mod} benchmarks yet`
+        : "no models selected — pick Apertus checkpoints and baselines above"}</td></tr></tbody>`;
+  const thd = document.querySelector("#matrix thead");
+  if (thd) document.getElementById("matrix-view").style.setProperty("--thead-h", thd.offsetHeight + "px");
   document.querySelectorAll("thead th").forEach(th => th.onclick = () => {
     const k = th.dataset.k;
     if (!k) { state.sort = null; renderMatrix(); return; }
@@ -674,25 +913,31 @@ function renderBaseSelect() {
 
 function renderAll() {
   renderChips(); renderCards(); renderBaseSelect();
-  state.view === "charts" ? renderCharts() : renderMatrix();
+  renderMatrix();
 }
 
+function renderTabs() {
+  for (const t of ["vision", "audio", "text"])
+    document.getElementById("tab-" + t).classList.toggle("on", state.mod === t);
+  const cats = D.categories.filter(c => (D.modality[c] || "vision") === state.mod);
+  document.getElementById("cfilter").innerHTML =
+    "<option value=''>all</option>" + cats.map(c => `<option ${state.cat === c ? "selected" : ""}>${c}</option>`).join("");
+}
+for (const t of ["vision", "audio", "text"])
+  document.getElementById("tab-" + t).onclick = () => { state.mod = t; state.cat = ""; renderTabs(); renderAll(); };
+renderTabs();
+for (const a of ["micro", "macro"])
+  document.getElementById("avg-" + a).onclick = () => {
+    state.avg = a;
+    for (const x of ["micro", "macro"]) document.getElementById("avg-" + x).classList.toggle("on", x === a);
+    renderCards();
+  };
 document.getElementById("selall").onclick = () => { state.sel = new Set(D.models); renderAll(); };
 document.getElementById("selnone").onclick = () => { state.sel.clear(); renderAll(); };
 document.getElementById("q").oninput = e => { state.q = e.target.value; renderAll(); };
+document.getElementById("cfilter").onchange = e => { state.cat = e.target.value; renderAll(); };
 document.getElementById("hfilter").onchange = e => { state.harness = e.target.value; renderAll(); };
 document.getElementById("base").onchange = e => { state.base = e.target.value; renderMatrix(); };
-document.getElementById("tab-charts").onclick = () => setView("charts");
-document.getElementById("tab-matrix").onclick = () => setView("matrix");
-function setView(v) {
-  state.view = v;
-  document.getElementById("tab-charts").classList.toggle("on", v === "charts");
-  document.getElementById("tab-matrix").classList.toggle("on", v === "matrix");
-  document.getElementById("charts").classList.toggle("hidden", v !== "charts");
-  document.getElementById("matrix-view").classList.toggle("hidden", v !== "matrix");
-  document.getElementById("basewrap").classList.toggle("hidden", v !== "matrix");
-  renderAll();
-}
 
 renderAll();
 </script>
@@ -710,9 +955,18 @@ def main():
     p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
     p.add_argument("--lm-eval-root", type=Path, help="direct lm-evaluation-harness results tree, merged by checkpoint identity")
+    p.add_argument("--lm-eval-layout", choices=("run-first", "model-first"), default="run-first",
+                   help="lm-eval tree layout: run-first=<run>/<model>/... (launcher default), model-first=<model>/<run>/...")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
+    p.add_argument("--models-file", type=Path,
+                   help="column manifest (key[|alias]=Label per line); overrides --only/--label")
     p.add_argument("-o", "--output", type=Path, default=Path("dashboard.html"))
     args = p.parse_args()
+
+    aliases: dict = {}
+    model_groups: dict = {}
+    if args.models_file:
+        args.only, args.label, aliases, model_groups = parse_models_manifest(args.models_file)
 
     models_l: list[str] = []
     table_l: list[dict] = []
@@ -728,7 +982,16 @@ def main():
         models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
     models_h, table_h = ([], [])
     if args.lm_eval_root:
-        models_h, table_h = collect_lm_eval_harness(args.lm_eval_root.resolve(), args.models)
+        models_h, table_h = collect_lm_eval_harness(args.lm_eval_root.resolve(), args.models, args.lm_eval_layout)
+    if aliases:
+        models_l = [aliases.get(m, m) for m in models_l]
+        models_h = [aliases.get(m, m) for m in models_h]
+        models_v = [aliases.get(m, m) for m in models_v]
+        for row in table_l + table_v + table_h:
+            cells = {}
+            for k, v in row["cells"].items():
+                cells.setdefault(aliases.get(k, k), v)
+            row["cells"] = cells
     models = sorted(set(models_l) | set(models_v) | set(models_h))
     if args.only:
         present = set(models)
@@ -751,19 +1014,28 @@ def main():
     keep = set(models)
     cells_rows = [
         {"task": r["task"], "metric": r["metric"], "framework": r["framework"],
+         "cat": category_for(r["task"]) or "Uncategorized",
          "cells": {m: v for m, v in r["cells"].items() if m in keep}}
         for r in table
     ]
     cells_rows = [r for r in cells_rows if r["cells"]]
+    stray = sorted({r["task"] for r in cells_rows if r["cat"] == "Uncategorized"})
+    if stray:
+        print(f"WARNING: {len(stray)} tasks lack a category (shown in a trailing band): {', '.join(stray)}")
+    categories = CATEGORY_ORDER + (["Uncategorized"] if stray else [])
+    cells_rows.sort(key=lambda r: (categories.index(r["cat"]), r["task"].lower()))
     # Pre-select the best-covered checkpoints so the page opens with a
     # meaningful comparison instead of every sparse column at once.
     coverage = {m: sum(1 for r in cells_rows if m in r["cells"]) for m in models}
-    default_selected = models if args.only else sorted(models, key=lambda m: -coverage[m])[:5]
+    default_selected = [] if model_groups else sorted(models, key=lambda m: -coverage[m])[:5]
     data = {
         "models": models,
         "labels": labels,
         "table": cells_rows,
+        "categories": categories,
+        "modality": {c: m for c, m in CATEGORY_MODALITY.items() if m != "vision"},
         "defaultSelected": default_selected,
+        "groups": {m: model_groups.get(m, "Models") for m in models},
     }
     n_vk = sum(1 for r in cells_rows if r["framework"] == "VLMEvalKit")
     n_lmeh = sum(1 for r in cells_rows if r["framework"] == LM_EVAL_FRAMEWORK)
