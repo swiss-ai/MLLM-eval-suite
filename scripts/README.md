@@ -84,3 +84,9 @@ Run `python -m unittest discover -s tests -v` with PyYAML installed. These tests
 exercise the Evaluator launcher and Slurm config renderer using `--dry-run`,
 check the declared text dependency gitlinks, and validate lm-eval dashboard
 identity, filtering, curation, newest-run selection and collision auditing.
+
+CI also initializes only the pinned lmms-eval checkout and runs
+`python third_party/lmms-eval/test/models/test_apertus_thinking_constructor.py -v`.
+This CPU-only check executes the real constructor and render methods while
+replacing engine and tokenizer adapters, preserving thinking mode across the
+vLLM parent constructor without loading GPU packages.
