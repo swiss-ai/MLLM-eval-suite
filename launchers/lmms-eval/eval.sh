@@ -46,6 +46,7 @@ REPO_ROOT="${ORCH_REPO_ROOT}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/lmms-eval/eval_job.slurm}"
 source "${ORCH_REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
 source "${ORCH_REPO_ROOT}/slurm/shared/lmms_env.sh"
+source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
 resolve_lmms_dataset_env
 LMMS_CACHE_ROOT="${LMMS_CACHE_ROOT:-${REPO_ROOT}/cache/lmms-eval}"
 CACHE_BASE="${CACHE_BASE:-${LMMS_CACHE_ROOT}/image_token_cache}"
@@ -340,6 +341,9 @@ while IFS= read -r TASK; do
       continue
     fi
 
+    if [[ "$DRY_RUN" -eq 0 && "${MODEL_BACKEND:-apertus_1p5_vllm}" == apertus* ]]; then
+      prefetch_emu35_vision_tokenizer "$LMMS_EVAL_MODELS_CACHE_PATH"
+    fi
     lmms_model_preflight_args "${MODEL_BACKEND:-apertus_1p5_vllm}"
     preflight_or_die lmms-eval "$MODEL_PATH" "${LMMS_MODEL_PREFLIGHT_ARGS[@]}" --harness-root "${LMMS_EVAL_DEV_PATH:-${REPO_ROOT}/third_party/lmms-eval}" \
       --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" ${ENABLE_THINKING:+--thinking} \
