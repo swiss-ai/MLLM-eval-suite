@@ -98,6 +98,10 @@ Tasks are in the fork; suite-side runnability and a few code nits remain.
 - Env-var staging (`VRSBENCH_DIR`/`GEOBENCH_DIR`/`FRIEDA_DIR`, BigEarth LMDB) is referenced nowhere in `task_suites/ launchers/ slurm/ toml/`; `lmdb` is undeclared in `third_party/lmms-eval/pyproject.toml` (METEOR/Java already resolved — openjdk-17 in Dockerfile). Code nits: caption-scorer block copy-pasted ×3 (bigearth/geobench/vrsbench utils — same "name the abstraction" as B1), FRIEDA F1 uses `set` instead of `Counter` overlap, bbox rescale inconsistent (`geobench_ref` `/100` vs `bigearth_bbox` raw).
 - **Fix:** plumb the staging env vars through the slurm template, declare `lmdb`, extract the caption scorer; the F1/bbox nits are optional correctness polish.
 
+### B10. Fleet-scale lmms runs depend on the live HF Hub for datasets `[M]` — High (admin scale)
+The fork's `_resolve_hf_datasets_cache_dir` redirects the datasets cache to node-local scratch whenever the configured cache sits on a remote filesystem (Lustre file-lock workaround). Consequence: the shared `cache/hf/datasets` never warms (126 MB after months of runs), every job re-resolves its dataset against the Hub, and a fleet becomes that many concurrent Hub hits — on 2026-07-12 a 134-job lmms fleet was wiped out end-to-end by `HfHubHTTPError` (429 storm / egress throttle), while the VK fleet (locally staged LMUData) was untouched. Two follow-on hazards from the same incident: jobs that error in `cli_evaluate` can hang in vLLM engine shutdown and burn walltime as RUNNING zombies (fleet monitoring must treat log-errored RUNNING jobs as dead); and fork working-tree edits race queued jobs, which import the shared submodule checkout at start time (7 jobs died importing a half-registered wrapper).
+- **Fix:** admin pre-warms the shared cache once per suite via the existing `LMMS_EVAL_DATASETS_CACHE` escape hatch, fleets run with `HF_DATASETS_OFFLINE=1`; keep the node-local redirect for ad-hoc runs only. Pace any hub-dependent fleet in waves. Land fork commits before firing fleets, never during.
+
 ---
 
 ## C. Deliberately leave as-is (do not over-refactor)

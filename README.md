@@ -86,6 +86,67 @@ tasks without one rather than silently falling back to regex scoring (`ALLOW_NO_
 `--mode` is framework-specific (lmms-eval: `fill|readonly`; VLMEvalKit: `all|infer|eval`) and is
 rejected with `--eval-framework all` — the defaults are correct for production runs.
 
+## Example Usage
+
+Submit lmms-eval production jobs through the combined production launcher:
+
+```bash
+bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --suite smoke
+bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --tasks task_suites/lmms-eval/visual_full.txt
+```
+
+Run lmms-eval audio benchmarks through the same launcher by selecting an audio suite or a specific audio task:
+
+```bash
+bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --suite audio-smoke
+bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --suite audio-full
+bash launchers/eval.sh --eval-framework lmms-eval --model /path/to/model --tasks google_fleurs
+```
+
+For local audio task changes in `third_party/lmms-eval`, run interactively with `LMMS_EVAL_DEV_PATH` and pass vLLM/audio-tokenizer args after `--`:
+
+```bash
+export MODEL="/capstor/store/cscs/swissai/infra01/hf-checkpoints/Apertus-1p5-8B-sft-capfilter-lr6e-5-constant-innovator-fix-it23409"
+export TOK="/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed"
+export VLLM_APERTUS_AUDIO_TOKENIZER_CODEBASE="/workspace/benchmark-audio-tokenizer"
+
+LMMS_EVAL_DEV_PATH="$PWD/third_party/lmms-eval" \
+ENABLE_WANDB=false \
+bash launchers/eval.sh \
+  --eval-framework lmms-eval \
+  --model "$MODEL" \
+  --tasks fleurs_en_us \
+  --submit-mode interactive \
+  -- \
+  --tokenizer-path "$TOK" \
+  --gpu-memory-utilization 0.75 \
+  --trust-remote-code True \
+  --extra-model-args 'allowed_local_media_path=/,limit_mm_per_prompt={"audio":1,"image":1},mm_processor_kwargs={"apertus_audio_tokenizer_path":"/capstor/store/cscs/swissai/infra01/MLLM/wavtokenizer"}'
+```
+
+The lmms-eval launcher automatically uses `$TOK/chat_template.jinja` when `TOK` is the default Apertus tokenizer path. For any other tokenizer, pass the template explicitly after `--`:
+
+```bash
+bash launchers/eval.sh --eval-framework lmms-eval --model "$MODEL" --tasks google_fleurs -- \
+  --tokenizer-path "$TOK" \
+  --chat-template "$TOK/chat_template.jinja"
+```
+
+Submit VLMEvalKit production jobs through the combined production launcher:
+
+```bash
+bash launchers/eval.sh --eval-framework VLMEvalKit --suite smoke --model Apertus-1p5-8B
+bash launchers/eval.sh --eval-framework VLMEvalKit --tasks task_suites/VLMEvalKit/full.txt --model Apertus-1p5-8B
+```
+
+Each production launcher call creates one shared run directory under both the framework results and logs folders. All per-task Slurm jobs submitted by that call write into that same result/log run directory. Override `RUN_ID` to choose the directory name explicitly.
+
+Image-token cache defaults are framework-specific and persistent under `cache/lmms-eval/` or `cache/VLMEvalKit/`. Jobs use the shared cache directly with local copy disabled, preload enabled, read access enabled, and write-misses enabled. lmms-eval defaults to `--mode fill`.
+
+The default batch size is `512` for both production launchers unless overridden with `--batch-size` after `--` or via framework-specific environment variables.
+
+The combined launcher prefetches `BAAI/Emu3.5-VisionTokenizer` into `cache/models/BAAI/Emu3.5-VisionTokenizer` before it submits jobs, so the tokenizer files are present before evaluation starts.
+
 Adding new benchmarks, staging benchmark data, and dashboard regeneration go through the repo
 admin; as a user you only need the commands above.
 
@@ -102,7 +163,8 @@ Suite files under `task_suites/` are the source of truth for what each named `--
 
 ## Repository structure
 
-- `third_party/` — the two harness forks (branch `apertus-1p5-eval` each), pinned by commit.
+- `shared/` — engine-independent runtime modules importable by both harnesses (Apertus image tokenization; on every job's PYTHONPATH).
+- `third_party/` — the two harness forks (lmms-eval on `apertus-1p5-eval-v2`, VLMEvalKit on `apertus-1p5-eval`), pinned by commit.
 - `launchers/` — production entrypoints: `eval.sh` dispatcher plus per-framework launchers.
 - `slurm/` — job templates and shared snippets (`sbatch_overrides.sh`, image-token cache env,
   the HealthBench grader server).
@@ -120,7 +182,7 @@ git submodule update --init --recursive          # after cloning
 git submodule update --remote --merge            # move to branch tips (admin)
 ```
 
-- `third_party/lmms-eval`: [swiss-ai/lmms-eval](https://github.com/swiss-ai/lmms-eval), branch `apertus-1p5-eval`
+- `third_party/lmms-eval`: [swiss-ai/lmms-eval](https://github.com/swiss-ai/lmms-eval), branch `apertus-1p5-eval-v2`
 - `third_party/VLMEvalKit`: [swiss-ai/VLMEvalKit](https://github.com/swiss-ai/VLMEvalKit), branch `apertus-1p5-eval`
 
 ## Development notes (admin)

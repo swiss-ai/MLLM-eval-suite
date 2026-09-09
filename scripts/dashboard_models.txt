@@ -1,0 +1,48 @@
+# Dashboard columns, one per line, in display order:
+#   canonical_key=Display Label
+#   canonical_key|alias_key=Display Label   (alias's cells merge into the column)
+#
+# canonical_key is make_dashboard.canonical_model_key() of the results dir name.
+# Register new models with scripts/register_dashboard_model.py (validates the
+# key against actual results before it can land here); refresh_dashboard.sh
+# reads this file. Comments and blank lines are ignored.
+
+# group: Apertus checkpoints
+sft-capfilter-constant-it8816=it8816-const
+sft-256k-4200=SFT-4200
+sft-256k-4200 [thinking-32k]=SFT-4200 (think)
+rl_1p5-8b-stage2_notools_mixthink_1606_480it=RL-mixthink
+rl_1p5-8b-stage2_notools_mixthink_1606_480it [thinking-32k]=RL-mixthink (think)
+sdpo-mix-less-refuse-feedback|sft-rl-dpo-sdpo-mix-less-refuse-feedback|sft-rl-dpo-sdpo-less-refuse-feedback=sDPO
+sdpo-mix-less-refuse-feedback [thinking-32k]=sDPO (think)
+ap1p5-70b-sft-262k-2700=70B-2700
+ap1p5-70b-sft-262k-2700 [thinking-32k]=70B-2700 (think)
+apertus-1.5-70b-sft-rl-dpo-sdpo=70B-SDPO
+apertus-1.5-70b-sft-rl-dpo-sdpo [thinking-32k]=70B-SDPO (think)
+apertus-1.5-70b-sft-rl-dpo-final=70B-FINAL
+
+# group: Baselines
+# Grouped by family, then chronological/size within family.
+qwen2.5-vl-7b-instruct=Qwen2.5-VL-7B
+qwen3-vl-8b-instruct=Qwen3-VL-8B
+molmo-7b-d-0924=Molmo-7B-D
+molmo-7b-o-0924=Molmo-7B-O
+molmo2-8b=Molmo2-8B
+molmo-72b-0924=Molmo-72B
+gemma3-27b|gemma-3-27b-it=Gemma3-27B
+gemma4-12b-it|gemma-4-12b-it=Gemma4-12B
+gemma4-26b-a4b-it|gemma-4-26b-a4b-it=Gemma4-26B-A4B
+pixtral-12b=Pixtral-12B
+eurovlm-9b-preview=EuroVLM-9B
+emu3-chat=Emu3-Chat
+
+# group: Audio
+# Report-only headings are translated to these native result identities by
+# collect_audio_report; existing sDPO and 70B-SDPO columns above are shared.
+sft-rl-dpo-sdpo-low-less-refuse-feedback=Apertus-1.5-8B-SFT-RL-DPO-SDPO-Low-Less-Refuse-Feedback
+apertus-v1.5-8b=swiss-ai/Apertus-v1.5-8B
+apertus-v1.5-70b=swiss-ai/Apertus-v1.5-70B
+qwen2.5-omni-7b=Qwen2.5 Omni 7B
+qwen2-audio-7b-instruct=Qwen2 Audio 7B
+kimi-audio-7b-instruct=Kimi Audio 7B
+apertus 8b 1.5 pretrain long context=Apertus 8B 1.5 pretrain long context

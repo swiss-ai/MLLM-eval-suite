@@ -113,7 +113,7 @@ is_true() {
   esac
 }
 
-: "${WORK_DIR:=${WORK_BASE}/${MODEL}/${DATASET}}"
+: "${WORK_DIR:=${WORK_BASE}/$(basename "${MODEL}")/${DATASET}}"
 
 if [[ ! "${NUM_PROCESSES}" =~ ^[0-9]+$ || "${NUM_PROCESSES}" -lt 1 ]]; then
   echo "--num-processes must be a positive integer (got: ${NUM_PROCESSES})" >&2
@@ -127,14 +127,16 @@ fi
 
 cd "${REPO_DIR}"
 
-VLLM_REPO="${VLLM_REPO:-/workspace/vllm}"
 export PATH="/opt/venv/bin:${PATH}"
 # DP workers race on the shared torch.compile cache during CUDA-graph capture; compile independently.
 export VLLM_DISABLE_COMPILE_CACHE=1
-if [[ -d "${VLLM_REPO}" ]]; then
-  export PYTHONPATH="${REPO_DIR}:${VLLM_REPO}${PYTHONPATH:+:${PYTHONPATH}}"
-else
-  export PYTHONPATH="${REPO_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
+source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
+export PYTHONPATH="${REPO_DIR}:${ORCH_REPO_ROOT}/shared${PYTHONPATH:+:${PYTHONPATH}}"
+# The container image sets its own PYTHONPATH, so submission-env values are
+# lost; EXTRA_PYTHONPATH survives and is prepended (e.g. a staged newer
+# packages the container build predates).
+if [[ -n "${EXTRA_PYTHONPATH:-}" ]]; then
+  export PYTHONPATH="${EXTRA_PYTHONPATH}:${PYTHONPATH}"
 fi
 # /capstor/.../MLLM/wheelhouse provides libjson-c.so.5 which the slurm
 # switch/hpe_slingshot plugin dlopen()s when srun runs inside this container
@@ -172,6 +174,14 @@ export VLLM_SEED="${VLLM_SEED:-${SEED}}"
 # (defaults to --model when it is a path, else the wrapper default). Override knobs via env
 # (e.g. APERTUS_ENABLE_THINKING=1 APERTUS_TEMPERATURE=0.6) or edit the defaults
 # here; thinking needs APERTUS_TEMPERATURE > 0 and APERTUS_MAX_NEW_TOKENS ~16384.
+# FOREIGN_MODEL=1 skips the Apertus registry override so upstream
+# supported_VLM entries (molmo, llava_next, qwen, ...) resolve instead.
+# Unset (direct sbatch): derive from the model name like the launcher does,
+# so a foreign name never silently scores the Apertus default checkpoint.
+if [[ -z "${FOREIGN_MODEL:-}" ]]; then
+  case "${MODEL}" in [Aa]pertus*|/*) FOREIGN_MODEL=0 ;; *) FOREIGN_MODEL=1 ;; esac
+fi
+if [[ "${FOREIGN_MODEL}" != "1" ]]; then
 export APERTUS_RUN_NAME="${MODEL}"
 if [[ -z "${APERTUS_MODEL_PATH:-}" && "${MODEL}" == /* ]]; then
   [[ -d "${MODEL}" ]] || { echo "ERROR: --model '${MODEL}' is path-shaped but not a directory; refusing to silently load the default checkpoint." >&2; exit 1; }
@@ -185,6 +195,7 @@ export APERTUS_REPETITION_PENALTY="${APERTUS_REPETITION_PENALTY:-}"
 export APERTUS_MAX_NEW_TOKENS="${APERTUS_MAX_NEW_TOKENS:-}"
 export APERTUS_TENSOR_PARALLEL_SIZE="${APERTUS_TENSOR_PARALLEL_SIZE:-}"
 export APERTUS_GPU_MEMORY_UTILIZATION="${APERTUS_GPU_MEMORY_UTILIZATION:-}"
+fi
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 
 if is_true "${ENABLE_IMAGE_TOKEN_CACHE}"; then
@@ -222,27 +233,13 @@ if [[ "${NUM_GPUS}" -lt "${NEED_GPUS}" ]]; then
 fi
 
 # TODO(2026-08-01): drop this whole if/fi (and the marker check in the
-# Dockerfile) once /etc/apertus_image_version is baked into every cluster image
-# we run against. Tracked as "legacy-image overlay" cleanup.
-# Until then: pip install bs4/nltk and download wordnet at runtime because the
-# older container image is missing them. Persists to RUNTIME_CACHE so a job
-# that lands on a node with a warm cache skips the install + download.
-if [[ ! -f /etc/apertus_image_version ]]; then
-  PIP_OVERLAY="${RUNTIME_CACHE}/pip_pkgs"
-  export NLTK_DATA="${RUNTIME_CACHE}/nltk_data"
-  if [[ -d "${PIP_OVERLAY}/bs4" && -f "${NLTK_DATA}/corpora/wordnet.zip" ]]; then
-    echo "[preflight] legacy image detected; reusing cached bs4 + wordnet overlay" >&2
-    export PYTHONPATH="${PIP_OVERLAY}:${PYTHONPATH:-}"
-  else
-    echo "[preflight] legacy image detected; installing bs4 + wordnet overlay" >&2
-    mkdir -p "${PIP_OVERLAY}" "${NLTK_DATA}"
-    # Drop inherited PIP_CONSTRAINT from the base image (points at a non-existent
-    # /etc/pip/constraint.txt) for this isolated --target install only.
-    PIP_CONSTRAINT="" "${PYTHON_BIN}" -m pip install \
-      --quiet --target="${PIP_OVERLAY}" beautifulsoup4 nltk >&2
-    export PYTHONPATH="${PIP_OVERLAY}:${PYTHONPATH:-}"
-    "${PYTHON_BIN}" -c "import nltk; nltk.download('wordnet', download_dir='${NLTK_DATA}', quiet=True)" >&2
-  fi
+
+# Current images ship nltk but no tokenizer data; MM-IFEval's rule-based
+# verifiers need punkt_tab at judge time.
+export NLTK_DATA="${NLTK_DATA:-${RUNTIME_CACHE}/nltk_data}"
+if [[ ! -d "${NLTK_DATA}/tokenizers/punkt_tab" ]]; then
+  mkdir -p "${NLTK_DATA}"
+  "${PYTHON_BIN}" -c "import nltk; nltk.download('punkt_tab', download_dir='${NLTK_DATA}', quiet=True)" >&2 || true
 fi
 
 "${PYTHON_BIN}" - <<'PY'
@@ -277,11 +274,13 @@ import torch
 import vllm
 from vlmeval.config import supported_VLM
 from vlmeval.dataset import SUPPORTED_DATASETS
+from vlmeval.dataset.video_dataset_config import supported_video_datasets
 
 model = "${MODEL}"
 dataset = "${DATASET}"
 assert model in supported_VLM, f"unsupported model: {model}"
-assert dataset in SUPPORTED_DATASETS, f"unsupported dataset: {dataset}"
+assert dataset in SUPPORTED_DATASETS or dataset in supported_video_datasets, \
+    f"unsupported dataset: {dataset}"
 print("preflight repo", os.getcwd())
 print("preflight torch", torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.device_count())
 print("preflight vllm", getattr(vllm, "__version__", "unknown"))
@@ -324,6 +323,11 @@ PY_CMD+=(
   --work-dir "${WORK_DIR}"
   --response-cache "${RESPONSE_CACHE}"
 )
+# run.py overrides registry kwargs for Llama-4/Qwen2-VL/Qwen2.5-VL names with
+# this CLI flag, so registry-level use_vllm=True is ignored without it.
+if [[ -n "${VLMEVAL_USE_VLLM:-}" ]]; then
+  PY_CMD+=(--use-vllm)
+fi
 
 if [[ "${NNODES}" -gt 1 ]]; then
   # srun launches one worker container per node. The EDF .toml sets

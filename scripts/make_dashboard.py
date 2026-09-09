@@ -27,30 +27,125 @@ from metric_selection import iter_headline_metrics, normalize_score
 # Spatial-intelligence benchmarks are tracked on EASI via VLMEvalKit
 # (https://easi.lmms-lab.com/leaderboard/), not here. Matches the EASI block
 # in metric_selection.TASK_METRIC_PRIORITY.
-EASI_SPATIAL_PREFIXES = (
-    "3dsrbench",
-    "site_bench",
-    "mmsi_bench",
-    "viewspatial",
-    "embspatial",
-    "mindcube",
-    "sparbench",
-    "omnispatial",
-    "erqa",
-    "blink",
-    "cv_bench",
-    "vsibench",
-    "refspatial",
-    "where2place",
-    # UI grounding, also not reported from this harness.
-    "screenspot",
-    "osworld",
-)
+# ---------------------------------------------------------------------------
+# The benchmark registry: one record per dashboard task key. Everything the
+# dashboard needs to know about a benchmark lives here — its category, the
+# VLMEvalKit dataset name(s) when that harness owns it, a headline-metric
+# override, and whether the key/category match by prefix. The legacy
+# structures below are derived views of this table; edit the table, not them.
+# ---------------------------------------------------------------------------
+BENCHMARKS = {
+    "3dsrbench": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk": "3DSRBench", "vk_prefix": True},
+    "ai2d": {"cat": "STEM & Knowledge"},
+    "babyvision": {"cat": "Math & Logic"},
+    "bigearth": {"cat": "Remote Sensing", "cat_prefix": True},
+    "blink": {"cat": "Multi-Image", "vk": "BLINK", "vk_prefix": True},
+    "chartqa": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_doc_parsing": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_kie": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_multi_lan_ocr": {"cat": "Docs, Charts & OCR"},
+    "cc_ocr_multi_scene_ocr": {"cat": "Docs, Charts & OCR"},
+    "charxiv_descriptive": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_descriptive_val"},
+    "charxiv_reasoning": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_reasoning_val"},
+    "countbench": {"cat": "Counting & Grounding"},
+    "cv_bench": {"vk_prefix": True},
+    "cv_bench_2d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-2D"},
+    "cv_bench_3d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-3D"},
+    "docvqa_val": {"cat": "Docs, Charts & OCR"},
+    "embspatial": {"cat": "Spatial & Embodied", "vk": "EmbSpatialBench", "vk_prefix": True},
+    "erqa": {"cat": "Spatial & Embodied", "vk": "ERQA", "vk_prefix": True},
+    "frieda": {"cat": "Remote Sensing"},
+    "geobench": {"cat": "Remote Sensing", "cat_prefix": True},
+    "gqa": {"cat": "General VQA & Perception"},
+    "hallusionbench": {"cat": "Alignment", "vk": "HallusionBench"},
+    "healthbench": {"cat": "Medical", "cat_prefix": True},
+    "iconqa_val": {"cat": "Docs, Charts & OCR"},
+    "infovqa_val": {"cat": "Docs, Charts & OCR"},
+    "logicvista": {"cat": "Math & Logic", "vk": "LogicVista"},
+    "mathverse": {"cat": "Math & Logic", "vk": "MathVerse_MINI"},
+    "mathvision": {"cat": "Math & Logic", "cat_prefix": True},
+    "mathvista_mini": {"cat": "Math & Logic", "vk": "MathVista_MINI"},
+    "medmcqa": {"cat": "Medical"},
+    "medqa": {"cat": "Medical"},
+    "medxpertqa_mm": {"cat": "Medical VQA"},
+    "medxpertqa_text": {"cat": "Medical"},
+    "mia_bench": {"cat": "Alignment", "vk": "MIA-Bench"},
+    "mindcube": {"cat": "Spatial & Embodied", "vk": "MindCubeBench_tiny_raw_qa", "vk_prefix": True},
+    "mm_ifeval": {"cat": "Instruction Following", "vk": "MM-IFEval"},
+    "mm_safetybench": {"cat": "Alignment", "vk": "MMSafetyBench", "headline": ('safety_rate',)},
+    "mmbench_en_dev": {"cat": "General VQA & Perception"},
+    "mme": {"cat": "General VQA & Perception"},
+    "mme_cognition": {"cat": "General VQA & Perception"},
+    "mme_perception": {"cat": "General VQA & Perception"},
+    "mmerealworld": {"cat": "General VQA & Perception"},
+    "mmlu_medical": {"cat": "Medical"},
+    "mmmu_pro_standard": {"cat": "STEM & Knowledge"},
+    "mmmu_pro_vision": {"cat": "STEM & Knowledge"},
+    "mmmu_val": {"cat": "STEM & Knowledge"},
+    "mmsi_bench": {"cat": "Spatial & Embodied", "vk": "MMSIBench_wo_circular", "vk_prefix": True},
+    "mmstar": {"cat": "General VQA & Perception"},
+    "mmvet": {"cat": "General VQA & Perception", "vk": "MMVet"},
+    "mmvp": {"cat": "Robustness & Bias"},
+    "mmvp_pair": {"cat": "Robustness & Bias"},
+    "mtvqa": {"cat": "Docs, Charts & OCR"},
+    "muirbench": {"cat": "Multi-Image", "vk": "MUIRBench"},
+    "ocrbench": {"cat": "Docs, Charts & OCR"},
+    "ocrbench_v2": {"cat": "Docs, Charts & OCR"},
+    "omnidocbench": {"cat": "Docs, Charts & OCR"},
+    "omnispatial": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk_prefix": True},
+    "omnispatial_manual_cot": {"vk": "OmniSpatialBench_manual_cot"},
+    "osworld": {"vk": "OSWorld_G", "vk_prefix": True},
+    "path_mmu": {"cat": "Medical VQA", "cat_prefix": True},
+    "path_mmu_test": {"cat": "Medical VQA"},
+    "path_vqa": {"cat": "Medical VQA"},
+    "pixmo_count": {"cat": "Counting & Grounding"},
+    "pmc_vqa": {"cat": "Medical VQA"},
+    "pope": {"cat": "Alignment"},
+    "pubmedqa": {"cat": "Medical"},
+    "realworldqa": {"cat": "General VQA & Perception"},
+    "refcoco": {"cat": "Counting & Grounding", "cat_prefix": True},
+    "refspatial": {"cat": "Spatial & Embodied", "vk": "RefSpatial_wo_unseen", "vk_prefix": True},
+    "robospatial": {"cat": "Spatial & Embodied", "vk": "RoboSpatialHome"},
+    "rsrcc": {"cat": "Remote Sensing", "cat_prefix": True},
+    "scienceqa": {"cat": "STEM & Knowledge"},
+    "screenspot": {"vk": "ScreenSpot", "vk_prefix": True},
+    "screenspot_pro": {"vk": "ScreenSpot_Pro"},
+    "screenspot_v2": {"vk": "ScreenSpot_v2"},
+    "seedbench": {"cat": "General VQA & Perception"},
+    "seedbench_2_plus": {"cat": "Docs, Charts & OCR"},
+    "site_bench": {"cat": "Spatial & Embodied", "vk": "SiteBenchImage", "vk_prefix": True, "headline": ('overall_caa', 'overall_accuracy', 'accuracy')},
+    "slake": {"cat": "Medical VQA"},
+    "sparbench": {"cat": "Spatial & Embodied", "vk": "SparBench", "vk_prefix": True},
+    "spatial_dise": {"cat": "Spatial & Embodied", "vk": "Spatial-DISE_BENCH", "vk_prefix": True},
+    "textvqa_val": {"cat": "Docs, Charts & OCR"},
+    "viewspatial": {"cat": "Spatial & Embodied", "vk": "ViewSpatialBench", "vk_prefix": True},
+    "visualpuzzles_direct": {"cat": "Math & Logic"},
+    "visulogic": {"cat": "Math & Logic"},
+    "vlms_are_biased": {"cat": "Robustness & Bias"},
+    "vlmsareblind": {"cat": "Robustness & Bias"},
+    "vqa_rad": {"cat": "Medical VQA"},
+    "vqav2_val": {"cat": "General VQA & Perception"},
+    "vrsbench": {"cat": "Remote Sensing", "cat_prefix": True},
+    "vsibench": {"vk_prefix": True},
+    "vsibench_debiased": {"cat": "Spatial & Embodied", "vk": ['VSI-Bench-Debiased', 'VSI-Bench-Debiased_32frame']},
+    "vstar_bench": {"cat": "General VQA & Perception"},
+    "where2place": {"vk_prefix": True},
+}
+
+
+# Categories in display order, with modality.
+CATEGORIES = [('General VQA & Perception', 'vision'), ('Robustness & Bias', 'vision'), ('Spatial & Embodied', 'vision'), ('Multi-Image', 'vision'), ('Instruction Following', 'vision'), ('Counting & Grounding', 'vision'), ('Docs, Charts & OCR', 'vision'), ('Math & Logic', 'vision'), ('STEM & Knowledge', 'vision'), ('Remote Sensing', 'vision'), ('Alignment', 'vision'), ('Medical VQA', 'vision'), ('Medical', 'text')]
+
+CATEGORIES += [(cat, "audio") for cat in ("ASR", "Multilingual ASR", "Speech Translation", "Audio QA", "Audio Understanding", "Audio Classification", "VoiceBench", "Music")]
+
+EXTRA_VK_PREFIXES = ('muirbench', 'mm_ifeval', 'mia_bench')
+
+EASI_SPATIAL_PREFIXES = tuple(k for k, b in BENCHMARKS.items() if b.get("vk_prefix"))
 
 # Spatial-intelligence + multi-image benchmarks are owned by VLMEvalKit/EASI
 # (correct interleaving + EASI protocol); everything else by lmms-eval. The
 # badge shows which harness produced each benchmark's number, EASI-style.
-VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + ("muirbench",)
+VLMEVALKIT_PREFIXES = EASI_SPATIAL_PREFIXES + EXTRA_VK_PREFIXES
 
 
 def framework_for(task: str) -> str:
@@ -62,6 +157,9 @@ def framework_for(task: str) -> str:
 # ok_vqa / simplevqa (low-signal, not widely reported), and refspatial (a true
 # zero-shot floor — Apertus never trained on it; points parse but always ~0).
 DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial", "mathvista_testmini", "logicvista_reasoning",
+                         # lmms duplicate of the VLMEvalKit-owned HallusionBench row
+                         # (VK runs the judge; the lmms copy scored 0.0 keyless).
+                         "hallusion_bench_image",
                          # n-gram captioning metrics (CIDEr/BLEU) measure prompt-style overlap, not
                          # caption quality, on free-form RS output; results stay on disk.
                          # Run/schedule policy lives in task_suites/*; entries here only
@@ -149,33 +247,49 @@ def canonical_model_key(name: str) -> str:
     return f"{key} [{mode}]" if mode else key
 
 
+def parse_models_manifest(path: Path) -> tuple[list, list, dict, dict]:
+    """Parse dashboard_models.txt: 'key[|alias...]=Label' lines, # comments.
+
+    A '# group: Name' comment starts a selector section; subsequent keys
+    belong to it. Returns (only_keys, label_specs, alias_map, group_map)
+    where alias_map sends each alias key to its primary (foreign models whose
+    lmms label and VLMEvalKit registry name canonicalize differently, e.g.
+    gemma-3-27b-it vs gemma3-27b) and group_map sends each key to its section.
+    """
+    only, labels, aliases, groups = [], [], {}, {}
+    group = "Models"
+    for raw in path.read_text().splitlines():
+        stripped = raw.strip()
+        if stripped.lower().startswith("# group:"):
+            group = stripped.split(":", 1)[1].strip() or group
+            continue
+        line = raw.split("#", 1)[0].strip()
+        if not line or "=" not in line:
+            continue
+        keypart, label = line.split("=", 1)
+        keys = [k.strip() for k in keypart.split("|")]
+        only.append(keys[0])
+        labels.append(f"{keys[0]}={label.strip()}")
+        groups[keys[0]] = group
+        for alias in keys[1:]:
+            aliases[alias] = keys[0]
+    return only, labels, aliases, groups
+
+
 # VLMEvalKit dataset dir -> canonical task name, restricted to the benchmarks
 # VLMEvalKit owns (spatial + multi-image + UI grounding). Everything else in a
 # VLMEval_Outputs tree is lmms-eval-owned and ignored here.
 VK_OWNED_TASKS = {
-    "BLINK": "blink", "MUIRBench": "muirbench", "EmbSpatialBench": "embspatial",
-    "MMSIBench_wo_circular": "mmsi_bench", "3DSRBench": "3dsrbench",
-    "CV-Bench-2D": "cv_bench_2d", "CV-Bench-3D": "cv_bench_3d", "ERQA": "erqa",
-    "MindCubeBench_tiny_raw_qa": "mindcube", "OmniSpatialBench_default": "omnispatial",
-    "OmniSpatialBench_manual_cot": "omnispatial_manual_cot",
-    "SparBench": "sparbench", "SiteBenchImage": "site_bench", "ViewSpatialBench": "viewspatial",
-    "VSI-Bench-Debiased": "vsibench", "RefSpatial_wo_unseen": "refspatial",
-    "RoboSpatialHome": "robospatial", "ScreenSpot": "screenspot",
-    "ScreenSpot_v2": "screenspot_v2", "ScreenSpot_Pro": "screenspot_pro", "OSWorld_G": "osworld",
-    "MathVista_MINI": "mathvista_mini", "HallusionBench": "hallusionbench", "MathVerse_MINI": "mathverse",
-    "LogicVista": "logicvista",
-    "MMVet": "mmvet", "MIA-Bench": "mia_bench", "MMSafetyBench": "mm_safetybench",
-    "CharXiv_descriptive_val": "charxiv_descriptive", "CharXiv_reasoning_val": "charxiv_reasoning",
+    vk: key
+    for key, b in BENCHMARKS.items()
+    for vk in ([b["vk"]] if isinstance(b.get("vk"), str) else b.get("vk", []))
 }
 _VK_HEADLINE = ("overall", "overall_accuracy", "acc", "accuracy")
 _VK_AGG_LABELS = ("all", "overall", "none")
 # Per-benchmark headline override where the EASI-canonical metric is not plain
 # accuracy. site_bench reports chance-adjusted accuracy (overall_caa); raw
 # accuracy ~2x inflates it relative to the EASI leaderboard.
-VK_HEADLINE_BY_TASK = {
-    "site_bench": ("overall_caa", "overall_accuracy", "accuracy"),
-    "mm_safetybench": ("safety_rate",),
-}
+VK_HEADLINE_BY_TASK = {k: b["headline"] for k, b in BENCHMARKS.items() if "headline" in b}
 
 
 def _vk_norm(name: str) -> str:
@@ -200,7 +314,7 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
     data = rows[1:]
 
     def scale(value: float) -> float:
-        return value * 100 if value <= 1.0 else value
+        return value * 100 if 0 <= value <= 1.0 else value
 
     if len(header) == 2 and header[1] == "value":
         cells = {_vk_norm(r[0]): r[1] for r in data if len(r) >= 2}
@@ -229,6 +343,7 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
     rows: dict[tuple[str, str], dict[str, dict]] = {}
     models: set[str] = set()
     skipped: list[str] = []
+    cell_mtimes: dict = {}
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
         for vk_name, task in VK_OWNED_TASKS.items():
@@ -244,7 +359,15 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
                 return vk_name in name and not any(s in name for s in shadows)
 
             def by_mtime(paths):
-                return sorted(paths, key=lambda p: Path(p).stat().st_mtime)
+                # transient judge artifacts in the shared outputs tree can
+                # vanish between glob and stat
+                stamped = []
+                for p in paths:
+                    try:
+                        stamped.append((Path(p).stat().st_mtime, p))
+                    except OSError:
+                        continue
+                return [p for _, p in sorted(stamped)]
 
             all_accs, all_scores = [], []
             for bench_dir in bench_dirs:
@@ -270,7 +393,10 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
                 continue
             models.add(canon)
             cell = {"v": round(value, 2), "raw": value, "run": acc.parent.name}
-            rows.setdefault((task, "acc"), {})[canon] = cell
+            # mm_safetybench is direction-normalized to safety_rate at derivation
+            # (attack_rate is lower-better); label it so readers see which it is.
+            metric = "safety_rate" if task == "mm_safetybench" else "acc"
+            rows.setdefault((task, metric), {})[canon] = cell
 
     if skipped:
         print(f"VLMEval: skipped {len(skipped)} benchmark(s) with no parseable acc.csv "
@@ -297,12 +423,15 @@ def short_labels(names: list[str]) -> dict[str, str]:
 def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: bool = False):
     model_dirs = sorted(d for d in runs_root.iterdir() if d.is_dir())
     if model_filters:
-        model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
+        model_filters = [AUDIO_REPORT_MODEL_DIRS.get(s, s) for s in model_filters]
+        model_dirs = [d for d in model_dirs
+                      if any(s in d.name or s in canonical_model_key(d.name) for s in model_filters)]
     if not model_dirs:
         print(f"no model dirs under {runs_root}; skipping")
         return [], []
 
     rows: dict[tuple[str, str], dict[str, dict]] = {}
+    cell_mtimes: dict = {}
     for mdir in model_dirs:
         canon = canonical_model_key(mdir.name)
         trunc = _truncation_for(mdir.name)
@@ -331,7 +460,13 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
                 cell = {"v": round(norm * 100, 2), "raw": value, "run": run_id}
                 if task in trunc:
                     cell["t"] = round(trunc[task] * 100, 1)
-                rows.setdefault((row_task, metric), {})[canon] = cell
+                # Two result dirs can canonicalize to one column (label case,
+                # path-slug variants); the newest artifact wins, not dir order.
+                mt = path.stat().st_mtime
+                key = (row_task, metric, canon)
+                if cell_mtimes.get(key, -1) <= mt:
+                    rows.setdefault((row_task, metric), {})[canon] = cell
+                    cell_mtimes[key] = mt
 
     models = sorted({canonical_model_key(d.name) for d in model_dirs})
     table = [
@@ -401,14 +536,31 @@ class AudioReportParser(HTMLParser):
             self._in_table = False
 
 
-def collect_audio_report(path: Path, model_filters: list[str] | None):
+# Report headings that differ from the native result directory names. Keep
+# this translation separate from display labels and checkpoint-mode aliases.
+AUDIO_REPORT_MODEL_DIRS = {
+    "swiss-ai/Apertus-v1.5-8B": "Apertus-v1.5-8B",
+    "swiss-ai/Apertus-v1.5-70B": "Apertus-v1.5-70B",
+    "Qwen2.5 Omni 7B": "Qwen2.5-Omni-7B",
+    "Qwen2 Audio 7B Instruct": "Qwen2-Audio-7B-Instruct",
+    "Kimi Audio 7B Instruct": "Kimi-Audio-7B-Instruct",
+}
+
+
+def collect_audio_report(path: Path, model_filters: list[str] | None, *, labels: dict | None = None):
+    """Import historical audio cells using native checkpoint identities.
+
+    Optional labels retain the report's readable headings. Filtering happens
+    after the supplied pretrain cells are inserted, so a pretrain-only request
+    has the same rows as the corresponding column of an unfiltered import.
+    """
     if not path.is_file():
         return [], []
 
     parser = AudioReportParser()
     parser.feed(path.read_text())
     rows: dict[tuple[str, str, str], dict[str, dict]] = {}
-    models: set[str] = set()
+    model_labels: dict[str, str] = {}
     for section in parser.sections:
         cat = section["title"]
         for table in section["tables"]:
@@ -421,8 +573,6 @@ def collect_audio_report(path: Path, model_filters: list[str] | None):
                 task = raw_row[0]["text"]
                 metric = raw_row[1]["text"]
                 for model, cell in zip(model_names, raw_row[2:]):
-                    if model_filters and not any(s in model for s in model_filters):
-                        continue
                     text = cell["text"].strip()
                     if not text or text == "-":
                         continue
@@ -430,29 +580,31 @@ def collect_audio_report(path: Path, model_filters: list[str] | None):
                         value = float(text.replace(",", ""))
                     except ValueError:
                         continue
-                    models.add(model)
-                    rows.setdefault((cat, task, metric), {})[model] = {
+                    canon = canonical_model_key(AUDIO_REPORT_MODEL_DIRS.get(model, model))
+                    model_labels[canon] = model
+                    rows.setdefault((cat, task, metric), {})[canon] = {
                         "v": round(value, 4),
                         "raw": value,
                         "run": cell["title"] or path.name,
                     }
 
-    table = [
-        {"task": task, "metric": metric, "framework": "lmms-eval", "cat": cat, "cells": cells}
-        for (cat, task, metric), cells in sorted(rows.items())
-    ]
-    if not model_filters or any(s in PRETRAIN_LONG_CONTEXT_AUDIO_MODEL for s in model_filters):
-        for row in table:
-            key = (row["task"].lower(), row["metric"].lower())
-            if key not in PRETRAIN_LONG_CONTEXT_FLEURS:
-                continue
-            value = PRETRAIN_LONG_CONTEXT_FLEURS[key]
-            models.add(PRETRAIN_LONG_CONTEXT_AUDIO_MODEL)
-            row["cells"][PRETRAIN_LONG_CONTEXT_AUDIO_MODEL] = {
-                "v": value,
-                "raw": value,
-                "run": "provided google_fleurs long-context pretrain results",
-            }
+    pretrain = canonical_model_key(PRETRAIN_LONG_CONTEXT_AUDIO_MODEL)
+    model_labels[pretrain] = PRETRAIN_LONG_CONTEXT_AUDIO_MODEL
+    for (task, metric), value in PRETRAIN_LONG_CONTEXT_FLEURS.items():
+        rows.setdefault(("Multilingual ASR", task, metric), {})[pretrain] = {
+            "v": value,
+            "raw": value,
+            "run": "provided google_fleurs long-context pretrain results",
+        }
+    models = {m for m, label in model_labels.items()
+              if not model_filters or any(s in m or s in label for s in model_filters)}
+    table = []
+    for (cat, task, metric), cells in sorted(rows.items()):
+        cells = {m: cell for m, cell in cells.items() if m in models}
+        if cells:
+            table.append({"task": task, "metric": metric, "framework": "lmms-eval", "cat": cat, "cells": cells})
+    if labels is not None:
+        labels.update({m: model_labels[m] for m in models})
     return sorted(models), table
 
 
@@ -499,38 +651,12 @@ def metric_direction(metric: str) -> int:
 # declarative structure — dict order is display order, modality defaults to
 # "vision", tasks match by exact name or prefix.
 TAXONOMY = {
-    "General VQA & Perception": {"exact": [
-        "vqav2_val", "gqa", "realworldqa", "mmerealworld", "mme", "mme_cognition", "mme_perception",
-        "mmbench_en_dev", "mmstar", "seedbench", "mmvet", "vstar_bench",
-    ]},
-    "Robustness & Bias": {"exact": ["mmvp", "mmvp_pair", "vlms_are_biased", "vlmsareblind"]},
-    "Spatial & Embodied": {"exact": [
-        "cv_bench_2d", "cv_bench_3d", "embspatial", "erqa", "mindcube", "mmsi_bench",
-        "robospatial", "site_bench", "sparbench", "viewspatial",
-    ], "prefix": ["omnispatial", "3dsrbench"]},
-    "Multi-Image": {"exact": ["muirbench", "blink"]},
-    "Counting & Grounding": {"exact": ["countbench", "pixmo_count"], "prefix": ["refcoco"]},
-    "Docs, Charts & OCR": {"exact": [
-        "docvqa_val", "infovqa_val", "chartqa", "charxiv_descriptive", "charxiv_reasoning",
-        "ocrbench", "ocrbench_v2", "omnidocbench", "textvqa_val", "seedbench_2_plus", "iconqa_val",
-    ]},
-    "Math & Logic": {"exact": ["mathvista_mini", "mathverse", "logicvista", "visulogic", "visualpuzzles_direct", "babyvision"],
-                     "prefix": ["mathvision"]},
-    "STEM & Knowledge": {"exact": ["mmmu_val", "mmmu_pro_standard", "mmmu_pro_vision", "scienceqa", "ai2d"]},
-    "Medical — VQA": {"exact": ["pmc_vqa", "path_vqa", "path_mmu_test", "slake", "vqa_rad", "medxpertqa_mm"]},
-    "Remote Sensing": {"exact": ["frieda"], "prefix": ["bigearth", "geobench", "vrsbench", "rsrcc"]},
-    "Alignment": {"exact": ["mm_safetybench", "mia_bench", "pope", "hallusionbench"]},
-    "Medical": {"modality": "text",
-                "exact": ["medqa", "medmcqa", "pubmedqa", "mmlu_medical", "medxpertqa_text"],
-                "prefix": ["healthbench"]},
-    "ASR": {"modality": "audio"},
-    "Multilingual ASR": {"modality": "audio"},
-    "Speech Translation": {"modality": "audio"},
-    "Audio QA": {"modality": "audio"},
-    "Audio Understanding": {"modality": "audio"},
-    "Audio Classification": {"modality": "audio"},
-    "VoiceBench": {"modality": "audio"},
-    "Music": {"modality": "audio"},
+    cat: {
+        **({"modality": modality} if modality != "vision" else {}),
+        "exact": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and not b.get("cat_prefix")],
+        "prefix": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and b.get("cat_prefix")],
+    }
+    for cat, modality in CATEGORIES
 }
 
 CATEGORY_ORDER = list(TAXONOMY)
@@ -597,12 +723,16 @@ h1 { font-size: clamp(26px, 3.5vw, 40px); font-weight: 500; letter-spacing: -.01
   border-bottom: 1px solid var(--hair); background: var(--paper-2);
 }
 .picker-head .lbl { font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.picker-head button {
+.picker-head button, .chip-group-head button {
   font: 11px ui-monospace, Menlo, monospace; color: var(--ink); background: none;
   border: 1px solid var(--hair); padding: 3px 10px; cursor: pointer;
 }
-.picker-head button:hover { border-color: var(--red); color: var(--red); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px; max-height: 170px; overflow: auto; }
+.picker-head button:hover, .chip-group-head button:hover { border-color: var(--red); color: var(--red); }
+.chip-group-head button { padding: 1px 8px; font-size: 10px; }
+.chips { padding: 6px 14px 12px; max-height: 230px; overflow: auto; }
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 6px; }
+.chip-group-head { flex-basis: 100%; display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.chip-group-head .lbl { font-size: 11px; }
 .chip {
   display: inline-flex; align-items: center; gap: 7px;
   font: 11.5px ui-monospace, Menlo, monospace;
@@ -723,7 +853,8 @@ footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 <div class="matrix-wrap" id="matrix-view"><table id="matrix"></table></div>
 
 <footer>
-  Scores share one absolute 0–100 scale · newest result per task across each model's runs ·
+  Error rates retain their reported percent scale (and may exceed 100); lower is better ·
+  native results take precedence over historical audio report cells ·
   canonical headline metrics via <code>metric_selection.py</code> · hover for raw value and source run ·
   generated by <a href="https://github.com/swiss-ai/MLLM-eval-suite/blob/yxu/bump-lmms-eval/scripts/make_dashboard.py" target="_blank" rel="noopener"><code>make_dashboard.py</code></a>
 </footer>
@@ -742,8 +873,12 @@ let state = {
 
 const fmt = v => v.toFixed(1);
 const avg = vs => vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
-const better = (a, b, dir) => dir < 0 ? a < b : a > b;
 const bestValue = (values, dir) => dir < 0 ? Math.min(...values) : Math.max(...values);
+// Raw error and accuracy values do not define a meaningful combined mean.
+const commonDirection = rows => {
+  const dirs = new Set(rows.map(r => r.dir || 1));
+  return dirs.size === 1 ? [...dirs][0] : null;
+};
 const hbadge = fw => fw === "VLMEvalKit"
   ? '<span class="hbadge vlme">VLMEvalKit</span>'
   : '<span class="hbadge lmms">lmms-eval</span>';
@@ -760,13 +895,31 @@ const visRows = () => {
 };
 
 function renderChips() {
-  document.getElementById("chips").innerHTML = D.models.map(m =>
+  const groupNames = [];
+  for (const m of D.models) {
+    const g = D.groups[m] || "Models";
+    if (!groupNames.includes(g)) groupNames.push(g);
+  }
+  const chipHtml = m =>
     `<span class="chip ${state.sel.has(m) ? "on" : ""}" data-m="${m}" style="--c:${color[m]}" title="${m}">` +
-    `<span class="dot"></span>${D.labels[m]} <span class="cov">${coverage[m]}</span></span>`).join("");
+    `<span class="dot"></span>${D.labels[m]} <span class="cov">${coverage[m]}</span></span>`;
+  document.getElementById("chips").innerHTML = groupNames.map(g => {
+    const members = D.models.filter(m => (D.groups[m] || "Models") === g);
+    return `<div class="chip-group"><div class="chip-group-head"><span class="lbl">${g}</span>` +
+      `<button class="grp-all" data-g="${g}">all</button><button class="grp-none" data-g="${g}">none</button></div>` +
+      members.map(chipHtml).join("") + `</div>`;
+  }).join("");
   document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
     const m = c.dataset.m;
     state.sel.has(m) ? state.sel.delete(m) : state.sel.add(m);
     renderAll();
+  });
+  const grpMembers = g => D.models.filter(m => (D.groups[m] || "Models") === g);
+  document.querySelectorAll(".grp-all").forEach(b => b.onclick = () => {
+    grpMembers(b.dataset.g).forEach(m => state.sel.add(m)); renderAll();
+  });
+  document.querySelectorAll(".grp-none").forEach(b => b.onclick = () => {
+    grpMembers(b.dataset.g).forEach(m => state.sel.delete(m)); renderAll();
   });
   document.getElementById("selcount").textContent = `${state.sel.size}/${D.models.length} selected`;
 }
@@ -776,7 +929,10 @@ function renderCards() {
   const sel = modModels(inMod);
   const common = inMod.filter(r => sel.length && sel.every(m => r.cells[m]));
   const nCats = new Set(common.map(r => r.cat)).size;
+  const direction = commonDirection(common);
+  const mixed = common.length > 0 && direction == null;
   const means = sel.map(m => {
+    if (direction == null) return { m, mean: null };
     if (state.avg === "macro") {
       const byCat = {};
       for (const r of common) (byCat[r.cat] ??= []).push(r.cells[m].v);
@@ -784,17 +940,21 @@ function renderCards() {
     }
     return { m, mean: avg(common.map(r => r.cells[m].v)) };
   });
-  const top = Math.max(...means.map(x => x.mean ?? -Infinity));
+  const values = means.map(x => x.mean).filter(v => v != null);
+  const top = values.length ? bestValue(values, direction) : null;
   document.getElementById("cards").innerHTML = means.map(x =>
-    `<div class="card ${x.mean === top && means.length > 1 ? "best" : ""}" style="--c:${color[x.m]}" title="${x.m}">` +
+    `<div class="card ${x.mean != null && x.mean === top && means.length > 1 ? "best" : ""}" style="--c:${color[x.m]}" title="${x.m}">` +
     `<div class="name">${D.labels[x.m]}</div>` +
-    `<div class="big mono">${x.mean == null ? "—" : fmt(x.mean)}<small> / 100</small></div>` +
+    `<div class="big mono">${x.mean == null ? "—" : fmt(x.mean)}<small>${x.mean == null ? "" : direction < 0 ? "% error" : " / 100"}</small></div>` +
     `<div class="cov">${coverage[x.m]} tasks covered</div></div>`).join("");
-  document.getElementById("cards-note").textContent = sel.length
+  const cohortNote = sel.length
     ? (state.avg === "macro"
         ? `macro mean: equal weight per category, over ${nCats} ${state.mod} categories (${common.length} benchmarks covered by all ${sel.length} selected models)`
         : `micro mean: equal weight per benchmark, over the ${common.length} ${state.mod} benchmarks covered by all ${sel.length} selected models`)
     : "select models above";
+  document.getElementById("cards-note").textContent = mixed
+    ? `No combined mean: the ${common.length} common ${state.mod} benchmarks mix error rates (lower is better) and scores (higher is better). Compare the individual rows.`
+    : cohortNote + (direction == null ? "" : `; ${direction < 0 ? "lower error" : "higher score"} is better`);
 }
 
 function renderMatrix() {
@@ -830,14 +990,16 @@ function renderMatrix() {
       const catRows = rows.filter(x => x.cat === r.cat);
       const covered = sel.filter(m => catRows.some(x => x.cells[m]));
       const commonCat = catRows.filter(x => covered.every(m => x.cells[m]));
-      const catDir = commonCat.length && commonCat.every(x => (x.dir || 1) < 0) ? -1 : 1;
+      const catDir = commonDirection(commonCat);
       const cm = {};
-      for (const m of sel) cm[m] = covered.includes(m) ? avg(commonCat.map(x => x.cells[m].v)) : null;
+      for (const m of sel) cm[m] = catDir != null && covered.includes(m) ? avg(commonCat.map(x => x.cells[m].v)) : null;
       const catValues = sel.map(m => cm[m]).filter(v => v != null);
       const bestM = catValues.length ? bestValue(catValues, catDir) : null;
       h += `<tr class="catrow"><th>${r.cat}</th>` + sel.map(m => {
         const v = cm[m];
-        if (v == null) return "<td class='cmean'>·</td>";
+        if (v == null) return commonCat.length && catDir == null
+          ? '<td class="cmean" title="No combined mean for mixed error rates and scores">—</td>'
+          : "<td class='cmean'>·</td>";
         const slot = slotFor(m, v, cm[state.base], catDir);
         return `<td class="cmean mono ${v === bestM && sel.length > 1 ? "best" : ""}" ` +
                `title="mean over the ${commonCat.length} ${r.cat} benchmarks common to the ${covered.length} models with coverage; ${catDir < 0 ? "lower" : "higher"} is better">${fmt(v)}${slot}</td>`;
@@ -860,7 +1022,9 @@ function renderMatrix() {
   }
   document.getElementById("matrix").innerHTML = rows.length
     ? h + "</tbody>"
-    : `<tbody><tr><td class="nodata">no ${state.mod} benchmarks yet</td></tr></tbody>`;
+    : `<tbody><tr><td class="nodata">${state.sel.size
+        ? `no ${state.mod} benchmarks yet`
+        : "no models selected — pick Apertus checkpoints and baselines above"}</td></tr></tbody>`;
   const thd = document.querySelector("#matrix thead");
   if (thd) document.getElementById("matrix-view").style.setProperty("--thead-h", thd.offsetHeight + "px");
   document.querySelectorAll("thead th").forEach(th => th.onclick = () => {
@@ -924,8 +1088,15 @@ def main():
     p.add_argument("--audio-report", type=Path, default=Path("docs/audio/audio_benchmark_results.html"),
                    help="generated audio benchmark HTML report to ingest into the Audio tab")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
+    p.add_argument("--models-file", type=Path,
+                   help="column manifest (key[|alias]=Label per line); overrides --only/--label")
     p.add_argument("-o", "--output", type=Path, default=Path("dashboard.html"))
     args = p.parse_args()
+
+    aliases: dict = {}
+    model_groups: dict = {}
+    if args.models_file:
+        args.only, args.label, aliases, model_groups = parse_models_manifest(args.models_file)
 
     models_l: list[str] = []
     table_l: list[dict] = []
@@ -940,15 +1111,26 @@ def main():
     if args.vlmeval_root:
         models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
     audio_path = args.audio_report if args.audio_report.is_absolute() else Path(__file__).resolve().parent.parent / args.audio_report
-    models_a, table_a = collect_audio_report(audio_path.resolve(), args.models)
+    audio_labels: dict[str, str] = {}
+    models_a, table_a = collect_audio_report(audio_path.resolve(), args.models, labels=audio_labels)
+    if aliases:
+        models_l = [aliases.get(m, m) for m in models_l]
+        models_v = [aliases.get(m, m) for m in models_v]
+        models_a = [aliases.get(m, m) for m in models_a]
+        audio_labels = {aliases.get(m, m): label for m, label in audio_labels.items()}
+        for row in table_l + table_v + table_a:
+            cells = {}
+            for k, v in row["cells"].items():
+                cells.setdefault(aliases.get(k, k), v)
+            row["cells"] = cells
     models = sorted(set(models_l) | set(models_v) | set(models_a))
     if args.only:
         present = set(models)
         models = [m for m in args.only if m in present]
-    # Ownership partitions benchmarks, so no (task, metric) appears in both
-    # harnesses; cells merge defensively if one ever does.
+    # The historical report fills gaps. Native result cells are authoritative,
+    # including after model-manifest aliases coalesce checkpoint spellings.
     merged: dict[tuple[str, str], dict] = {}
-    for row in table_l + table_v + table_a:
+    for row in table_a + table_l + table_v:
         key = (row["task"], row["metric"])
         if key in merged:
             merged[key]["cells"].update(row["cells"])
@@ -958,6 +1140,7 @@ def main():
             merged[key] = dict(row)
     table = [merged[key] for key in sorted(merged)]
     labels = short_labels(models)
+    labels.update({m: label for m, label in audio_labels.items() if m in labels})
     for pair in args.label:
         key, _, disp = pair.partition("=")
         if key in labels:
@@ -979,7 +1162,7 @@ def main():
     # Pre-select the best-covered checkpoints so the page opens with a
     # meaningful comparison instead of every sparse column at once.
     coverage = {m: sum(1 for r in cells_rows if m in r["cells"]) for m in models}
-    default_selected = models if args.only else sorted(models, key=lambda m: -coverage[m])[:5]
+    default_selected = [] if model_groups else sorted(models, key=lambda m: -coverage[m])[:5]
     data = {
         "models": models,
         "labels": labels,
@@ -987,6 +1170,7 @@ def main():
         "categories": categories,
         "modality": {c: m for c, m in CATEGORY_MODALITY.items() if m != "vision"},
         "defaultSelected": default_selected,
+        "groups": {m: model_groups.get(m, "Models") for m in models},
     }
     n_vk = sum(1 for r in cells_rows if r["framework"] == "VLMEvalKit")
     sources = f"lmms-eval ({len(cells_rows) - n_vk} rows)" + (f" · VLMEvalKit ({n_vk} rows)" if n_vk else "")

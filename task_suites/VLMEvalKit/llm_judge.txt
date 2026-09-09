@@ -24,3 +24,6 @@ LogicVista
 
 # Multimodal safety — jailbreak/refusal (GPT grades harmfulness)
 MMSafetyBench
+
+# Multimodal instruction following (GPT grades per-constraint compliance)
+MM-IFEval

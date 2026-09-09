@@ -35,34 +35,14 @@ for d in "$VLMEVAL_OUTPUTS"/*/; do [[ -d "$d" ]] && link_model "$d" outputs; don
   for md in "$rid"*/; do [[ -d "$md" ]] && link_model "$md" "$(basename "$rid")"; done
 done
 
-# curated checkpoint set (exact canonical keys): SFT 4200 + RL stage2, both
-# direct and thinking, plus the sDPO alignment checkpoint.
-CURATED=(
-  "sft-capfilter-constant-it8816=it8816-const"
-  "sft-256k-4200=SFT-4200"
-  "sft-256k-4200 [thinking-32k]=SFT-4200 (think)"
-  "rl_1p5-8b-stage2_notools_mixthink_1606_480it=RL-mixthink"
-  "rl_1p5-8b-stage2_notools_mixthink_1606_480it [thinking-32k]=RL-mixthink (think)"
-  "sdpo-mix-less-refuse-feedback=sDPO"
-  "sdpo-mix-less-refuse-feedback [thinking-32k]=sDPO (think)"
-  "ap1p5-70b-sft-262k-2100=70B-2100"
-  "ap1p5-70b-sft-262k-2700=70B-2700"
-  "Apertus-1.5-8B-SFT-RL-DPO-SDPO-Low-Less-Refuse-Feedback=Apertus-1.5-8B-SFT-RL-DPO-SDPO-Low-Less-Refuse-Feedback"
-  "Apertus-1.5-8B-SFT-RL-DPO-SDPO-Mix-Less-Refuse-Feedback=Apertus-1.5-8B-SFT-RL-DPO-SDPO-Mix-Less-Refuse-Feedback"
-  "swiss-ai/Apertus-v1.5-8B=swiss-ai/Apertus-v1.5-8B"
-  "swiss-ai/Apertus-v1.5-70B=swiss-ai/Apertus-v1.5-70B"
-  "Apertus-1.5-70B-SFT-RL-DPO-SDPO=Apertus-1.5-70B-SFT-RL-DPO-SDPO"
-  "Qwen2.5 Omni 7B=Qwen2.5 Omni 7B"
-  "Qwen2 Audio 7B Instruct=Qwen2 Audio 7B"
-  "Kimi Audio 7B Instruct=Kimi Audio 7B"
-  "Apertus 8B 1.5 pretrain long context=Apertus 8B 1.5 pretrain long context"
-)
-ONLY=("${CURATED[@]%%=*}")
-LABELS=("${CURATED[@]}")
+# Curated columns live in dashboard_models.txt (key[=|alias]=Label, display
+# order), parsed by make_dashboard.py itself. Register new models with
+# register_dashboard_model.py, not by hand.
+MODELS_FILE="${MODELS_FILE:-$HERE/dashboard_models.txt}"
 
 # Per-task truncation rates for thinking runs (the ⌁ subscripts), recomputed
 # only when a run's samples are newer than its cache (the samples are huge).
-TRUNC_TOOL="${TRUNC_TOOL:-/iopsstor/scratch/cscs/xyixuan/apertus/lmms-eval/examples/apertus-vllm/scripts/truncation_report.py}"
+TRUNC_TOOL="${TRUNC_TOOL:-${SUITE}/third_party/lmms-eval/examples/apertus-vllm/scripts/truncation_report.py}"
 mkdir -p "$SUITE/cache/truncation"
 for md in "$RUNS_ROOT"/*-thinking-32k; do
   [[ -d "$md" ]] || continue
@@ -75,7 +55,7 @@ for md in "$RUNS_ROOT"/*-thinking-32k; do
 done
 
 mkdir -p "$(dirname "$OUT")"
-"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --only "${ONLY[@]}" --label "${LABELS[@]}" -o "$OUT"
+"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --models-file "$MODELS_FILE" -o "$OUT"
 # internal checkpoint results: keep out of search indexes
 "$PY" - "$OUT" <<'PYEOF'
 import re,sys
