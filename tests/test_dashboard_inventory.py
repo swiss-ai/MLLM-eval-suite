@@ -271,15 +271,16 @@ def test_new_manifest_is_checked_within_collection_roots(tmp_path, monkeypatch, 
         assert all(path.read_text() == "existing" for path in outputs)
 
 
-@pytest.mark.parametrize("framework", ["lmms-eval", "VLMEvalKit", "lm-eval"])
+@pytest.mark.parametrize("framework", ["lmms-eval", "VLMEvalKit", "VLMEvalKit-native", "lm-eval"])
 def test_verified_build_hashes_artifact_once_on_collection_and_once_before_write(tmp_path, monkeypatch, framework):
     import suite.coverage as coverage
     root = tmp_path / "runs"
     root.mkdir()
     args = ["--runs-root", str(root)]
-    if framework == "VLMEvalKit":
-        source = vk_result(tmp_path / "vk", "model", "run", .6, 100)
-        args.extend(["--vlmeval-root", str(tmp_path / "vk")])
+    if framework.startswith("VLMEvalKit"):
+        native = framework == "VLMEvalKit-native"
+        source = vk_result(tmp_path / "vk" / "run" if native else tmp_path / "vk", "model", "run", .6, 100)
+        args.extend(["--vlmeval-results-root" if native else "--vlmeval-root", str(tmp_path / "vk")])
     elif framework == "lm-eval":
         source = result(tmp_path / "text", "run", .6, 100, framework=framework, task="gsm8k")
         args.extend(["--lm-eval-root", str(tmp_path / "text")])

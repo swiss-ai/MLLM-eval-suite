@@ -16,7 +16,7 @@ if [[ ${APERTUS_BUILD_SNAPSHOT:-} != "$output_dir" ]]; then
 fi
 image_path="$output_dir/apertus-vllm-${revision:0:9}-cu130.sqsh"
 [[ ! -e "$image_path" ]] || { echo "Refusing to overwrite $image_path" >&2; exit 1; }
-for tool in podman enroot flock sha256sum; do
+for tool in podman enroot unsquashfs flock sha256sum; do
     command -v "$tool" >/dev/null || { echo "Missing host build tool: $tool" >&2; exit 1; }
 done
 [[ $(uname -m) == aarch64 ]] || { echo 'This recipe targets GH200 / ARM64' >&2; exit 1; }
@@ -25,7 +25,17 @@ flock -n 9 || { echo "A build already owns $output_dir" >&2; exit 1; }
 
 context=$(mktemp -d "$output_dir/context.XXXXXX")
 cp "$recipe_dir/"{Dockerfile.vllm-multimodal-eval-prod-cu130,runtime-constraints.txt,image_requirements.py,verify_image.py,export_squashfs.sh} "$context/"
-(cd "$context" && sha256sum ./* > "$output_dir/source-sha256.txt")
+apt_volumes=()
+if [[ -n "${APERTUS_APT_CONFIG_DIR:-}" ]]; then
+    mkdir "$context/apt"
+    # Resolve both top-level and nested links so mounts and hashes refer only
+    # to the captured bytes, even if the site's live configuration changes.
+    cp -RL "$APERTUS_APT_CONFIG_DIR/"{empty.sources.list,my-sources.d,99-jfrog-proxy} "$context/apt/"
+    apt_volumes=(--volume "$context/apt/empty.sources.list:/etc/apt/sources.list:ro,z"
+                 --volume "$context/apt/my-sources.d:/etc/apt/sources.list.d:ro,z"
+                 --volume "$context/apt/99-jfrog-proxy:/etc/apt/apt.conf.d/99-jfrog-proxy:ro,z")
+fi
+(cd "$context" && find . -type f -print0 | sort -z | xargs -0 sha256sum > "$output_dir/source-sha256.txt")
 build_stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ) vllm@$revision context=$(basename "$context")"
 printf '%s\n' "$build_stamp" > "$output_dir/build-stamp.txt"
 
@@ -36,6 +46,9 @@ store_root="/dev/shm/apertus-build-${UID}-${SLURM_JOB_ID:-local}-$store_key"
 # Wheels such as flashinfer-cubin contain tens of thousands of small files.
 # Keep their unpacked cache off Lustre; preserve it for retries in this allocation.
 mkdir -p "$store_root/"{root,runroot,enroot,uv-cache} "$output_dir/enroot-cache"
+uv_cache="${UV_CACHE_DIR:-$store_root/uv-cache}"
+mkdir -p "$uv_cache"
+uv_cache=$(cd -- "$uv_cache" && pwd)
 export CONTAINERS_STORAGE_CONF="$output_dir/storage.conf"
 cat > "$CONTAINERS_STORAGE_CONF" <<CONF
 [storage]
@@ -50,7 +63,7 @@ mkdir -p "$ENROOT_DATA_PATH"
 tag="localhost/apertus-vllm-trial:${revision:0:9}-$store_key"
 # The launcher owns the lock; container helpers must not retain it after exit.
 podman build --platform linux/arm64 --format docker --layers \
-    --volume "$store_root/uv-cache:/root/.cache/uv:rw" \
+    --volume "$uv_cache:/root/.cache/uv:rw" "${apt_volumes[@]}" \
     --build-arg "BUILD_STAMP=$build_stamp" \
     --build-arg "MAX_JOBS=${MAX_JOBS:-8}" \
     --tag "$tag" --file "$context/Dockerfile.vllm-multimodal-eval-prod-cu130" "$context" 9>&-
@@ -58,6 +71,12 @@ podman image inspect "$tag" 9>&- > "$output_dir/podman-image.json"
 partial_image="$output_dir/.apertus-${revision:0:9}-${BASHPID}.partial.sqsh"
 bash "$context/export_squashfs.sh" "podman://$tag" "$partial_image" "$store_root" 9>&-
 [[ -s "$partial_image" ]] || { echo 'Image export is empty' >&2; exit 1; }
+image_stamp=$(unsquashfs -cat "$partial_image" /etc/apertus_image_version) || {
+    echo 'Unable to read the exported image build stamp' >&2; exit 1;
+}
+[[ "$image_stamp" == "$build_stamp" ]] || {
+    echo 'Exported image build stamp does not match this build' >&2; exit 1;
+}
 # Hard-link publication is atomic and fails if the final name already exists.
 ln -- "$partial_image" "$image_path"
 rm -- "$partial_image"

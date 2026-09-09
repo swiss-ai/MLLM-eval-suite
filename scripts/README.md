@@ -8,32 +8,48 @@ dashboard regeneration, benchmark staging, and re-grading are admin flows.
 ```
 results/lmms-eval/<model>/<run-id>/**/*_results.json ─┐
 runs root (capstor, RUNS_ROOT) ───────────────────────┤
-results/VLMEvalKit/<run-id>/<model>/<dataset>/  ──────┤   derive_vlmeval_acc.py  (judge logs → derived_acc.csv)
+VLMEval_Outputs/<model>/<dataset>/ ──────────────────┤
+results/VLMEvalKit/<run-id>/<model>/<dataset>/ ───────┤   derive_vlmeval_acc.py (judge logs → derived_acc.csv)
                                                       ├─► refresh_dashboard.sh
-                                                      │     ├─ bridges VK runs into RUNS_ROOT (cache/vlmeval_bridge,
-                                                      │     │  union of runs, <bench>__<run-id> links)
-                                                      │     └─ make_dashboard.py  → docs/index.html
+                                                      │     └─ make_dashboard.py --verify → docs/index.html
                                                       │          (headline metrics via metric_selection.py,
                                                       │           newest result per (model, task),
-                                                      │           TAXONOMY bands, curated columns: CURATED array)
-                                                      └─► verify_dashboard.py  (collision audit — run after refresh)
+                                                      │           categories from suite/tasks.toml,
+                                                      │           columns from dashboard_models.txt)
+                                                      └─► verify_dashboard.py (standalone collision audit)
 ```
 
 - **`refresh_dashboard.sh`** — one-shot regeneration of `docs/index.html`. Knobs: `RUNS_ROOT`
-  (lmms results tree), `VLMEVAL_OUTPUTS`, `TRUNC_TOOL`. Column curation lives in its `CURATED`
-  array (`key=Label`, one line per dashboard column).
-- **`make_dashboard.py`** — the generator. Benchmark→category mapping is the `TAXONOMY` dict;
+  (lmms results tree), `SUITE_LMMS`, `VLMEVAL_OUTPUTS`, `SUITE_VLMEVAL`, `TRUNC_TOOL`.
+  It reads both native VLMEvalKit layouts directly, leaving any historical bridge cache untouched.
+  Column curation lives in `dashboard_models.txt` (`key[|alias]=Label`, one line per column).
+- **`make_dashboard.py`** — the generator. Benchmark categories use the registry in `suite/tasks.toml`;
   display-dropped tasks are `DROPPED_TASK_PREFIXES` (drop policy for *runs* lives in `task_suites/`).
 - **`metric_selection.py`** — single source of truth for each benchmark's headline metric and score
   normalization; imported by every reporting script.
 - **`gather_results.py`** — newest-result-per-task selection + CLI table.
 - **`verify_dashboard.py`** — audits canonical-model-key collisions (the wrong-number-on-page
-  failure class). Run it after every refresh; PASS expected.
+  failure class). Refresh performs the same audit before replacing any published artifact.
 - **`derive_vlmeval_acc.py`** — reconstructs `derived_acc.csv` for VK judge benchmarks whose score
   only exists in job logs. Skips runs with high judge-failure rates rather than fabricating scores.
   Direction contract: every dashboard row is higher-is-better; benchmarks whose native metric
   is lower-is-better are normalized at derivation (mm_safetybench: attack_rate -> safety_rate,
   labeled `safety_rate` on the row).
+
+`make_dashboard.py --vlmeval-root SHARED --vlmeval-results-root SUITE` unions
+`SHARED/<model>/<benchmark>` with `SUITE/<run>/<model>/<benchmark>`. The suite flag now
+supplies result artifacts as well as manifests; it can also be used without a shared root.
+Every run of the same raw model remains eligible for selection, so rejudging an older run
+can replace its stale score. Real judge CSVs take precedence over score CSVs and then derived
+fallbacks; selection within each kind uses artifact time and retains the old bridge's
+lexical tie-break. Historical run labels for manifestless cells are also preserved. Aliases
+remain separate until collision verification and canonical merging. Existing bridge roots
+and their saved legacy rejection identities remain supported.
+
+The standalone verifier can audit several independent `--vlmeval-root` trees. When adding
+suite sources with `--vlmeval-results-root`, pass at most one shared root; multiple shared
+roots would make the intended union ambiguous. Python callers needing only extra manifest
+discovery can continue passing `manifest_roots` to `audit()` or `collect_inventory()`.
 
 ## HealthBench grading
 

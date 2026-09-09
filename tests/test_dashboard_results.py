@@ -29,14 +29,25 @@ os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
         path.write_text("previous dashboard")
     result(tmp_path / "runs", "one", .6, 100)
     result(tmp_path / "lmms", "two", .9 if collision else .6, 200)
+    for root, score, stamp in [(tmp_path / "vk-shared", .2, 100), (tmp_path / "vk" / "run", .7, 200)]:
+        benchmark = root / "model" / "BLINK"
+        benchmark.mkdir(parents=True)
+        vk_path = benchmark / "model_BLINK_acc.csv"
+        vk_path.write_text(f"accuracy\n{score}\n")
+        os.utime(vk_path, (stamp, stamp))
     models = tmp_path / "models.txt"
     models.write_text("model=Model\n")
+    bridge = tmp_path / "bridge"
+    bridge.mkdir()
+    preserved = bridge / "existing-cache"
+    preserved.write_text("untouched")
     env = dict(os.environ, PY=str(runner), OUT=str(out), MODELS_FILE=str(models),
                RUNS_ROOT=str(tmp_path / "runs"), SUITE_LMMS=str(tmp_path / "lmms"),
                VLMEVAL_OUTPUTS=str(tmp_path / "vk-shared"), SUITE_VLMEVAL=str(tmp_path / "vk"),
                BRIDGE=str(tmp_path / "bridge"))
     script = Path(__file__).resolve().parents[1] / "scripts/refresh_dashboard.sh"
     process = subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True)
+    assert preserved.read_text() == "untouched"
     if collision:
         assert process.returncode == 1
         assert "COLLISION" in process.stdout
@@ -47,6 +58,9 @@ os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
         assert 'name="robots"' in out.read_text()
         rows = json.loads(outputs[1].read_text())["table"]
         assert next(row for row in rows if row["task"] == "gqa")["cells"]["model"]["v"] == 60
+        blink = next(row for row in rows if row["task"] == "blink")["cells"]["model"]
+        assert blink["v"] == 70
+        assert blink["source"]["path"] == str(vk_path)
 
 
 def result(root, run, score, stamp, *, task="gqa", framework="lmms-eval",
@@ -305,7 +319,8 @@ def test_result_rejection_blocks_same_run_legacy_import(tmp_path, monkeypatch, r
 
 
 @pytest.mark.parametrize("provenance", ["none", "full", "without-source"])
-def test_invalid_vlmeval_bridge_snapshot_cannot_be_resurrected(tmp_path, monkeypatch, provenance):
+@pytest.mark.parametrize("native", [False, True])
+def test_invalid_vlmeval_bridge_snapshot_cannot_be_resurrected(tmp_path, monkeypatch, provenance, native):
     raw, bridge, empty = tmp_path / "raw", tmp_path / "bridge", tmp_path / "empty"
     empty.mkdir()
     directory = raw / "bad-run" / "model" / "BLINK"
@@ -324,8 +339,8 @@ def test_invalid_vlmeval_bridge_snapshot_cannot_be_resurrected(tmp_path, monkeyp
     legacy = tmp_path / "legacy.json"
     legacy.write_text(json.dumps({"table": [{"task": "blink", "metric": "acc",
         "framework": "VLMEvalKit", "cells": {"model": cell}}]}))
-    data = build(tmp_path, monkeypatch, [empty], "--vlmeval-root", bridge,
-                 "--vlmeval-results-root", raw, "--legacy-json", legacy)
+    args = [] if native else ["--vlmeval-root", bridge]
+    data = build(tmp_path, monkeypatch, [empty], *args, "--vlmeval-results-root", raw, "--legacy-json", legacy)
     assert data["table"] == []
 
 

@@ -238,31 +238,9 @@ if [[ ! -d "${NLTK_DATA}/tokenizers/punkt_tab" ]]; then
   "${PYTHON_BIN}" -c "import nltk; nltk.download('punkt_tab', download_dir='${NLTK_DATA}', quiet=True)" >&2 || true
 fi
 
-"${PYTHON_BIN}" - <<'PY'
-import os
-from pathlib import Path
-
-from huggingface_hub import snapshot_download
-
-repo_id = "BAAI/Emu3.5-VisionTokenizer"
-cache_dir = Path(os.environ["VLLM_APERTUS_MODELS_CACHE"]).expanduser()
-local_dir = cache_dir / repo_id
-required = [local_dir / "config.yaml", local_dir / "model.ckpt"]
-
-if not all(path.is_file() for path in required):
-    local_dir.parent.mkdir(parents=True, exist_ok=True)
-    snapshot_download(
-        repo_id=repo_id,
-        local_dir=str(local_dir),
-        allow_patterns=["config.yaml", "model.ckpt"],
-    )
-
-missing = [str(path) for path in required if not path.is_file()]
-if missing:
-    raise FileNotFoundError(f"missing Apertus vision tokenizer files: {missing}")
-
-print("preflight apertus vision tokenizer", local_dir)
-PY
+if [[ "${FOREIGN_MODEL}" != "1" ]]; then
+  prefetch_emu35_vision_tokenizer "$VLLM_APERTUS_MODELS_CACHE" "$PYTHON_BIN"
+fi
 
 "${PYTHON_BIN}" - <<PY
 import os

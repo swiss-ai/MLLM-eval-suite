@@ -99,8 +99,19 @@ class Registry:
         return None
 
     def category(self, task_name: str) -> str | None:
-        entry = self.dashboard_entry(task_name)
-        return entry.get("cat") if entry else None
+        """Case-insensitive category, with exact overrides then family inheritance.
+
+        A metric-only row still inherits its family's category. Keep this
+        separate from dashboard_entry(), whose exact row owns metric settings.
+        """
+        task_name = task_name.lower()
+        entry = self.dashboard.get(task_name, {})
+        if entry.get("cat") and not entry.get("cat_prefix"):
+            return entry["cat"]
+        for prefix, entry in self._prefix_rows:
+            if task_name.startswith(prefix) and entry.get("cat"):
+                return entry["cat"]
+        return None
 
     def headline_for(self, framework: str, task_name: str) -> tuple[tuple[str, ...], bool]:
         """Headline metric names to try in order for a result of this task on this harness, and whether
