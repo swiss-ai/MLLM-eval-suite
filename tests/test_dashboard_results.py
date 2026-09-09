@@ -442,3 +442,56 @@ def test_gather_cli_keeps_older_eligible_result(tmp_path, monkeypatch, capsys):
     gather_results.main()
     output = capsys.readouterr().out
     assert "0.6000" in output and "0.9900" not in output
+
+
+@pytest.mark.parametrize('task, metrics, expected', [
+    ('mmlu_flan_cot_zeroshot', {'exact_match,strict-match': .1, 'exact_match,flexible-extract': .6, 'exact_match,ordered-extract': .7}, 70),
+    ('mmlu_pro', {'exact_match,custom-extract': .2, 'exact_match,ordered-extract': .5}, 50),
+    ('hendrycks_math', {'exact_match,none': .1, 'math_verify,none': .4}, 40),
+    ('minerva_math', {'exact_match,none': .2, 'math_verify,none': .5}, 50),
+    ('mathqa', {'acc_norm,none': .3, 'acc,none': .4}, 40),
+    ('squadv2', {'f1,none': .5, 'exact,none': .2}, .5),
+    ('squadv2', {'f1,none': 75, 'exact,none': 50}, 75),
+    ('drop', {'f1,none': .5, 'em,none': .2}, 50),
+    ('alpaca_eval', {'length_controlled_winrate,none': .65, 'avg_word_count,none': 500}, 65),
+    ('humaneval_instruct', {'pass@1,create_test': .75}, 75),
+    ('mbpp_instruct', {'pass_at_1,extract_code': .6}, 60),
+    ('global_mmlu_gen_0shot', {'exact_match,extract-answer': .6}, 60),
+    ('bbh', {'exact_match,get-answer': .6}, 60),
+])
+def test_requested_text_metric_filters_and_units(tmp_path, task, metrics, expected):
+    path = result(tmp_path, 'full', .1, 100, task=task, framework='lm-eval')
+    path.write_text(json.dumps({'results': {task: metrics}, 'chat_template': '{{ messages }}'}))
+    _, rows = dashboard.collect_lm_eval(tmp_path, None, Manifests([tmp_path]))
+    assert len(rows) == 1
+    assert rows[0]['cells']['model']['v'] == expected
+
+
+def test_acp_tag_keeps_both_component_families_without_inventing_overall(tmp_path):
+    path = result(tmp_path, 'full', .1, 100, task='acp_bench', framework='lm-eval')
+    path.write_text(json.dumps({'results': {
+        'acp_areach_bool': {'exact_match,extract-yes-no': .4},
+        'acp_areach_mcq': {'exact_match,mcq-extract': .8},
+    }, 'chat_template': '{{ messages }}'}))
+    _, rows = dashboard.collect_lm_eval(tmp_path, None, Manifests([tmp_path]))
+    assert {row['task']: row['cells']['model']['v'] for row in rows} == {
+        'acp_areach_bool': 40, 'acp_areach_mcq': 80}
+
+
+@pytest.mark.parametrize("template,expected_rows", [(None, 0), (False, 0), ("{{ messages }}", 14)])
+def test_manifestless_acp_components_obey_parent_chat_protocol(tmp_path, template, expected_rows):
+    path = tmp_path / "model/run/acp_bench/results_x.json"
+    path.parent.mkdir(parents=True)
+    components = {
+        f"acp_{name}_{kind}": {metric: .8}
+        for name in ("areach", "app", "just", "land", "prog", "reach", "val")
+        for kind, metric in (("bool", "exact_match,extract-yes-no"), ("mcq", "exact_match,mcq-extract"))
+    }
+    path.write_text(json.dumps({"results": components, "chat_template": template}))
+    manifests = Manifests([tmp_path])
+    _, rows = dashboard.collect_lm_eval(tmp_path, None, manifests)
+    assert len(rows) == expected_rows
+    if expected_rows:
+        assert all(row["cells"]["model"]["v"] == 80 for row in rows)
+    else:
+        assert {task for task, _, _, _ in manifests.rejected_results} == set(components)

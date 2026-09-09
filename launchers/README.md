@@ -7,3 +7,5 @@ Shell entrypoints for running evaluations through a common interface. Framework-
 - `VLMEvalKit/eval.sh`: VLMEvalKit Apertus vLLM production submitter copied from the VLMEvalKit submodule and adapted to this repository layout. It submits `slurm/VLMEvalKit/eval_job.slurm`, reads suites from `task_suites/VLMEvalKit/`, and uses `cache/VLMEvalKit/`, shared runtime caches under `cache/`, `logs/VLMEvalKit/`, and `results/VLMEvalKit/`. Pass `--submit-mode interactive` to run the job script directly with `bash` on an already-allocated node instead of calling `sbatch`.
 
 Each framework launcher creates one `RUN_ID` directory per invocation and passes that shared output/log root to all Slurm jobs from the call.
+
+The separate `lm-eval/eval.sh` text launcher requires `ORCH_REPO_ROOT` pointing at this checkout. It supports `text-smoke`, `text-full`, and `text-requested`, plus explicit code-scoring opt-in and AlpacaEval judge configuration. See [text task coverage](../docs/lm_eval_task_coverage.md) for invocation examples and protocol details.

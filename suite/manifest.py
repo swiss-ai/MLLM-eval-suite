@@ -344,6 +344,18 @@ def _validate_json_data(path: Path, data: dict, manifest: dict, registry) -> tup
                         f"the run used {bool(data.get('chat_template'))}"), None
     group_subtasks = data.get("group_subtasks") if isinstance(data.get("group_subtasks"), dict) else {}
     sample_map = data.get("n-samples") if isinstance(data.get("n-samples"), dict) else {}
+    registered = registry.lookup(manifest["framework"], requested[0]) if registry and requested else None
+    # Harness tags expand into independent tasks and have no group metadata.
+    # Their registry contract lists every required result, so one successful
+    # component cannot validate an incomplete tag run.
+    if registered and registered.result_tasks:
+        for name in registered.result_tasks:
+            if not isinstance(results.get(name), dict) or not _has_numeric_metrics(results[name]):
+                return f"result tag {manifest['task']} is missing numeric metrics for task {name}", None
+        try:
+            return None, _sample_evidence(sample_map, list(registered.result_tasks))
+        except ValueError as exc:
+            return str(exc), None
     # A group result often also has an aggregate entry in results. When the
     # harness declares group members, validate those members rather than taking
     # the aggregate as proof that every requested task ran.

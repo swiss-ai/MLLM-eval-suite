@@ -524,7 +524,13 @@ def collect_lm_eval(lm_root: Path, model_filters: list[str] | None, manifests: M
                 if not isinstance(value, (int, float)):
                     manifests.reject_result(path, task, canon, run_id)
                     continue
-                score = normalize_score(metric, float(value))
+                unit = rec.get("lm_metric_unit")
+                if unit:
+                    score = float(value) / (100 if unit == "percent" else 1)
+                    if not math.isfinite(score) or not 0 <= score <= 1:
+                        score = None
+                else:
+                    score = normalize_score(metric, float(value))
                 if score is None:
                     manifests.reject_result(path, task, canon, run_id)
                     continue

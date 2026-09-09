@@ -2,7 +2,7 @@
 # eval.sh — text-benchmark eval CLI (EleutherAI lm-eval-harness, one job per task).
 #
 # Usage:
-#   bash eval.sh <model> [--tasks T | --suite text-smoke|text-full] [--submit-mode batch|interactive] [--dry-run] [--help] [-- job args...]
+#   bash eval.sh <model> [--tasks T | --suite text-smoke|text-full|text-requested] [--submit-mode batch|interactive] [--confirm-run-unsafe-code] [--dry-run] [--help] [-- job args...]
 #
 # <model> forms:
 #   /path/to/ckpt                       single path
@@ -15,12 +15,15 @@
 #           be referenced by their YAML task name.
 # Post-`--` args are forwarded verbatim to slurm/lm-eval/eval_job.slurm.
 #
-# The harness is the pinned upstream submodule on PYTHONPATH — never a
+# --confirm-run-unsafe-code enables HumanEval/MBPP scoring (executes model code).
+# AlpacaEval requires exported ALPACA_EVAL_ANNOTATORS_CONFIG; scorer credentials
+# and endpoints follow that configuration and are inherited by the job.
+# The harness is the pinned Swiss AI submodule on PYTHONPATH — never a
 # job-time install. Custom tasks belong in task_suites/lm-eval/custom/, not in
 # the harness tree.
 set -euo pipefail
 
-REPO_ROOT="${ORCH_REPO_ROOT:?ORCH_REPO_ROOT must be set (or launch via launchers/eval.sh)}"
+REPO_ROOT="${ORCH_REPO_ROOT:?ORCH_REPO_ROOT must point to the suite checkout}"
 source "${REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
 
 MODELS_RAW=""
@@ -28,9 +31,10 @@ TASKS_RAW=""
 SUITE=""
 SUBMIT_MODE="batch"
 DRY_RUN=0
+CONFIRM_RUN_UNSAFE_CODE=0
 PASSTHROUGH=()
 
-usage() { sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,23p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -38,6 +42,7 @@ while [[ $# -gt 0 ]]; do
     --suite)       SUITE="$2"; shift 2 ;;
     --submit-mode) SUBMIT_MODE="$2"; shift 2 ;;
     --dry-run)     DRY_RUN=1; shift ;;
+    --confirm-run-unsafe-code) CONFIRM_RUN_UNSAFE_CODE=1; shift ;;
     --)            shift; PASSTHROUGH+=("$@"); break ;;
     -h|--help)     usage; exit 0 ;;
     --*)           echo "unknown flag: $1" >&2; usage; exit 1 ;;
@@ -102,8 +107,16 @@ while IFS= read -r TASK; do
       --num-processes "$NUM_PROCESSES"
       --hf-home "${HF_HOME:-${REPO_ROOT}/cache/hf}"
     )
+    [[ "$CONFIRM_RUN_UNSAFE_CODE" -eq 1 ]] && JOB_ARGS+=(--confirm-run-unsafe-code)
     # The registry decides the prompting protocol; LM_EVAL_CHAT_TEMPLATE=0 overrides it for a base model.
-    if [[ "${LM_EVAL_CHAT_TEMPLATE:-$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lm-eval --chat-template "$TASK")}" == "true" || "${LM_EVAL_CHAT_TEMPLATE:-}" == "1" ]]; then
+    CHAT_TEMPLATE="${LM_EVAL_CHAT_TEMPLATE:-}"
+    if [[ -z "$CHAT_TEMPLATE" ]]; then
+      if ! CHAT_TEMPLATE="$(cd "$REPO_ROOT" && PYTHONPATH="$REPO_ROOT" python3 -m suite.tasks --framework lm-eval --chat-template "$TASK")"; then
+        echo "chat-template registry lookup failed for ${TASK}; not submitting" >&2
+        exit 2
+      fi
+    fi
+    if [[ "$CHAT_TEMPLATE" == "true" || "$CHAT_TEMPLATE" == "1" ]]; then
       JOB_ARGS+=(--apply-chat-template)
     fi
     JOB_ARGS+=("${PASSTHROUGH[@]}")
@@ -114,6 +127,7 @@ while IFS= read -r TASK; do
       bash "$SLURM_TEMPLATE" "${JOB_ARGS[@]}" >"${LOG_DIR}/eval_${TASK}_interactive.out" 2>&1
     else
       sbatch \
+        --export=ALL \
         "${SBATCH_OVERRIDES[@]}" \
         --time "$SBATCH_TIME" \
         --job-name "lm-eval-${TASK}" \
