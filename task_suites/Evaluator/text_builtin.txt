@@ -1,0 +1,12 @@
+# Native text-oriented benchmarks shipped by NeMo Evaluator.
+gsm8k
+math500
+mgsm
+drop
+triviaqa
+mmlu
+mmlu_pro
+gpqa
+simpleqa
+healthbench
+xstest

@@ -24,6 +24,12 @@ results/VLMEvalKit/<run-id>/<model>/<dataset>/  ──────┤   derive_v
   array (`key=Label`, one line per dashboard column).
 - **`make_dashboard.py`** — the generator. Benchmark→category mapping is the `TAXONOMY` dict;
   display-dropped tasks are `DROPPED_TASK_PREFIXES` (drop policy for *runs* lives in `task_suites/`).
+  Direct lm-evaluation-harness imports use `--lm-eval-root` and an explicit
+  `--lm-eval-layout`: `run-first` (default) reads `<run>/<model>/...`, matching
+  `launchers/lm-evaluation-harness/eval.sh`; `model-first` reads `<model>/<run>/...`.
+  Set `LM_EVAL_ROOT` and `LM_EVAL_LAYOUT` when using `refresh_dashboard.sh` and pass
+  the same layout to `verify_dashboard.py`. Directory names cannot reliably
+  distinguish models from runs, so mixed layouts need separate imports.
 - **`metric_selection.py`** — single source of truth for each benchmark's headline metric and score
   normalization; imported by every reporting script.
 - **`gather_results.py`** — newest-result-per-task selection + CLI table.
@@ -71,3 +77,16 @@ differences are handled in four layers:
 - Other remote-sensing trees (VRSBench, BigEarthNet-S2 patches, FRIEDA) live under
   `cache/rs_datasets/` and are staged manually by the admin; jobs find them via
   `RS_DATASETS_ROOT` (+ per-dataset `*_DIR` overrides) exported in `slurm/lmms-eval/eval_job.slurm`.
+
+## CPU regression checks
+
+Run `python -m unittest discover -s tests -v` with PyYAML installed. These tests
+exercise the Evaluator launcher and Slurm config renderer using `--dry-run`,
+check the declared text dependency gitlinks, and validate lm-eval dashboard
+identity, filtering, curation, newest-run selection and collision auditing.
+
+CI also initializes only the pinned lmms-eval checkout and runs
+`python third_party/lmms-eval/test/models/test_apertus_thinking_constructor.py -v`.
+This CPU-only check executes the real constructor and render methods while
+replacing engine and tokenizer adapters, preserving thinking mode across the
+vLLM parent constructor without loading GPU packages.

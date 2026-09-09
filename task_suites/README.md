@@ -5,3 +5,5 @@ source of truth (stale copies inside the submodules are not used by the launcher
 
 - `lmms-eval/`: visual, geospatial (needs staged RS imagery via `RS_DATASETS_ROOT`), and audio suites.
 - `VLMEvalKit/`: smoke, full, spatial (EASI set), and llm_judge (OpenAI-judge-scored; key required).
+- `Evaluator/`: NeMo Evaluator text suites.
+- `lm-evaluation-harness/`: direct EleutherAI lm-evaluation-harness suites for text generation and loglikelihood benchmarks.

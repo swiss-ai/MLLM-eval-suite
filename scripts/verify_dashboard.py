@@ -8,7 +8,7 @@ identity (e.g. a -thinking-32k run overwriting its direct sibling). This catches
 that class of bug before it reaches the page.
 
 Usage:
-  python3 verify_dashboard.py --runs-root /path [--vlmeval-root /path]
+  python3 verify_dashboard.py --runs-root /path [--vlmeval-root /path] [--lm-eval-root /path]
 """
 
 import argparse
@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gather_results import newest_per_task
-from make_dashboard import canonical_model_key
+from make_dashboard import _lm_eval_model_dirs, canonical_model_key
 from metric_selection import iter_headline_metrics
 
 
@@ -36,12 +36,15 @@ def task_values(mdir: Path) -> dict[tuple[str, str], float]:
     return out
 
 
-def audit(roots: list[Path]) -> int:
+def audit(roots: list[Path], lm_eval_roots: list[Path] | None = None, lm_eval_layout: str = "run-first") -> int:
     by_key: dict[str, list[Path]] = defaultdict(list)
     for root in roots:
         for d in sorted(root.iterdir()):
             if d.is_dir():
                 by_key[canonical_model_key(d.name)].append(d)
+    for root in lm_eval_roots or []:
+        for d in _lm_eval_model_dirs(root, lm_eval_layout):
+            by_key[canonical_model_key(d.name)].append(d)
 
     bad = 0
     for key, dirs in sorted(by_key.items()):
@@ -70,9 +73,13 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--runs-root", required=True, type=Path)
     p.add_argument("--vlmeval-root", type=Path)
+    p.add_argument("--lm-eval-root", type=Path)
+    p.add_argument("--lm-eval-layout", choices=("run-first", "model-first"), default="run-first",
+                   help="lm-eval layout; must match make_dashboard.py")
     args = p.parse_args()
     roots = [args.runs_root.resolve()] + ([args.vlmeval_root.resolve()] if args.vlmeval_root else [])
-    sys.exit(1 if audit(roots) else 0)
+    lm_eval_roots = [args.lm_eval_root.resolve()] if args.lm_eval_root else []
+    sys.exit(1 if audit(roots, lm_eval_roots, args.lm_eval_layout) else 0)
 
 
 if __name__ == "__main__":

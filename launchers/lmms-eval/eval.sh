@@ -93,6 +93,8 @@ ENABLE_THINKING=""
 GEN_KWARGS_OVERRIDE=""
 LABEL_SUFFIX=""
 PASSTHROUGH=()
+EXTRA_FRAMEWORK_ARGS=()
+DEBUG_MODE=0
 DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
@@ -106,6 +108,16 @@ while [[ $# -gt 0 ]]; do
     --enable-thinking) ENABLE_THINKING=1; shift ;;
     --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
     --label-suffix) LABEL_SUFFIX="$2"; shift 2 ;;
+    --extra-model-args) EXTRA_MODEL_ARGS="$2"; shift 2 ;;
+    --debug-mode) DEBUG_MODE=1; shift ;;
+    --extra-framework-config|--extra-framework-arg)
+      if [[ "$2" == "--debug-mode" ]]; then
+        DEBUG_MODE=1
+      else
+        EXTRA_FRAMEWORK_ARGS+=("$2")
+      fi
+      shift 2
+      ;;
     --dry-run)  DRY_RUN=1; shift ;;
     --)         shift; PASSTHROUGH+=("$@"); break ;;
     --*)        echo "unknown flag: $1" >&2; usage; exit 1 ;;
@@ -383,6 +395,13 @@ while IFS= read -r TASK; do
     if [[ -n "$ENABLE_THINKING" ]]; then
       JOB_ARGS+=(--wandb-run-name "$MODEL_LABEL")
     fi
+
+    if [[ "${DEBUG_MODE}" -eq 1 ]]; then
+      JOB_ARGS+=(--debug-mode)
+    fi
+    for ARG in "${EXTRA_FRAMEWORK_ARGS[@]}"; do
+      JOB_ARGS+=(--extra-framework-config "${ARG}")
+    done
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
       REDACTED=(); MASK_NEXT=0

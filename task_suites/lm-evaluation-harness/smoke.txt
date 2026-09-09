@@ -1,0 +1,3 @@
+# Fast sanity suite for direct lm-evaluation-harness.
+# Runs through the offline vLLM backend by default.
+hellaswag

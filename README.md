@@ -86,6 +86,94 @@ tasks without one rather than silently falling back to regex scoring (`ALLOW_NO_
 `--mode` is framework-specific (lmms-eval: `fill|readonly`; VLMEvalKit: `all|infer|eval`) and is
 rejected with `--eval-framework all` — the defaults are correct for production runs.
 
+## Text evaluation integrations
+
+Run NeMo Evaluator text benchmarks through the combined launcher. The Evaluator launcher resolves the suite and launches one task per job. Each task job starts vLLM locally in the job runtime and runs the benchmark against the local OpenAI-compatible endpoint:
+
+```bash
+bash launchers/eval.sh --eval-framework Evaluator --suite smoke
+bash launchers/eval.sh --eval-framework Evaluator --suite text-builtin --model /path/to/apertus
+```
+
+Evaluator uses per-benchmark templates from `configs/Evaluator/templates/` when available, falling back to `configs/Evaluator/apertus_text_vllm_template.yaml`. The launcher copies the selected template into each task output directory as `config.template.yaml`, writes the resolved `NEL_*` values into `config.env`, and the Slurm entrypoint sources that env file before calling `nel eval run`. This means the run directory records the exact model, tokenizer, solver, generation, vLLM, cache, benchmark, scoring, sandbox, and output settings used for that task.
+
+Most template values can be changed directly from the top-level entrypoint:
+
+```bash
+bash launchers/eval.sh --eval-framework Evaluator --suite smoke \
+  --solver-type simple \
+  --max-problems 100 \
+  --max-tokens 1024 \
+  --temperature 0 \
+  --gpu-memory-utilization 0.75
+```
+
+For native Evaluator config fields that are not first-class launcher flags, pass normal `nel eval run` overrides with repeatable `--extra-framework-config`:
+
+```bash
+bash launchers/eval.sh --eval-framework Evaluator --suite smoke \
+  --extra-framework-config -O \
+  --extra-framework-config benchmarks.0.timeout=3600 \
+  --extra-framework-config -O \
+  --extra-framework-config output.progress_interval=30
+```
+
+Use `--config-template /path/to/template.yaml` when you want to keep the same launcher flow but replace the entire NeMo Evaluator template.
+
+Use `--template-dir /path/to/templates` when you want benchmark-specific templates but do not want to modify the repository defaults. Template file names should match the resolved task slug, for example `gsm8k.yaml`, `mmlu_pro.yaml`, or `terminal-bench-v1.yaml`.
+
+Run direct lm-evaluation-harness text benchmarks through the combined launcher. This is the recommended path for classic loglikelihood and multiple-choice tasks such as MMLU, ARC, HellaSwag, Winogrande, PIQA, and TruthfulQA MC:
+
+```bash
+bash launchers/eval.sh \
+  --eval-framework lm-evaluation-harness \
+  --model /capstor/store/cscs/swissai/infra01/apertus_1p5/hf_checkpoints/ap1p5-70b-sft-262k-3000 \
+  --suite smoke \
+  --submit-mode batch
+
+bash launchers/eval.sh \
+  --eval-framework lm-evaluation-harness \
+  --model /capstor/store/cscs/swissai/infra01/apertus_1p5/hf_checkpoints/ap1p5-70b-sft-262k-3000 \
+  --suite text \
+  --submit-mode batch
+```
+
+The lm-evaluation-harness launcher uses the HuggingFace backend. For large checkpoints that do not fit on a single GPU, the Slurm wrapper now enables `parallelize=True`, which shards the model itself across all visible GPUs in one eval process. In that mode, lower `--num-processes` to `1` unless you explicitly want additional eval replicas. You can also pass generation controls with `--gen-kwargs` and extra framework-native argv tokens with repeatable `--extra-framework-config`, for example:
+
+```bash
+bash launchers/eval.sh \
+  --eval-framework lm-evaluation-harness \
+  --model /capstor/store/cscs/swissai/infra01/apertus_1p5/hf_checkpoints/ap1p5-70b-sft-262k-3000 \
+  --tasks hellaswag \
+  --submit-mode batch \
+  --num-processes 1
+
+bash launchers/eval.sh \
+  --eval-framework lm-evaluation-harness \
+  --model /path/to/checkpoint \
+  --suite smoke \
+  --submit-mode batch \
+  --parallelize true \
+  --num-processes 1 \
+  --gen-kwargs 'temperature=0.6,max_new_tokens=8192,top_p=0.95' \
+  --extra-framework-config --model_args \
+  --extra-framework-config '{"enable_thinking": true, "chat_template_args": {"reasoning_effort": "low"}}'
+```
+
+Only the HuggingFace backend is wired for direct lm-evaluation-harness runs right now. Add more backends explicitly when needed.
+
+Each production launcher call creates one shared run directory under both the framework results and logs folders. Per-task jobs submitted by that call write into that same result/log run directory. Override `RUN_ID` to choose the directory name explicitly.
+
+Image-token cache defaults are framework-specific and persistent under `cache/lmms-eval/` or `cache/VLMEvalKit/`. Jobs use the shared cache directly with local copy disabled, preload enabled, read access enabled, and write-misses enabled. lmms-eval defaults to `--mode fill`.
+
+Batch-size defaults are framework-specific. lmms-eval defaults to `512`; lm-evaluation-harness defaults to `auto` for HuggingFace; other launchers expose their own concurrency and batch flags. Override first-class launcher values directly, or use repeatable `--extra-framework-config` for native framework argv tokens.
+
+The combined launcher prefetches `BAAI/Emu3.5-VisionTokenizer` into `cache/models/BAAI/Emu3.5-VisionTokenizer` before it submits multimodal jobs, so the tokenizer files are present before evaluation starts.
+
+For `--eval-framework Evaluator` and `--eval-framework lm-evaluation-harness`, the combined launcher skips the vision-tokenizer prefetch because these integrations target text benchmarks.
+
+See `configs/Evaluator/README.md`, `launchers/lm-evaluation-harness/README.md`, and the corresponding `slurm/` READMEs for runtime configuration. Initialize all four pinned dependencies with `git submodule update --init --recursive`.
+
 ## Example Usage
 
 Submit lmms-eval production jobs through the combined production launcher:
