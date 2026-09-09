@@ -143,6 +143,25 @@ class AudioCollectionTests(unittest.TestCase):
                     self.assertEqual(row['cells']['sdpo-mix-less-refuse-feedback'],
                                      {'v': 1.2, 'raw': 1.2, 'run': 'fresh_results.json'})
 
+    def test_canonical_thinking_filter_does_not_select_direct_checkpoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for suffix, value in [('', 0.4), ('-thinking-32k', 0.8)]:
+                model = root / f'Apertus-1p5-8B-sft-256k-4200{suffix}'
+                model.mkdir()
+                (model / 'fresh_results.json').write_text(json.dumps({
+                    'results': {'gqa': {'exact_match,none': value}}}))
+            key = 'sft-256k-4200 [thinking-32k]'
+            models, table = dashboard.collect(root, [key])
+            self.assertEqual(models, [key])
+            self.assertEqual(table[0]['cells'], {
+                key: {'v': 80.0, 'raw': 0.8, 'run': 'fresh_results.json'}})
+            _, data = generate(root, '--models-file', str(ROOT / 'scripts/dashboard_models.txt'),
+                               '--models', key)
+            self.assertEqual(data['models'], [key])
+            self.assertEqual(len(data['table']), 1)
+            self.assertEqual(data['table'][0]['cells'], table[0]['cells'])
+
     @unittest.skipUnless(os.environ.get('NODE') or shutil.which('node'), 'Node.js unavailable (set NODE)')
     def test_browser_summary_matrix_and_selection_behavior(self):
         with tempfile.TemporaryDirectory() as tmp:

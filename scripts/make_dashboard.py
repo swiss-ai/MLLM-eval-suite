@@ -217,7 +217,12 @@ def canonical_model_key(name: str) -> str:
     if s.startswith("capstor_store_"):
         s = re.split(r"(?:hf_checkpoints|hf-checkpoints|rleval|final_8b)_", s)[-1]
     mode = None
-    if (t := _THINKING_RE.search(s)):
+    # Filters and manifest aliases may already use our canonical bracket form.
+    # Preserve its mode when canonicalizing again instead of dropping it while
+    # rebuilding a step-based checkpoint key.
+    if (t := re.search(r" \[([^\[\]]+)\]$", s)):
+        s, mode = s[: t.start()], t.group(1)
+    elif (t := _THINKING_RE.search(s)):
         s, mode = s[: t.start()], "thinking" + (t.group(1) or "")
     else:
         for suffix, tag in _MODE_SUFFIXES:
