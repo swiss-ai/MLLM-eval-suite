@@ -39,7 +39,7 @@ CACHE_ROOT="${CACHE_ROOT:-${ORCH_REPO_ROOT}/cache/lmms-eval}"
 ########################################
 # Required runtime configuration
 ########################################
-DEFAULT_TOKENIZER_PATH="/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed"
+DEFAULT_TOKENIZER_PATH="${DEFAULT_APERTUS_TOKENIZER:?exported by slurm/shared/sbatch_overrides.sh}"
 MODEL_PATH="/path/to/apertus/model-or-hf-id"
 TOKENIZER_PATH="${DEFAULT_TOKENIZER_PATH}"
 MODEL_BACKEND="${MODEL_BACKEND:-apertus_1p5_vllm}"
@@ -73,11 +73,12 @@ LIMIT=""
 GEN_KWARGS=""
 CHAT_TEMPLATE=""
 EXTRA_MODEL_ARGS=""
+TOKENIZE_ONLY=0
 SEED=1234
 EVAL_SEED="${SEED}"
 ENABLE_IMAGE_TOKEN_CACHE=true
 IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
-PREFETCH_EMU35_VISION_TOKENIZER=true
+PREFETCH_EMU35_VISION_TOKENIZER="${PREFETCH_EMU35_VISION_TOKENIZER:-true}"
 ENABLE_WANDB=false
 WANDB_PROJECT="${WANDB_PROJECT:-lmms-eval}"
 WANDB_ENTITY="${WANDB_ENTITY:-rkreft-eth-z-rich}"
@@ -175,6 +176,7 @@ while [[ $# -gt 0 ]]; do
     --limit) LIMIT="$2"; shift 2 ;;
     --chat-template) CHAT_TEMPLATE="$2"; shift 2 ;;
     --extra-model-args) EXTRA_MODEL_ARGS="$2"; shift 2 ;;
+    --tokenize-only) TOKENIZE_ONLY=1; shift ;;
     --offline-datasets) OFFLINE_DATASETS="$2"; shift 2 ;;
     --enable-image-token-cache) ENABLE_IMAGE_TOKEN_CACHE="$2"; shift 2 ;;
     --image-token-cache-dir) IMAGE_TOKEN_CACHE_DIR="$2"; shift 2 ;;
@@ -225,6 +227,7 @@ fi
 # judge-intended submissions opt in with API_TYPE=openai.
 export API_TYPE="${API_TYPE:-dummy}"
 source "${ORCH_REPO_ROOT}/slurm/shared/job_env.sh"
+source "${ORCH_REPO_ROOT}/slurm/shared/lmms_env.sh"
 resolve_judge_key
 export PATH="/opt/venv/bin:${PATH}"
 # The submodule checkout is the only code source; the image carries engine and
@@ -245,11 +248,7 @@ export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export TOKENIZERS_PARALLELISM=false
 # Remote-sensing task image trees (geospatial suite), staged under cache/rs_datasets.
-RS_DATASETS_ROOT="${RS_DATASETS_ROOT:-${ORCH_REPO_ROOT}/cache/rs_datasets}"
-export VRSBENCH_DIR="${VRSBENCH_DIR:-${RS_DATASETS_ROOT}/vrsbench}"
-export GEOBENCH_DIR="${GEOBENCH_DIR:-${RS_DATASETS_ROOT}/geobench}"
-export FRIEDA_DIR="${FRIEDA_DIR:-${RS_DATASETS_ROOT}/frieda}"
-export BIGEARTH_S2_DIR="${BIGEARTH_S2_DIR:-${RS_DATASETS_ROOT}/bigearth/BigEarthNet-S2}"
+resolve_lmms_dataset_env
 if is_true "${ENABLE_WANDB}"; then
   if [[ -z "${WANDB_API_KEY}" && -t 0 ]]; then
     read -r -s -p "Enter WANDB_API_KEY: " WANDB_API_KEY
@@ -341,6 +340,7 @@ fi
 
 source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
 
+if [[ "${MODEL_BACKEND}" == apertus* ]]; then
 # Fail fast on known ANTLR/OmegaConf mismatch that otherwise appears late.
 python - <<'PY'
 import importlib.util
@@ -379,20 +379,7 @@ except Exception as exc:
     sys.exit(2)
 PY
 
-if is_true "${PREFETCH_EMU35_VISION_TOKENIZER}"; then
-  PREFETCH_DIR="${LMMS_EVAL_MODELS_CACHE}/BAAI/Emu3.5-VisionTokenizer"
-  if [[ ! -f "${PREFETCH_DIR}/config.yaml" || ! -f "${PREFETCH_DIR}/model.ckpt" ]]; then
-    echo "Prefetching BAAI/Emu3.5-VisionTokenizer into ${PREFETCH_DIR}"
-    PREFETCH_DIR_ENV="${PREFETCH_DIR}" python - <<'PY'
-import os
-from huggingface_hub import snapshot_download
-snapshot_download(
-    repo_id="BAAI/Emu3.5-VisionTokenizer",
-    local_dir=os.environ["PREFETCH_DIR_ENV"],
-    allow_patterns=["config.yaml", "model.ckpt"],
-)
-PY
-  fi
+prefetch_emu35_vision_tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE}" python
 fi
 
 if [[ "${MODEL_BACKEND}" != apertus* ]]; then
@@ -563,4 +550,36 @@ if [[ -n "${GEN_KWARGS}" ]]; then
 fi
 echo "==========================================="
 
-"${CMD[@]}"
+# Preflight, run manifest, harness, finalize: suite_run in slurm/shared/job_env.sh.
+SUITE_PY="${SUITE_PY:-/opt/venv/bin/python}"
+THINKING_FLAG=()
+case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) THINKING_FLAG=(--thinking) ;; esac
+lmms_model_preflight_args "${MODEL_BACKEND}"
+PREFLIGHT_ARGS=(--model "${MODEL_PATH}" "${LMMS_MODEL_PREFLIGHT_ARGS[@]}" "${THINKING_FLAG[@]}" --tokenizer "${TOKENIZER_PATH}"
+                --vision-tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer"
+                --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}")
+if [[ "${TOKENIZE_ONLY}" == "1" ]]; then
+  suite_preflight lmms-eval "${TASKS}" "${LMMS_EVAL_DEV_PATH}" "${PREFLIGHT_ARGS[@]}"
+  # Tokenize-only pass (suite/tokenize_cache.py): fill the image-token cache
+  # with the VQ encoder alone, one shard per GPU, and never load the LLM.
+  echo "tokenize-only: tasks=${TASKS} shards=${NUM_PROCESSES} cache=${VLLM_APERTUS_IMAGE_TOKEN_CACHE_DIR:-<disabled>}"
+  TOKENIZE_PIDS=()
+  for ((g = 0; g < NUM_PROCESSES; g++)); do
+    CUDA_VISIBLE_DEVICES="${g}" "${SUITE_PY}" -m suite.tokenize_cache --tasks "${TASKS}" --shard "${g}/${NUM_PROCESSES}" \
+      --tokenizer "${TOKENIZER_PATH}" > "${OUTPUT_PATH}/tokenize_shard${g}.log" 2>&1 &
+    TOKENIZE_PIDS+=($!)
+  done
+  TOKENIZE_RC=0
+  for pid in "${TOKENIZE_PIDS[@]}"; do wait "${pid}" || TOKENIZE_RC=1; done
+  grep -h "tokenize_cache:" "${OUTPUT_PATH}"/tokenize_shard*.log || true
+  [[ "${TOKENIZE_RC}" != "0" ]] && { echo "tokenize-only pass failed; see ${OUTPUT_PATH}/tokenize_shard*.log" >&2; tail -n 20 "${OUTPUT_PATH}"/tokenize_shard*.log >&2; }
+  exit "${TOKENIZE_RC}"
+fi
+MANIFEST_TP="$(sed -n 's/.*tensor_parallel_size=\([0-9]*\).*/\1/p' <<<"${MODEL_ARGS}" | tail -n1)"
+suite_run "${OUTPUT_PATH}" lmms-eval "${TASKS}" "${LMMS_EVAL_DEV_PATH}" "$(basename "$(dirname "${OUTPUT_PATH}")")" \
+  "${PREFLIGHT_ARGS[@]}" -- \
+  --model "${MODEL_PATH}" --tokenizer "${TOKENIZER_PATH}" ${CHAT_TEMPLATE:+--chat-template "${CHAT_TEMPLATE}"} \
+  --model-args "${MODEL_ARGS}" --gen-kwargs "${GEN_KWARGS}" "${THINKING_FLAG[@]}" \
+  --tp "${MANIFEST_TP:-1}" --dp "${NUM_PROCESSES}" --batch-size "${BATCH_SIZE}" \
+  --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" --max-model-len "${MAX_MODEL_LEN}" --limit "${LIMIT}" -- \
+  "${CMD[@]}"

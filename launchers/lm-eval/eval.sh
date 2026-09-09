@@ -90,6 +90,11 @@ while IFS= read -r TASK; do
   while IFS= read -r MODEL_PATH; do
     MODEL_LABEL="$(basename "$MODEL_PATH")"
     OUT_DIR="${OUTPUT_BASE}/${MODEL_LABEL}/${RUN_ID}/${TASK}"
+    preflight_or_die lm-eval "$MODEL_PATH" \
+      --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" --tokenizer "$MODEL_PATH" \
+      --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN:-65536}"
+    export SUITE_JOB_OUTPUT="${LOG_DIR}/eval_${TASK}_%j.out" SUITE_JOB_ERROR="${LOG_DIR}/eval_${TASK}_%j.err"
+    [[ "$SUBMIT_MODE" == "interactive" ]] && export SUITE_JOB_OUTPUT="${LOG_DIR}/eval_${TASK}_interactive.out" SUITE_JOB_ERROR=""
     JOB_ARGS=(
       --model-path "$MODEL_PATH"
       --tasks "$TASK"
@@ -97,6 +102,10 @@ while IFS= read -r TASK; do
       --num-processes "$NUM_PROCESSES"
       --hf-home "${HF_HOME:-${REPO_ROOT}/cache/hf}"
     )
+    # The registry decides the prompting protocol; LM_EVAL_CHAT_TEMPLATE=0 overrides it for a base model.
+    if [[ "${LM_EVAL_CHAT_TEMPLATE:-$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lm-eval --chat-template "$TASK")}" == "true" || "${LM_EVAL_CHAT_TEMPLATE:-}" == "1" ]]; then
+      JOB_ARGS+=(--apply-chat-template)
+    fi
     JOB_ARGS+=("${PASSTHROUGH[@]}")
     echo "--- submit: task=$TASK model=$MODEL_LABEL ---"
     if [[ "$DRY_RUN" -eq 1 ]]; then

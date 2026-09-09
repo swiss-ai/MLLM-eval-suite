@@ -17,6 +17,7 @@ REPO_ROOT="${ORCH_REPO_ROOT}"
 REPO_DIR="${REPO_DIR:-${REPO_ROOT}/third_party/VLMEvalKit}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/VLMEvalKit/eval_job.slurm}"
 source "${REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
+source "${REPO_ROOT}/slurm/shared/apertus_env.sh"
 
 RESPONSE_CACHE="${VLMEVAL_RESPONSE_CACHE:-${REPO_ROOT}/cache/VLMEvalKit}"
 IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-}"
@@ -25,6 +26,7 @@ WORK_BASE="${WORK_BASE:-${REPO_ROOT}/results/VLMEvalKit}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)_$$}"
 WORK_BASE="${WORK_BASE}/${RUN_ID}"
 RUNTIME_CACHE="${RUNTIME_CACHE:-${REPO_ROOT}/cache}"
+[[ -n "${APERTUS_MAX_MODEL_LEN+x}" ]] && USER_APERTUS_MAX_MODEL_LEN="${APERTUS_MAX_MODEL_LEN}"
 LOG_BASE="${LOG_DIR:-${REPO_ROOT}/logs/VLMEvalKit}"
 LOG_DIR="${LOG_BASE}/${RUN_ID}"
 
@@ -279,6 +281,29 @@ while IFS= read -r DATASET; do
     else
       MODEL_IMAGE_TOKEN_CACHE="${ENABLE_IMAGE_TOKEN_CACHE:-true}"
     fi
+    # Preflight (suite/preflight.py): refuse to submit what cannot succeed.
+    TASK_MAX_MODEL_LEN="$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework VLMEvalKit --max-model-len "${DATASET}")"
+    if [[ "${TASK_MAX_MODEL_LEN}" -gt "${USER_APERTUS_MAX_MODEL_LEN:-131072}" ]]; then
+      echo "    context: ${DATASET} needs max_model_len ${TASK_MAX_MODEL_LEN}; overriding"
+      export APERTUS_MAX_MODEL_LEN="${TASK_MAX_MODEL_LEN}"
+    elif [[ -n "${USER_APERTUS_MAX_MODEL_LEN+x}" ]]; then
+      export APERTUS_MAX_MODEL_LEN="${USER_APERTUS_MAX_MODEL_LEN}"
+    else
+      unset APERTUS_MAX_MODEL_LEN
+    fi
+    PREFLIGHT_ARGS=(--tasks "${DATASET}" --container-image "${SUITE_CONTAINER_IMAGE:-}"
+                    --max-model-len "${APERTUS_MAX_MODEL_LEN:-131072}")
+    if [[ "${MODEL_FOREIGN}" == "1" ]]; then
+      PREFLIGHT_ARGS+=(--model "${MODEL}" --skip-model)
+    else
+      if [[ "$DRY_RUN" -eq 0 ]]; then
+        prefetch_emu35_vision_tokenizer "${VLLM_APERTUS_MODELS_CACHE:-${RUNTIME_CACHE}/models}"
+      fi
+      PREFLIGHT_ARGS+=(--model "${APERTUS_MODEL_PATH:-${MODEL}}" --tokenizer "${APERTUS_TOKENIZER_PATH:-${DEFAULT_APERTUS_TOKENIZER}}"
+                       --vision-tokenizer "${VLLM_APERTUS_MODELS_CACHE:-${RUNTIME_CACHE}/models}/BAAI/Emu3.5-VisionTokenizer")
+      [[ -n "${APERTUS_ENABLE_THINKING:-}" ]] && PREFLIGHT_ARGS+=(--thinking)
+    fi
+    preflight_or_die VLMEvalKit "${MODEL}:${DATASET}" "${PREFLIGHT_ARGS[@]}"
     JOB_NAME="vlmeval-${DATA_SLUG}"
     WORK_DIR="${WORK_BASE}/${MODEL_SLUG}/${DATA_SLUG}"
     if [[ "${SUBMIT_MODE}" == "interactive" ]]; then
@@ -325,6 +350,7 @@ while IFS= read -r DATASET; do
     fi
 
     export FOREIGN_MODEL="${MODEL_FOREIGN}"
+    export SUITE_JOB_OUTPUT="${JOB_OUTPUT}" SUITE_JOB_ERROR="${JOB_ERROR}"
     echo "--- submit: data=${DATASET} model=${MODEL} foreign=${MODEL_FOREIGN} work=${WORK_DIR} ---"
     echo "    logs:   ${JOB_OUTPUT} / ${JOB_ERROR}"
     if [[ "${DRY_RUN}" -eq 1 ]]; then

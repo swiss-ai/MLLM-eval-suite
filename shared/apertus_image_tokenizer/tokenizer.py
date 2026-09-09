@@ -760,6 +760,12 @@ class ApertusImageTokenizer:
                 image_prompt
             )
 
+        # The encoder shares GPU 0 with a vLLM worker that has already claimed
+        # its budget, so cached blocks are returned after every render instead
+        # of accumulating across thousands of differently sized images.
+        if torch.cuda.is_initialized():
+            torch.cuda.empty_cache()
+
         return image_prompts
 
 

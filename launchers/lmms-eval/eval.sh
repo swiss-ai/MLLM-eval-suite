@@ -45,6 +45,9 @@ fi
 REPO_ROOT="${ORCH_REPO_ROOT}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/lmms-eval/eval_job.slurm}"
 source "${ORCH_REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
+source "${ORCH_REPO_ROOT}/slurm/shared/lmms_env.sh"
+source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
+resolve_lmms_dataset_env
 LMMS_CACHE_ROOT="${LMMS_CACHE_ROOT:-${REPO_ROOT}/cache/lmms-eval}"
 CACHE_BASE="${CACHE_BASE:-${LMMS_CACHE_ROOT}/image_token_cache}"
 declare -A HF_AUTH_CHECKED
@@ -88,6 +91,8 @@ TASKS_RAW=""
 SUITE=""
 MODE="fill"
 SIZE="8b"
+TOKENIZE_ONLY=0
+ALLOW_ENCODE="${ALLOW_ENCODE:-0}"
 SUBMIT_MODE="batch"
 ENABLE_THINKING=""
 GEN_KWARGS_OVERRIDE=""
@@ -102,6 +107,7 @@ while [[ $# -gt 0 ]]; do
     --suite)    SUITE="$2"; shift 2 ;;
     --mode)     MODE="$2"; shift 2 ;;
     --size)     SIZE="$2"; shift 2 ;;
+    --allow-encode) ALLOW_ENCODE=1; shift ;;
     --submit-mode) SUBMIT_MODE="$2"; shift 2 ;;
     --enable-thinking) ENABLE_THINKING=1; shift ;;
     --gen-kwargs) GEN_KWARGS_OVERRIDE="$2"; shift 2 ;;
@@ -120,12 +126,12 @@ done
 
 if [[ -z "$MODELS_RAW" ]]; then echo "missing <model> argument" >&2; usage; exit 1; fi
 
-case "$MODE" in fill|readonly) ;; *) echo "--mode must be fill|readonly (got: $MODE)" >&2; exit 1 ;; esac
+case "$MODE" in fill|readonly|tokenize) ;; *) echo "--mode must be fill|readonly|tokenize (got: $MODE)" >&2; exit 1 ;; esac
 # Parallelism profile, mirroring the VLMEvalKit launcher: 8b = 4 DP workers on one
 # node; 70b = one worker with the model tensor-sharded across all 4 GPUs.
 case "$SIZE" in
   8b)  SIZE_NUM_PROCESSES=4; SIZE_EXTRA_MODEL_ARGS="";                       SIZE_GPU_MEM="" ;;
-  70b) SIZE_NUM_PROCESSES=1; SIZE_EXTRA_MODEL_ARGS="tensor_parallel_size=4"; SIZE_GPU_MEM="0.85" ;;
+  70b) SIZE_NUM_PROCESSES=1; SIZE_EXTRA_MODEL_ARGS="tensor_parallel_size=4"; SIZE_GPU_MEM="0.75" ;;
   *) echo "--size must be 8b|70b (got: $SIZE)" >&2; exit 1 ;;
 esac
 EXTRA_MODEL_ARGS="${EXTRA_MODEL_ARGS:-$SIZE_EXTRA_MODEL_ARGS}"
@@ -226,7 +232,7 @@ fi
 # ------------------------------------------------------------------
 # Eval defaults (override via env if needed)
 # ------------------------------------------------------------------
-DEFAULT_TOKENIZER_PATH="/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed"
+DEFAULT_TOKENIZER_PATH="${DEFAULT_APERTUS_TOKENIZER}"
 TOKENIZER_PATH="${TOKENIZER_PATH:-${DEFAULT_TOKENIZER_PATH}}"
 CHAT_TEMPLATE="${CHAT_TEMPLATE:-}"
 if [[ -z "${CHAT_TEMPLATE}" && "${TOKENIZER_PATH}" == "${DEFAULT_TOKENIZER_PATH}" ]]; then
@@ -239,6 +245,17 @@ if [[ -n "$GEN_KWARGS_OVERRIDE" ]]; then GEN_KWARGS="$GEN_KWARGS_OVERRIDE"; fi
 # 4 vLLM workers per node = 1 per GH200 GPU (4 GPUs). Per-task SQLite handles
 # 4 concurrent writers via WAL with sub-ms lock overhead.
 NUM_PROCESSES="${NUM_PROCESSES:-$SIZE_NUM_PROCESSES}"
+# The image-token cache is model-independent. A tokenize pass fills it with
+# the VQ encoder alone; the 70b profile then reads it strictly, so a large
+# model never encodes images beside its TP worker unless --allow-encode.
+if [[ "$MODE" == "tokenize" ]]; then
+  TOKENIZE_ONLY=1
+  MODE="fill"
+  NUM_PROCESSES="${TOKENIZE_SHARDS:-4}"
+elif [[ "$SIZE" == "70b" && "$MODE" == "fill" && "$ALLOW_ENCODE" != "1" ]]; then
+  MODE="readonly"
+  echo "70b profile: image-token cache readonly (strict); run --mode tokenize first, or pass --allow-encode"
+fi
 BATCH_SIZE="${BATCH_SIZE:-512}"
 # The image-token cache memoizes the discrete image->VQ-token conversion shared
 # by every Apertus checkpoint; foreign continuous-encoder models run once and
@@ -293,6 +310,9 @@ echo "========================================"
 # ------------------------------------------------------------------
 while IFS= read -r TASK; do
   [[ -z "$TASK" ]] && continue
+  TASK_MAX_MODEL_LEN="$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lmms-eval --max-model-len "$TASK")"
+  # The registry name keys directories and rows; the harness runs the id it declares.
+  HARNESS_TASK="$(PYTHONPATH="${REPO_ROOT}" python3 -m suite.tasks --framework lmms-eval --harness-id "$TASK")"
   TASK_CACHE_DIR="$CACHE_BASE/$TASK"
   mkdir -p "$TASK_CACHE_DIR"
 
@@ -321,6 +341,15 @@ while IFS= read -r TASK; do
       continue
     fi
 
+    if [[ "$DRY_RUN" -eq 0 && "${MODEL_BACKEND:-apertus_1p5_vllm}" == apertus* ]]; then
+      prefetch_emu35_vision_tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE_PATH}"
+    fi
+    lmms_model_preflight_args "${MODEL_BACKEND:-apertus_1p5_vllm}"
+    preflight_or_die lmms-eval "$MODEL_PATH" "${LMMS_MODEL_PREFLIGHT_ARGS[@]}" --harness-root "${LMMS_EVAL_DEV_PATH:-${REPO_ROOT}/third_party/lmms-eval}" \
+      --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" ${ENABLE_THINKING:+--thinking} \
+      --tokenizer "$TOKENIZER_PATH" --vision-tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
+      --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "$TASK_MAX_MODEL_LEN"
+
     # Derive a stable model label: parent dir name if path ends in /HF, else basename.
     MODEL_LABEL="$(basename "$MODEL_PATH")"
     [[ "$MODEL_LABEL" == "HF" ]] && MODEL_LABEL="$(basename "$(dirname "$MODEL_PATH")")"
@@ -333,6 +362,12 @@ while IFS= read -r TASK; do
     # Per-task subdir: lmms-eval names results.json by wall-clock timestamp, so two
     # single-task jobs finishing in the same second clobber each other in a shared dir.
     MODEL_OUTPUT_PATH="${OUTPUT_BASE}/${MODEL_LABEL}/${RUN_ID}/${TASK}"
+    if [[ "$TASK_MAX_MODEL_LEN" -gt "${MAX_MODEL_LEN:-131072}" ]]; then
+      echo "    context: ${TASK} needs max_model_len ${TASK_MAX_MODEL_LEN}; overriding"
+      PASSTHROUGH_TASK=(--max-model-len "$TASK_MAX_MODEL_LEN")
+    else
+      PASSTHROUGH_TASK=()
+    fi
     mkdir -p "$MODEL_OUTPUT_PATH"
 
     if [[ "$SUBMIT_MODE" == "interactive" ]]; then
@@ -343,6 +378,7 @@ while IFS= read -r TASK; do
       JOB_ERROR="${LOG_DIR}/eval_${MODE}_%j.err"
     fi
 
+    export SUITE_JOB_OUTPUT="$JOB_OUTPUT" SUITE_JOB_ERROR="$JOB_ERROR"
     echo "--- submit: task=$TASK  model=$MODEL_LABEL ---"
     echo "    cache: $TASK_CACHE_DIR"
     echo "    logs:  $JOB_OUTPUT / $JOB_ERROR"
@@ -351,7 +387,7 @@ while IFS= read -r TASK; do
       --model-path "$MODEL_PATH"
       --tokenizer-path "$TOKENIZER_PATH"
       --chat-template "$CHAT_TEMPLATE"
-      --tasks "$TASK"
+      --tasks "$HARNESS_TASK"
       --output-path "$MODEL_OUTPUT_PATH"
       --log-dir "$LOG_DIR"
       --hf-home "$HF_HOME_PATH"
@@ -372,7 +408,8 @@ while IFS= read -r TASK; do
       --wandb-log-samples "$WANDB_LOG_SAMPLES"
       --wandb-api-key "${WANDB_API_KEY:-}"
     )
-    JOB_ARGS+=("${PASSTHROUGH[@]}")
+    JOB_ARGS+=("${PASSTHROUGH[@]}" "${PASSTHROUGH_TASK[@]}")
+    [[ "$TOKENIZE_ONLY" == "1" ]] && JOB_ARGS+=(--tokenize-only)
 
     if [[ -n "$EXTRA_MODEL_ARGS" ]]; then
       JOB_ARGS+=(--extra-model-args "$EXTRA_MODEL_ARGS")

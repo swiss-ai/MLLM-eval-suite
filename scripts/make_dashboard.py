@@ -16,15 +16,23 @@ import csv
 import datetime
 import glob
 import json
+import math
+import sys
 import re
+from collections import defaultdict
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from suite.coverage import Manifests, cell_provenance  # noqa: E402
+from suite.coverage import coverage as coverage_report  # noqa: E402
+from suite.tasks import benchmarks_dict, load_registry  # noqa: E402
+from suite.result_selection import artifact_metadata, ineligible_reason, merge_cells  # noqa: E402
 
 from gather_results import newest_per_task
 from metric_selection import iter_headline_metrics, normalize_score
 
 # Spatial-intelligence benchmarks are tracked on EASI via VLMEvalKit
-# (https://easi.lmms-lab.com/leaderboard/), not here. Matches the EASI block
-# in metric_selection.TASK_METRIC_PRIORITY.
+# (https://easi.lmms-lab.com/leaderboard/), not here.
 # ---------------------------------------------------------------------------
 # The benchmark registry: one record per dashboard task key. Everything the
 # dashboard needs to know about a benchmark lives here — its category, the
@@ -32,121 +40,10 @@ from metric_selection import iter_headline_metrics, normalize_score
 # override, and whether the key/category match by prefix. The legacy
 # structures below are derived views of this table; edit the table, not them.
 # ---------------------------------------------------------------------------
-BENCHMARKS = {
-    # lm-eval text lane: "lm_metric" marks ownership and names the headline
-    # metric key inside lm_eval's results json (metric,filter).
-    "arc_easy": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
-    "gsm8k": {"cat": "Math (Text)", "lm_metric": "exact_match,flexible-extract"},
-    "math500_verify": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "math_lvl5_verify": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "hmmt_feb_2025": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "aime24": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "aime25": {"cat": "Math (Text)", "lm_metric": "exact_match,none"},
-    "mmlu": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
-    "mmlu_pro": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "exact_match,custom-extract"},
-    "gpqa_diamond_zeroshot": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
-    "arc_challenge": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
-    "hellaswag": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc_norm,none"},
-    "winogrande": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
-    "truthfulqa_mc2": {"cat": "Knowledge & Reasoning (Text)", "lm_metric": "acc,none"},
-    "ifeval": {"cat": "Instruction Following (Text)", "lm_metric": "prompt_level_strict_acc,none"},
-    "ifbench": {"cat": "Instruction Following (Text)", "lm_metric": "prompt_level_strict_acc,none"},
-    "3dsrbench": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk": "3DSRBench", "vk_prefix": True},
-    "ai2d": {"cat": "STEM & Knowledge"},
-    "babyvision": {"cat": "Math & Logic"},
-    "bigearth": {"cat": "Remote Sensing", "cat_prefix": True},
-    "blink": {"cat": "Multi-Image", "vk": "BLINK", "vk_prefix": True},
-    "chartqa": {"cat": "Docs, Charts & OCR"},
-    "cc_ocr_doc_parsing": {"cat": "Docs, Charts & OCR"},
-    "cc_ocr_kie": {"cat": "Docs, Charts & OCR"},
-    "cc_ocr_multi_lan_ocr": {"cat": "Docs, Charts & OCR"},
-    "cc_ocr_multi_scene_ocr": {"cat": "Docs, Charts & OCR"},
-    "charxiv_descriptive": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_descriptive_val"},
-    "charxiv_reasoning": {"cat": "Docs, Charts & OCR", "vk": "CharXiv_reasoning_val"},
-    "countbench": {"cat": "Counting & Grounding"},
-    "cv_bench": {"vk_prefix": True},
-    "cv_bench_2d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-2D"},
-    "cv_bench_3d": {"cat": "Spatial & Embodied", "vk": "CV-Bench-3D"},
-    "docvqa_val": {"cat": "Docs, Charts & OCR"},
-    "embspatial": {"cat": "Spatial & Embodied", "vk": "EmbSpatialBench", "vk_prefix": True},
-    "erqa": {"cat": "Spatial & Embodied", "vk": "ERQA", "vk_prefix": True},
-    "frieda": {"cat": "Remote Sensing"},
-    "geobench": {"cat": "Remote Sensing", "cat_prefix": True},
-    "gqa": {"cat": "General VQA & Perception"},
-    "hallusionbench": {"cat": "Alignment", "vk": "HallusionBench"},
-    "healthbench": {"cat": "Medical", "cat_prefix": True},
-    "iconqa_val": {"cat": "Docs, Charts & OCR"},
-    "infovqa_val": {"cat": "Docs, Charts & OCR"},
-    "logicvista": {"cat": "Math & Logic", "vk": "LogicVista"},
-    "mathverse": {"cat": "Math & Logic", "vk": "MathVerse_MINI"},
-    "mathvision": {"cat": "Math & Logic", "cat_prefix": True},
-    "mathvista_mini": {"cat": "Math & Logic", "vk": "MathVista_MINI"},
-    "medmcqa": {"cat": "Medical"},
-    "medqa": {"cat": "Medical"},
-    "medxpertqa_mm": {"cat": "Medical VQA"},
-    "medxpertqa_text": {"cat": "Medical"},
-    "mia_bench": {"cat": "Alignment", "vk": "MIA-Bench"},
-    "mindcube": {"cat": "Spatial & Embodied", "vk": "MindCubeBench_tiny_raw_qa", "vk_prefix": True},
-    "mm_ifeval": {"cat": "Instruction Following", "vk": "MM-IFEval"},
-    "mm_safetybench": {"cat": "Alignment", "vk": "MMSafetyBench", "headline": ('safety_rate',)},
-    "mmbench_en_dev": {"cat": "General VQA & Perception"},
-    "mme": {"cat": "General VQA & Perception"},
-    "mme_cognition": {"cat": "General VQA & Perception"},
-    "mme_perception": {"cat": "General VQA & Perception"},
-    "mmerealworld": {"cat": "General VQA & Perception"},
-    "mmlu_medical": {"cat": "Medical"},
-    "mmmu_pro_standard": {"cat": "STEM & Knowledge"},
-    "mmmu_pro_vision": {"cat": "STEM & Knowledge"},
-    "mmmu_val": {"cat": "STEM & Knowledge"},
-    "mmsi_bench": {"cat": "Spatial & Embodied", "vk": "MMSIBench_wo_circular", "vk_prefix": True},
-    "mmstar": {"cat": "General VQA & Perception"},
-    "mmvet": {"cat": "General VQA & Perception", "vk": "MMVet"},
-    "mmvp": {"cat": "Robustness & Bias"},
-    "mmvp_pair": {"cat": "Robustness & Bias"},
-    "mtvqa": {"cat": "Docs, Charts & OCR"},
-    "muirbench": {"cat": "Multi-Image", "vk": "MUIRBench"},
-    "ocrbench": {"cat": "Docs, Charts & OCR"},
-    "ocrbench_v2": {"cat": "Docs, Charts & OCR"},
-    "omnidocbench": {"cat": "Docs, Charts & OCR"},
-    "omnispatial": {"cat": "Spatial & Embodied", "cat_prefix": True, "vk_prefix": True},
-    "omnispatial_manual_cot": {"vk": "OmniSpatialBench_manual_cot"},
-    "osworld": {"vk": "OSWorld_G", "vk_prefix": True},
-    "path_mmu": {"cat": "Medical VQA", "cat_prefix": True},
-    "path_mmu_test": {"cat": "Medical VQA"},
-    "path_vqa": {"cat": "Medical VQA"},
-    "pixmo_count": {"cat": "Counting & Grounding"},
-    "pmc_vqa": {"cat": "Medical VQA"},
-    "pope": {"cat": "Alignment"},
-    "pubmedqa": {"cat": "Medical"},
-    "realworldqa": {"cat": "General VQA & Perception"},
-    "refcoco": {"cat": "Counting & Grounding", "cat_prefix": True},
-    "refspatial": {"cat": "Spatial & Embodied", "vk": "RefSpatial_wo_unseen", "vk_prefix": True},
-    "robospatial": {"cat": "Spatial & Embodied", "vk": "RoboSpatialHome"},
-    "rsrcc": {"cat": "Remote Sensing", "cat_prefix": True},
-    "scienceqa": {"cat": "STEM & Knowledge"},
-    "screenspot": {"vk": "ScreenSpot", "vk_prefix": True},
-    "screenspot_pro": {"vk": "ScreenSpot_Pro"},
-    "screenspot_v2": {"vk": "ScreenSpot_v2"},
-    "seedbench": {"cat": "General VQA & Perception"},
-    "seedbench_2_plus": {"cat": "Docs, Charts & OCR"},
-    "site_bench": {"cat": "Spatial & Embodied", "vk": "SiteBenchImage", "vk_prefix": True, "headline": ('overall_caa', 'overall_accuracy', 'accuracy')},
-    "slake": {"cat": "Medical VQA"},
-    "sparbench": {"cat": "Spatial & Embodied", "vk": "SparBench", "vk_prefix": True},
-    "spatial_dise": {"cat": "Spatial & Embodied", "vk": "Spatial-DISE_BENCH", "vk_prefix": True},
-    "textvqa_val": {"cat": "Docs, Charts & OCR"},
-    "viewspatial": {"cat": "Spatial & Embodied", "vk": "ViewSpatialBench", "vk_prefix": True},
-    "visualpuzzles_direct": {"cat": "Math & Logic"},
-    "visulogic": {"cat": "Math & Logic"},
-    "vlms_are_biased": {"cat": "Robustness & Bias"},
-    "vlmsareblind": {"cat": "Robustness & Bias"},
-    "vqa_rad": {"cat": "Medical VQA"},
-    "vqav2_val": {"cat": "General VQA & Perception"},
-    "vrsbench": {"cat": "Remote Sensing", "cat_prefix": True},
-    "vsibench": {"vk_prefix": True},
-    "vsibench_debiased": {"cat": "Spatial & Embodied", "vk": ['VSI-Bench-Debiased', 'VSI-Bench-Debiased_32frame']},
-    "vstar_bench": {"cat": "General VQA & Perception"},
-    "where2place": {"vk_prefix": True},
-}
+# Benchmark families, VLMEvalKit dataset names, headline metrics, and lm-eval
+# metric names live in suite/tasks.toml; this dict is that table verbatim.
+REGISTRY = load_registry()
+BENCHMARKS = benchmarks_dict(REGISTRY)
 
 
 # Categories in display order, with modality.
@@ -166,6 +63,10 @@ LM_EVAL_TASKS = tuple(k for k, b in BENCHMARKS.items() if b.get("lm_metric"))
 
 
 def framework_for(task: str) -> str:
+    """The harness whose number is authoritative for a task: the registry's owner, else the legacy prefix rule."""
+    registered = REGISTRY.lookup("lmms-eval", task)
+    if registered is not None:
+        return registered.framework
     if task in LM_EVAL_TASKS:
         return "lm-eval"
     return "VLMEvalKit" if task.lower().startswith(VLMEVALKIT_PREFIXES) else "lmms-eval"
@@ -173,9 +74,9 @@ def framework_for(task: str) -> str:
 
 # Benchmarks dropped from every harness: cmmmu (removed), the mmlu_flan
 # generative-medical subjects (exact-match scorer is format-fragile),
-# ok_vqa / simplevqa (low-signal, not widely reported), and refspatial (a true
-# zero-shot floor — Apertus never trained on it; points parse but always ~0).
-DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "refspatial", "mathvista_testmini", "logicvista_reasoning",
+# ok_vqa / simplevqa (low-signal, not widely reported).
+# Valid zero scores, including RefSpatial, remain visible.
+DROPPED_TASK_PREFIXES = ("cmmmu", "mmlu_flan", "ok_vqa", "simplevqa", "mathvista_testmini", "logicvista_reasoning",
                          # lmms duplicate of the VLMEvalKit-owned HallusionBench row
                          # (VK runs the judge; the lmms copy scored 0.0 keyless).
                          "hallusion_bench_image",
@@ -308,7 +209,7 @@ _VK_AGG_LABELS = ("all", "overall", "none")
 # Per-benchmark headline override where the EASI-canonical metric is not plain
 # accuracy. site_bench reports chance-adjusted accuracy (overall_caa); raw
 # accuracy ~2x inflates it relative to the EASI leaderboard.
-VK_HEADLINE_BY_TASK = {k: b["headline"] for k, b in BENCHMARKS.items() if "headline" in b}
+VK_HEADLINE_BY_TASK = {k: b["headline"] for k, b in BENCHMARKS.items() if "headline" in b and k in VK_OWNED_TASKS.values()}
 
 
 def _vk_norm(name: str) -> str:
@@ -332,14 +233,19 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
     header = [_vk_norm(h) for h in rows[0]]
     data = rows[1:]
 
-    def scale(value: float) -> float:
-        return value * 100 if 0 <= value <= 1.0 else value
+    def scale(text: str, label: str) -> float | None:
+        value = float(text.strip().rstrip("%"))
+        if not math.isfinite(value):
+            return None
+        # An explicit unit takes precedence over the legacy fraction heuristic.
+        percent = "%" in label or text.strip().endswith("%")
+        return value * 100 if not percent and 0 <= value <= 1.0 else value
 
     if len(header) == 2 and header[1] == "value":
-        cells = {_vk_norm(r[0]): r[1] for r in data if len(r) >= 2}
+        cells = {_vk_norm(r[0]): (r[1], r[0]) for r in data if len(r) >= 2}
         for want in headline:
             if want in cells:
-                return scale(float(cells[want]))
+                return scale(*cells[want])
         return None
     for want in headline:
         if want not in header:
@@ -348,27 +254,46 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
         if len(data) > 1:
             for row in data:
                 if any(_vk_norm(c) in _VK_AGG_LABELS for c in row):
-                    return scale(float(row[col]))
-        return scale(float(data[0][col]))
+                    return scale(row[col], rows[0][col])
+        return scale(data[0][col], rows[0][col])
     return None
 
 
-def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
-    model_dirs = sorted(d for d in vk_root.iterdir() if d.is_dir())
-    if model_filters:
-        model_dirs = [d for d in model_dirs
-                      if any(s in d.name or s in canonical_model_key(d.name) for s in model_filters)]
+def vlmeval_model_dirs(vk_root: Path | None, results_roots=()):
+    """Group native model/benchmark and run/model/benchmark directories by model.
+
+    Keep every run available: a rejudge in an older run can own the newest
+    artifact, and real judge files take precedence over derived fallback files.
+    """
+    parents = [vk_root] if vk_root and vk_root.is_dir() else []
+    for root in results_roots:
+        if root.is_dir():
+            parents.extend(run for run in root.iterdir() if run.is_dir())
+    models = defaultdict(list)
+    for parent in sorted(set(parents)):
+        for model in sorted(parent.iterdir()):
+            if model.is_dir():
+                models[model.name].append(model)
+    return models
+
+
+def collect_vlmeval(vk_root: Path | None, model_filters: list[str] | None, manifests: Manifests,
+                    *, model_key=canonical_model_key, results_roots=()):
+    model_dirs = vlmeval_model_dirs(vk_root, results_roots)
 
     rows: dict[tuple[str, str], dict[str, dict]] = {}
     models: set[str] = set()
     skipped: list[str] = []
-    cell_mtimes: dict = {}
-    for mdir in model_dirs:
-        canon = canonical_model_key(mdir.name)
+    for model, directories in sorted(model_dirs.items()):
+        if model_filters and not any(s in model or s in canonical_model_key(model) for s in model_filters):
+            continue
+        canon = model_key(model)
         for vk_name, task in VK_OWNED_TASKS.items():
             if task.lower().startswith(DROPPED_TASK_PREFIXES):
                 continue
-            bench_dirs = [d for d in ([mdir / vk_name] + sorted(mdir.glob(f"{vk_name}__*")))
+            # Continue accepting old saved bridges; refresh uses native roots.
+            bench_dirs = [(d, "outputs" if mdir.parent == vk_root else mdir.parent.name) for mdir in directories
+                          for d in ([mdir / vk_name] + sorted(mdir.glob(f"{vk_name}__*")))
                           if d.is_dir()]
             if not bench_dirs:
                 continue
@@ -383,15 +308,32 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
                 stamped = []
                 for p in paths:
                     try:
-                        stamped.append((Path(p).stat().st_mtime, p))
+                        stamped.append((Path(p).stat().st_mtime, candidate_info[p]["order"], p))
                     except OSError:
                         continue
-                return [p for _, p in sorted(stamped)]
+                return [p for _, _, p in sorted(stamped)]
 
             all_accs, all_scores = [], []
-            for bench_dir in bench_dirs:
-                all_accs += glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True)
-                all_scores += glob.glob(f"{bench_dir}/**/*_score.csv", recursive=True)
+            candidate_info = {}
+            for bench_dir, tag in bench_dirs:
+                # A saved bridge names its source run in the benchmark suffix.
+                # Do not mislabel failed suite links as shared "outputs" runs.
+                if bench_dir.name.startswith(f"{vk_name}__"):
+                    tag = bench_dir.name[len(vk_name) + 2:]
+                accs = glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True)
+                scores = glob.glob(f"{bench_dir}/**/*_score.csv", recursive=True)
+                all_accs += accs
+                all_scores += scores
+                # Preserve old bridge tie-breaking and manifestless run labels
+                # as metadata; no bridge directories need to exist on disk.
+                label = f"{vk_name}__{tag}" if results_roots and bench_dir.name == vk_name else bench_dir.name
+                for path in accs + scores:
+                    candidate = Path(path)
+                    candidate_info[path] = {
+                        "order": f"{label}/{candidate.relative_to(bench_dir)}",
+                        "run": label if candidate.parent == bench_dir else candidate.parent.name,
+                        "rejected_runs": (tag, f"{vk_name}__{tag}"),
+                    }
             real = by_mtime(a for a in all_accs if owned(Path(a).name))
             scores = by_mtime(a for a in all_scores if owned(Path(a).name))
             derived = by_mtime(a for a in all_accs if Path(a).name == "derived_acc.csv")
@@ -399,7 +341,20 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
             # Newest real judge acc wins; score.csv next; broken-era derived files
             # only when nothing better parses.
             acc, value = None, None
+
+            def reject(candidate_path, run_id):
+                # Saved snapshots can lack both source paths and readable
+                # manifests. Retain their old bridge/run rejection identities.
+                for rejected_run in (run_id, *candidate_info[str(candidate_path)]["rejected_runs"]):
+                    manifests.reject_result(candidate_path, task, canon, rejected_run)
+
             for candidate in real[::-1] + scores[::-1] + derived[::-1]:
+                candidate_path = Path(candidate)
+                manifest = manifests.for_result(candidate_path)
+                run_id = (manifest or {}).get("run_id") or candidate_info[candidate]["run"]
+                if ineligible_reason(manifest):
+                    reject(candidate_path, run_id)
+                    continue
                 try:
                     value = parse_vk_acc(Path(candidate), VK_HEADLINE_BY_TASK.get(task, _VK_HEADLINE))
                 except (OSError, ValueError, IndexError):
@@ -407,15 +362,20 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None):
                 if value is not None:
                     acc = Path(candidate)
                     break
+                reject(candidate_path, run_id)
             if value is None:
-                skipped.append(f"{mdir.name}/{vk_name}")
+                skipped.append(f"{model}/{vk_name}")
                 continue
             models.add(canon)
-            cell = {"v": round(value, 2), "raw": value, "run": acc.parent.name}
+            cell = {"v": round(value, 2), "raw": value, "run": run_id,
+                    **artifact_metadata(acc, manifest)}
+            prov = cell_provenance(manifest)
+            if prov:
+                cell["prov"] = prov
             # mm_safetybench is direction-normalized to safety_rate at derivation
             # (attack_rate is lower-better); label it so readers see which it is.
             metric = "safety_rate" if task == "mm_safetybench" else "acc"
-            rows.setdefault((task, metric), {})[canon] = cell
+            merge_cells(rows.setdefault((task, metric), {}), {canon: cell})
 
     if skipped:
         print(f"VLMEval: skipped {len(skipped)} benchmark(s) with no parseable acc.csv "
@@ -439,7 +399,30 @@ def short_labels(names: list[str]) -> dict[str, str]:
     return {n: (n[cut:] or n) for n in names}
 
 
-def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: bool = False):
+def lmms_result_rows(task: str, data: dict, include_spatial: bool = False):
+    """Usable canonical rows, shared by candidate selection and verification."""
+    if task.lower().startswith(DROPPED_TASK_PREFIXES):
+        return []
+    if not include_spatial and framework_for(task) == "VLMEvalKit":
+        return []
+    metrics = data.get("results", {}).get(task, {})
+    if not isinstance(metrics, dict):
+        return []
+    rows = []
+    for row_task, metric, value in iter_headline_metrics(task, metrics, *REGISTRY.headline_for("lmms-eval", task)):
+        registered = REGISTRY.resolve("lmms-eval", row_task)
+        if registered is not None:
+            row_task = registered.name
+        if task.lower().startswith("mathvista") != ("llm_as_judge" in metric.lower()):
+            continue
+        norm = normalize_score(metric, value)
+        if norm is not None:
+            rows.append((row_task, metric, value, norm))
+    return rows
+
+
+def collect(runs_root: Path, model_filters: list[str] | None, manifests: Manifests, include_spatial: bool = False,
+            *, model_key=canonical_model_key):
     model_dirs = sorted(d for d in runs_root.iterdir() if d.is_dir())
     if model_filters:
         model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
@@ -448,44 +431,49 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
         return [], []
 
     rows: dict[tuple[str, str], dict[str, dict]] = {}
-    cell_mtimes: dict = {}
     for mdir in model_dirs:
-        canon = canonical_model_key(mdir.name)
+        canon = model_key(mdir.name)
         trunc = _truncation_for(mdir.name)
-        for task, path in newest_per_task(mdir).items():
-            if task.lower().startswith(DROPPED_TASK_PREFIXES):
-                continue
-            try:
-                data = json.loads(path.read_text())
-            except (OSError, json.JSONDecodeError):
-                continue
-            metrics = data.get("results", {}).get(task, {})
-            run_id = path.relative_to(mdir).parts[0] if path.is_relative_to(mdir) else ""
-            # Benchmarks owned by VLMEvalKit (spatial + multi-image) are tracked
-            # there, not here; lmms-eval's number for them is non-authoritative.
-            if not include_spatial and framework_for(task) == "VLMEvalKit":
-                continue
-            for row_task, metric, value in iter_headline_metrics(task, metrics):
-                # mathvista is judge-canonical now, so keep ONLY its judge metric
-                # (drop the stale pre-switch extraction relic); every other task's
-                # judge metric is dummy-prone, so drop that. (XOR.)
-                if task.lower().startswith("mathvista") != ("llm_as_judge" in metric.lower()):
-                    continue
-                norm = normalize_score(metric, value)
-                if norm is None:
-                    continue
-                cell = {"v": round(norm * 100, 2), "raw": value, "run": run_id}
+        # All tasks in one parsed artifact share its provenance check. Keep it
+        # only for this collection; verified publication checks the bytes again.
+        result_manifests = {}
+        def invalid(path):
+            manifest = manifests.for_result(path)
+            relative = path.relative_to(mdir).parts
+            task = (manifest or {}).get("task") or (relative[1] if len(relative) > 2 else "")
+            registered = REGISTRY.resolve("lmms-eval", task)
+            row_task = registered.name if registered else task
+            run_id = (manifest or {}).get("run_id") or relative[0]
+            manifests.reject_result(path, row_task, canon, run_id)
+
+        def eligible(task, path, data):
+            if path not in result_manifests:
+                result_manifests[path] = manifests.for_result(path)
+            manifest = result_manifests[path]
+            if ineligible_reason(manifest, data, task) or not lmms_result_rows(task, data, include_spatial):
+                registered = REGISTRY.resolve("lmms-eval", task)
+                row_task = registered.name if registered else task
+                run_id = (manifest or {}).get("run_id") or path.relative_to(mdir).parts[0]
+                manifests.reject_result(path, row_task, canon, run_id)
+                return False
+            return True
+
+        for task, (path, data) in newest_per_task(mdir, eligible, invalid).items():
+            manifest = result_manifests[path]
+            run_id = (manifest or {}).get("run_id") or path.relative_to(mdir).parts[0]
+            prov = cell_provenance(manifest)
+            for row_task, metric, value, norm in lmms_result_rows(task, data, include_spatial):
+                cell = {"v": round(norm * 100, 2), "raw": value, "run": run_id,
+                        **artifact_metadata(path, manifest)}
                 if task in trunc:
                     cell["t"] = round(trunc[task] * 100, 1)
+                if prov:
+                    cell["prov"] = prov
                 # Two result dirs can canonicalize to one column (label case,
                 # path-slug variants); the newest artifact wins, not dir order.
-                mt = path.stat().st_mtime
-                key = (row_task, metric, canon)
-                if cell_mtimes.get(key, -1) <= mt:
-                    rows.setdefault((row_task, metric), {})[canon] = cell
-                    cell_mtimes[key] = mt
+                merge_cells(rows.setdefault((row_task, metric), {}), {canon: cell})
 
-    models = sorted({canonical_model_key(d.name) for d in model_dirs})
+    models = sorted({model_key(d.name) for d in model_dirs})
     table = [
         {"task": task, "metric": metric.replace(",none", ""), "framework": "lmms-eval", "cells": cells}
         for (task, metric), cells in sorted(rows.items())
@@ -493,7 +481,8 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
     return models, table
 
 
-def collect_lm_eval(lm_root: Path, model_filters: list[str] | None):
+def collect_lm_eval(lm_root: Path, model_filters: list[str] | None, manifests: Manifests,
+                    *, model_key=canonical_model_key):
     """results/lm-eval/<model>/<run-id>/<task>/.../results_*.json → cells.
 
     lm_eval nests its json under a sanitized model dir, so rglob; only tasks
@@ -505,33 +494,47 @@ def collect_lm_eval(lm_root: Path, model_filters: list[str] | None):
     if model_filters:
         model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
     rows: dict[tuple[str, str], dict[str, dict]] = {}
-    cell_mtimes: dict = {}
     for mdir in model_dirs:
-        canon = canonical_model_key(mdir.name)
+        canon = model_key(mdir.name)
         for path in mdir.rglob("results_*.json"):
+            manifest = manifests.for_result(path)
+            relative = path.relative_to(mdir).parts
+            run_id = (manifest or {}).get("run_id") or relative[0]
+            def invalid():
+                task = (manifest or {}).get("task") or (relative[1] if len(relative) > 2 else "")
+                registered = REGISTRY.resolve("lm-eval", task)
+                manifests.reject_result(path, registered.name if registered else task, canon, run_id)
             try:
                 data = json.loads(path.read_text())
-            except (OSError, json.JSONDecodeError):
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                invalid()
                 continue
-            run_id = path.relative_to(mdir).parts[0]
+            if not isinstance(data, dict) or not isinstance(data.get("results"), dict) or not data["results"]:
+                invalid()
+                continue
             for task, metrics in data.get("results", {}).items():
+                if ineligible_reason(manifest, data, task):
+                    manifests.reject_result(path, task, canon, run_id)
+                    continue
                 rec = BENCHMARKS.get(task, {})
                 metric = rec.get("lm_metric")
                 if not metric:
                     continue
-                value = metrics.get(metric)
+                value = metrics.get(metric) if isinstance(metrics, dict) else None
                 if not isinstance(value, (int, float)):
+                    manifests.reject_result(path, task, canon, run_id)
                     continue
                 score = normalize_score(metric, float(value))
                 if score is None:
+                    manifests.reject_result(path, task, canon, run_id)
                     continue
-                cell = {"v": round(score * 100, 2), "raw": score, "run": run_id}
-                mt = path.stat().st_mtime
-                key = (task, metric, canon)
-                if cell_mtimes.get(key, -1) <= mt:
-                    rows.setdefault((task, metric), {})[canon] = cell
-                    cell_mtimes[key] = mt
-    models = sorted({canonical_model_key(d.name) for d in model_dirs})
+                cell = {"v": round(score * 100, 2), "raw": score, "run": run_id,
+                        **artifact_metadata(path, manifest)}
+                prov = cell_provenance(manifest)
+                if prov:
+                    cell["prov"] = prov
+                merge_cells(rows.setdefault((task, metric), {}), {canon: cell})
+    models = sorted({model_key(d.name) for d in model_dirs})
     table = [
         {"task": task, "metric": metric.replace(",none", ""), "framework": "lm-eval", "cells": cells}
         for (task, metric), cells in sorted(rows.items())
@@ -539,34 +542,87 @@ def collect_lm_eval(lm_root: Path, model_filters: list[str] | None):
     return models, table
 
 
-# Benchmark taxonomy for the matrix band grouping. Bands follow the category
-# conventions of recent VLM reports (Qwen3-VL, InternVL3.5): pure-text evals get
-# their own top-level band instead of mixing into multimodal domains. One
-# declarative structure — dict order is display order, modality defaults to
-# "vision", tasks match by exact name or prefix.
-TAXONOMY = {
-    cat: {
-        **({"modality": modality} if modality != "vision" else {}),
-        "exact": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and not b.get("cat_prefix")],
-        "prefix": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and b.get("cat_prefix")],
-    }
-    for cat, modality in CATEGORIES
-}
+def collect_inventory(roots, *, vlmeval_roots=(), vlmeval_results_roots=(), lm_eval_roots=(), manifest_roots=(),
+                      model_filters=None, include_spatial=False):
+    """Collect once, retaining source directories until collision verification.
 
-CATEGORY_ORDER = list(TAXONOMY)
-CATEGORY_MODALITY = {cat: spec.get("modality", "vision") for cat, spec in TAXONOMY.items()}
-_TASK_TO_CAT = {t: cat for cat, spec in TAXONOMY.items() for t in spec.get("exact", ())}
-_CAT_PREFIX = [(p, cat) for cat, spec in TAXONOMY.items() for p in spec.get("prefix", ())]
+    Each collection is (root, raw model names, rows). Rendering canonicalizes
+    these same cells only after the optional audit has examined every directory.
+    """
+    vlmeval_roots = sorted({Path(root).resolve() for root in vlmeval_roots})
+    vlmeval_results_roots = sorted({Path(root).resolve() for root in vlmeval_results_roots})
+    if vlmeval_results_roots and len(vlmeval_roots) > 1:
+        raise ValueError("suite result sources can join at most one shared VLMEvalKit root; "
+                         "audit independent shared roots separately")
+    lanes = [(collect, roots), (collect_vlmeval, vlmeval_roots), (collect_lm_eval, lm_eval_roots)]
+    all_roots = [root for _collector, lane_roots in lanes for root in lane_roots]
+    manifests = Manifests(all_roots + vlmeval_results_roots + list(manifest_roots))
+    collections = []
+    for collector, lane_roots in lanes:
+        for root in sorted({Path(root).resolve() for root in lane_roots}):
+            kwargs = {"include_spatial": include_spatial} if collector is collect else {}
+            if collector is collect_vlmeval:
+                kwargs["results_roots"] = vlmeval_results_roots
+            models, rows = collector(root, model_filters, manifests, model_key=lambda name: name, **kwargs)
+            collections.append((root, models, rows))
+    if vlmeval_results_roots and not vlmeval_roots:
+        models, rows = collect_vlmeval(None, model_filters, manifests, model_key=lambda name: name,
+                                       results_roots=vlmeval_results_roots)
+        collections.append((vlmeval_results_roots[0], models, rows))
+    # Rejection evidence is consumed by legacy import under canonical identities,
+    # even though the collected cells still use raw names for collision checking.
+    manifests.rejected_results = {(task, canonical_model_key(model), run, source)
+                                  for task, model, run, source in manifests.rejected_results}
+    return manifests, collections
 
 
-def category_for(task: str) -> str | None:
-    lowered = task.lower()
-    if lowered in _TASK_TO_CAT:
-        return _TASK_TO_CAT[lowered]
-    for prefix, cat in _CAT_PREFIX:
-        if lowered.startswith(prefix):
-            return cat
-    return None
+def audit_inventory(collections, *, aliases=None, only_keys=None) -> int:
+    """Check raw model identities within each collection before canonical merging."""
+    keep = set(only_keys) if only_keys else None
+    by_key = defaultdict(lambda: defaultdict(dict))
+    for root, _models, rows in collections:
+        for row in rows:
+            for model, cell in row["cells"].items():
+                key = canonical_model_key(model)
+                key = (aliases or {}).get(key, key)
+                if keep is not None and key not in keep:
+                    continue
+                by_key[key][(root, model)][(row["task"], row["metric"])] = cell
+
+    bad = 0
+    for key, vals in sorted(by_key.items()):
+        if len(vals) < 2:
+            continue
+        conflicts = []
+        for t in sorted(set().union(*(v.keys() for v in vals.values()))):
+            present = {n: v[t] for n, v in vals.items() if t in v}
+            if len({round(cell["v"], 3) for cell in present.values()}) > 1:
+                conflicts.append((t, present))
+        if conflicts:
+            bad += 1
+            print(f"COLLISION  key '{key}'  <-  {len(vals)} model identities:")
+            for root, model in vals:
+                print(f"             {model} (collection {root})")
+            print(f"           {len(conflicts)} conflicting benchmark(s), e.g.:")
+            for (task, metric), present in conflicts[:3]:
+                print(f"             {task} ({metric}):")
+                for cell in present.values():
+                    print(f"               {cell['source']['path']}={cell['v']:.1f}")
+    print(f"\n{'PASS — no contaminating collisions' if not bad else f'FAIL — {bad} colliding key(s)'}")
+    return bad
+
+
+def _source_signature(path: Path):
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (stat.st_dev, stat.st_ino, stat.st_mode, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
+CATEGORY_ORDER = [cat for cat, _modality in CATEGORIES]
+CATEGORY_MODALITY = dict(CATEGORIES)
+category_for = REGISTRY.category
 
 
 HTML_TEMPLATE = """<!doctype html>
@@ -891,8 +947,10 @@ function renderMatrix() {
       const slot = slotFor(m, c.v, r.cells[state.base]?.v);
       const trtip = c.t != null ? `\\ntruncated: ${c.t}% hit the 32k cap` : "";
       const tr = c.t != null ? `<sup class="tr" title="${c.t}% of outputs hit the 32k token cap (non-terminating)">⌁${Math.round(c.t)}</sup>` : "";
+      const evidence = c.legacy ? "legacy: no run manifest" : `manifest: ${c.prov?.status || "unknown"}; harness: ${c.prov?.harness || "unknown"}; image: ${c.prov?.image || "unknown"}`;
+      const legacy = c.legacy ? '<sup title="Historical result without a run manifest">L</sup>' : "";
       h += `<td class="cell mono ${c.v === best && present.length > 1 ? "best" : ""}" ` +
-           `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}${trtip}">${fmt(c.v)}${slot}${tr}</td>`;
+           `title="${m}\\n${r.metric} = ${c.raw}\\nrun: ${c.run}\\n${evidence}${trtip}">${fmt(c.v)}${slot}${tr}${legacy}</td>`;
     }
     h += "</tr>";
   }
@@ -953,6 +1011,41 @@ renderAll();
 """
 
 
+LEGACY_IMPORT_FRAMEWORKS = ("lmms-eval", "VLMEvalKit")
+
+
+def import_legacy(merged: dict, models: list[str], legacy_paths: list[Path], rejected_runs=frozenset(),
+                  rejected_sources=frozenset(), aliases=None, frameworks=LEGACY_IMPORT_FRAMEWORKS) -> int:
+    """Fill (task, metric, model) slots no current result covers from earlier builds, marked legacy.
+
+    Purged raw results survive only there; the mark lets the page and the coverage
+    report tell a legacy number from a manifest-backed one. Only the harnesses whose
+    raw results the purge destroyed are imported: every text result an earlier build
+    saw is still on disk, so a legacy text cell could only re-add a number the current
+    selection or column split rejected."""
+    n_legacy = 0
+    for legacy_path in legacy_paths:
+        legacy = json.loads(legacy_path.read_text())
+        for row in legacy.get("table", []):
+            if row.get("framework") not in frameworks:
+                continue
+            key = (row["task"], row["metric"])
+            target = merged.setdefault(key, {"task": row["task"], "metric": row["metric"], "framework": row["framework"], "cells": {}})
+            for model, cell in row["cells"].items():
+                model = (aliases or {}).get(model, model)
+                run_ids = (cell.get("run"), (cell.get("prov") or {}).get("run_id"))
+                source = (cell.get("source") or {}).get("path")
+                if (any((row["task"], model, run_id) in rejected_runs for run_id in run_ids if run_id is not None)
+                        or (source and (row["task"], str(Path(source).resolve())) in rejected_sources)):
+                    continue
+                if model not in target["cells"]:
+                    target["cells"][model] = dict(cell, legacy=True)
+                    n_legacy += 1
+                    if model not in models:
+                        models.append(model)
+    return n_legacy
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--runs-root", required=True, type=Path, nargs="+",
@@ -962,9 +1055,15 @@ def main():
     p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
     p.add_argument("--lm-eval-root", type=Path, help="results/lm-eval tree; ingests lm-eval-owned text benchmarks, merged by checkpoint identity")
+    p.add_argument("--vlmeval-results-root", type=Path,
+                   help="results/VLMEvalKit tree (run/<model>/<dataset>); union its artifacts with --vlmeval-root and index its manifests")
+    p.add_argument("--legacy-json", type=Path, action="append", default=[],
+                   help="dashboard.json of an earlier build; its cells fill (task, metric, model) slots no current result covers, marked legacy")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
     p.add_argument("--models-file", type=Path,
                    help="column manifest (key[|alias]=Label per line); overrides --only/--label")
+    p.add_argument("--verify", action="store_true",
+                   help="refuse publication if collected source directories have conflicting canonical scores")
     p.add_argument("-o", "--output", type=Path, default=Path("dashboard.html"))
     args = p.parse_args()
 
@@ -973,43 +1072,56 @@ def main():
     if args.models_file:
         args.only, args.label, aliases, model_groups = parse_models_manifest(args.models_file)
 
-    models_l: list[str] = []
-    table_l: list[dict] = []
     for root in args.runs_root:
         if not root.is_dir():
             print(f"runs-root not found, skipping: {root}")
-            continue
-        m, t = collect(root.resolve(), args.models, args.include_spatial)
-        models_l = sorted(set(models_l) | set(m))
-        table_l += t
-    models_v, table_v = ([], [])
-    if args.vlmeval_root:
-        models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
-    models_t, table_t = ([], [])
-    if args.lm_eval_root:
-        models_t, table_t = collect_lm_eval(args.lm_eval_root.resolve(), args.models)
-    if aliases:
-        models_l = [aliases.get(m, m) for m in models_l]
-        models_v = [aliases.get(m, m) for m in models_v]
-        models_t = [aliases.get(m, m) for m in models_t]
-        for row in table_l + table_v + table_t:
-            cells = {}
-            for k, v in row["cells"].items():
-                cells.setdefault(aliases.get(k, k), v)
-            row["cells"] = cells
-    models = sorted(set(models_l) | set(models_v) | set(models_t))
+    manifests, collections = collect_inventory(
+        [root for root in args.runs_root if root.is_dir()],
+        vlmeval_roots=[args.vlmeval_root] if args.vlmeval_root else [],
+        lm_eval_roots=[args.lm_eval_root] if args.lm_eval_root else [],
+        vlmeval_results_roots=[args.vlmeval_results_root] if args.vlmeval_results_root else [],
+        model_filters=args.models, include_spatial=args.include_spatial)
+    source_signatures, source_manifests = {}, {}
+    if args.verify:
+        sources = {Path(cell["source"]["path"]) for _root, _models, rows in collections
+                   for row in rows for cell in row["cells"].values()}
+        source_signatures = {source: _source_signature(source) for source in sources}
+        manifest_roots = {root for root, _models, _rows in collections}
+        if args.vlmeval_results_root:
+            manifest_roots.add(args.vlmeval_results_root.resolve())
+        for source in sources:
+            for parent in source.parents:
+                if not any(parent.is_relative_to(root) for root in manifest_roots):
+                    continue
+                # Absence matters too: a new nearer manifest changes eligibility.
+                source_manifests[parent / "run_meta.json"] = manifests.by_dir.get(parent)
+                if parent in manifests.by_dir:
+                    break
+        if audit_inventory(collections, aliases=aliases, only_keys=args.only):
+            p.exit(1, "refusing to publish a dashboard with colliding model identities\n")
+
+    def model_key(name):
+        key = canonical_model_key(name)
+        return aliases.get(key, key)
+
+    models = sorted({model_key(name) for _root, names, _rows in collections for name in names})
     if args.only:
         present = set(models)
         models = [m for m in args.only if m in present]
     # Ownership partitions benchmarks, so no (task, metric) appears in both
     # harnesses; cells merge defensively if one ever does.
     merged: dict[tuple[str, str], dict] = {}
-    for row in table_l + table_v + table_t:
-        key = (row["task"], row["metric"])
-        if key in merged:
-            merged[key]["cells"].update(row["cells"])
-        else:
-            merged[key] = dict(row)
+    for _root, _models, rows in collections:
+        for row in rows:
+            key = (row["task"], row["metric"])
+            target = merged.setdefault(key, {**row, "cells": {}})
+            for name, cell in row["cells"].items():
+                merge_cells(target["cells"], {model_key(name): cell})
+    n_legacy = import_legacy(merged, models, args.legacy_json,
+                             manifests.rejected_runs(REGISTRY, canonical_model_key, aliases),
+                             {(task, source) for task, _model, _run, source in manifests.rejected_results}, aliases)
+    if n_legacy:
+        print(f"legacy: imported {n_legacy} cells from {len(args.legacy_json)} earlier build(s)")
     table = [merged[key] for key in sorted(merged)]
     labels = short_labels(models)
     for pair in args.label:
@@ -1042,6 +1154,9 @@ def main():
         "defaultSelected": default_selected,
         "groups": {m: model_groups.get(m, "Models") for m in models},
     }
+    all_cells = [cell for row in cells_rows for cell in row["cells"].values()]
+    data["evidence"] = {"manifest": sum(bool(c.get("prov")) for c in all_cells),
+                        "legacy": sum(bool(c.get("legacy")) for c in all_cells)}
     n_vk = sum(1 for r in cells_rows if r["framework"] == "VLMEvalKit")
     n_lm = sum(1 for r in cells_rows if r["framework"] == "lm-eval")
     sources = (f"lmms-eval ({len(cells_rows) - n_vk - n_lm} rows)"
@@ -1049,12 +1164,43 @@ def main():
                + (f" · lm-eval ({n_lm} rows)" if n_lm else ""))
     meta = (
         f"<b>{len(models)}</b> checkpoints · <b>{len(cells_rows)}</b> metric rows · "
-        f"{sources} · generated {datetime.datetime.now():%Y-%m-%d %H:%M}"
+        f"{sources} · {data['evidence']['manifest']} manifest-backed / {data['evidence']['legacy']} legacy cells"
+        f" · generated {datetime.datetime.now():%Y-%m-%d %H:%M}"
     )
+    manifest_cells = manifests.by_cell(REGISTRY, canonical_model_key)
+    if aliases:
+        manifest_cells = {(t, aliases.get(mk, mk)): man for (t, mk), man in manifest_cells.items()}
+    cov = coverage_report(cells_rows, models, REGISTRY, manifest_cells,
+                          tasks=[t.name for t in REGISTRY.tasks.values() if t.card or t.report])
+    data["coverage"] = cov["counts"]
+    for key in list(args.only or []):
+        if not any(key in r["cells"] for r in cells_rows) and not any(mk == key for (_t, mk) in manifest_cells):
+            print(f"registry: column {key!r} has no results and no manifests")
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
     html_text = HTML_TEMPLATE.replace("__DATA__", payload).replace("__META__", meta)
+    for path, original in source_manifests.items():
+        try:
+            unchanged = json.loads(path.read_text()) == original and original is not None
+        except FileNotFoundError:
+            unchanged = original is None and not path.is_symlink()
+        except (OSError, ValueError):
+            unchanged = False
+        if not unchanged:
+            p.exit(1, f"refusing to publish: manifest changed after collection: {path}\n")
+    for source, signature in source_signatures.items():
+        if (signature is None or _source_signature(source) != signature
+                or ineligible_reason(manifests.for_result(source))):
+            p.exit(1, f"refusing to publish: source changed after collection: {source}\n")
     args.output.write_text(html_text)
     print(f"wrote {args.output.resolve()}  ({args.output.stat().st_size / 1024:.0f} KB)")
+    json_path = args.output.with_name("dashboard.json")
+    json_path.write_text(json.dumps(data, indent=1))
+    cov_path = args.output.with_name("coverage.json")
+    cov_path.write_text(json.dumps(cov, indent=1))
+    reasons = ", ".join(f"{k}: {v}" for k, v in sorted(cov["by_reason"].items()))
+    print(f"coverage (card+report tasks x columns): {cov['counts']['present']}/{cov['counts']['cells']} cells present; "
+          f"{cov['counts']['missing']} missing ({reasons or 'none'})")
+    print(f"wrote {json_path.name} and {cov_path.name} next to the page")
 
 
 if __name__ == "__main__":

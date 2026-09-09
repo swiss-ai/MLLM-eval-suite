@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+import math
 
 
 def metric_display_name(metric: str) -> str:
@@ -20,53 +21,14 @@ def is_main_metric(metric: str) -> bool:
 MAX_GRADER_FAILURE = 0.05
 
 
-# Task-specific headline metrics. Order matters: more specific task names must
-# precede broader substring matches such as seedbench and 3dsrbench.
-TASK_METRIC_PRIORITY: list[tuple[str, tuple[str, ...]]] = [
-    ("babyvision", ("babyvision_overall_accuracy",)),
-    ("healthbench", ("healthbench_score",)),
-    # Remote-sensing geospatial tasks.
-    ("rsrcc", ("accuracy",)),
-    ("vrsbench_vqa", ("vqa_accuracy",)),
-    ("vrsbench_cap", ("cap_CIDEr",)),
-    ("vrsbench_ref", ("ref_acc50",)),
-    ("geobench_single", ("per_task", "single_accuracy")),
-    ("geobench_temporal", ("temporal_per_task", "temporal_accuracy")),
-    ("geobench_cap", ("cap_CIDEr",)),
-    ("geobench_ref", ("ref_acc50",)),
-    ("frieda", ("f1", "exact_match")),
-    # EASI spatial-intelligence metrics.
-    ("3dsrbench_circular", ("circular_accuracy", "vanilla_accuracy")),
-    ("3dsrbench", ("circular_accuracy", "vanilla_accuracy")),
-    ("site_bench", ("chance_adjusted_acc", "accuracy")),
-    ("mmsi_bench", ("average",)),
-    ("viewspatial", ("overall_accuracy",)),
-    ("embspatial", ("embspatial_acc",)),
-    ("mindcube", ("overall_accuracy",)),
-    ("sparbench", ("sparbench_score",)),
-    ("omnispatial", ("omnispatial",)),
-    ("erqa", ("erqa_acc",)),
-    ("blink", ("blink_acc",)),
-    ("cv_bench", ("cv_bench_acc",)),
-    # Other locally important multi-metric benchmarks.
-    # generative MMLU: pin the flexible filter. strict-match does no answer
-    # extraction at all and scores 0.0 for every model.
-    ("mmlu_medical", ("exact_match,flexible-extract", "exact_match")),
-    ("seedbench_2_plus", ("seedbench_2_plus_all",)),
-    ("seedbench", ("seed_image", "seed_all")),  # image-only headline (skip video dims)
-    ("mmstar", ("average",)),
-    ("refcoco", ("refcoco_ACC@0.5",)),
-    ("vstar", ("vstar_overall_acc",)),
-    ("mmvp", ("mmvp_accuracy",)),
-    ("vlms_are_biased", ("accuracy_by_topic.topic_mean", "accuracy")),
-    ("vlmsareblind", ("accuracy_by_task.task_mean", "accuracy")),
-]
-
-STRICT_TASK_METRIC_PRIORITY = {"refcoco"}
-
+# Which metric is a benchmark's headline is declared in suite/tasks.toml
+# ([dashboard.<task>].headline, lmms_headline for a harness that only aliases
+# the task, headline_strict to forbid fallbacks); callers pass it in. What stays
+# here is computation and fallback: the MME total, the secondary rows below, and
+# the generic priority for tasks the registry does not describe.
 ADDITIONAL_TASK_METRICS: dict[str, tuple[tuple[str, str], ...]] = {
-    # Multi-headline benchmarks: the primary metric comes from
-    # TASK_METRIC_PRIORITY (pick_headline_metric); these are the *second*
+    # Multi-headline benchmarks: the primary metric comes from the registry
+    # (pick_headline_metric); these are the *second*
     # headline reported alongside it via iter_headline_metrics.
     #   mme   -> total (primary) + perception/cognition breakdown (here)
     #   mmvp  -> per-question accuracy (primary) + pair accuracy (here)
@@ -136,12 +98,14 @@ def _numeric_metric(metrics: dict[str, Any], wanted: str) -> tuple[str, float] |
     return None
 
 
-def pick_headline_metric(task: str, metrics: dict[str, Any]) -> tuple[str | None, float | None]:
+def pick_headline_metric(task: str, metrics: dict[str, Any], headline: tuple[str, ...] = (),
+                         strict: bool = False) -> tuple[str | None, float | None]:
     """Pick the benchmark headline metric.
 
-    This intentionally uses task-aware policy instead of raw JSON order. Many
-    result files contain category breakdowns before their official overall
-    metric, and EASI spatial benchmarks define specific headline metrics.
+    `headline` is the registry's ordered list of metric names for this task;
+    with `strict`, no other metric may stand in when none of them is present.
+    Raw JSON order is never trusted: many result files list category breakdowns
+    before their official overall metric.
     """
     task_lower = task.lower()
 
@@ -164,15 +128,12 @@ def pick_headline_metric(task: str, metrics: dict[str, Any]) -> tuple[str | None
         if cognition is not None:
             return cognition
 
-    for task_pattern, preferred_metrics in TASK_METRIC_PRIORITY:
-        if task_pattern not in task_lower:
-            continue
-        for wanted in preferred_metrics:
-            selected = _numeric_metric(metrics, wanted)
-            if selected is not None:
-                return selected
-        if task_pattern in STRICT_TASK_METRIC_PRIORITY:
-            return None, None
+    for wanted in headline:
+        selected = _numeric_metric(metrics, wanted)
+        if selected is not None:
+            return selected
+    if strict:
+        return None, None
 
     for wanted in GLOBAL_METRIC_PRIORITY:
         selected = _numeric_metric(metrics, wanted)
@@ -186,9 +147,10 @@ def pick_headline_metric(task: str, metrics: dict[str, Any]) -> tuple[str | None
     return None, None
 
 
-def iter_headline_metrics(task: str, metrics: dict[str, Any]) -> list[tuple[str, str, float]]:
+def iter_headline_metrics(task: str, metrics: dict[str, Any], headline: tuple[str, ...] = (),
+                          strict: bool = False) -> list[tuple[str, str, float]]:
     rows: list[tuple[str, str, float]] = []
-    metric, value = pick_headline_metric(task, metrics)
+    metric, value = pick_headline_metric(task, metrics, headline, strict)
     if metric is not None and value is not None:
         rows.append((task, metric, value))
 
@@ -209,6 +171,8 @@ def iter_headline_metrics(task: str, metrics: dict[str, Any]) -> list[tuple[str,
 
 
 def normalize_score(metric: str, value: float) -> float | None:
+    if not math.isfinite(value):
+        return None
     lowered = metric.lower()
     if "cider" in lowered:
         return value

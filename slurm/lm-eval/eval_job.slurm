@@ -106,4 +106,9 @@ echo "LM_EVAL_RESOLVED=$(python -c 'import lm_eval,os;print(os.path.dirname(lm_e
 echo "MODEL_PATH=${MODEL_PATH}"
 echo "TASKS=${TASKS}"
 printf 'CMD:'; printf ' %q' "${CMD[@]}"; printf '\n'
-"${CMD[@]}"
+# Preflight, run manifest, harness, finalize: suite_run in slurm/shared/job_env.sh.
+suite_run "${OUTPUT_PATH}" lm-eval "${TASKS}" "${LM_EVAL_DEV_PATH}" "$(basename "$(dirname "${OUTPUT_PATH}")")" \
+  --model "${MODEL_PATH}" --tokenizer "${MODEL_PATH}" --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}" -- \
+  --model "${MODEL_PATH}" --tokenizer "${MODEL_PATH}" --model-args "${MODEL_ARGS}" --gen-kwargs "${GEN_KWARGS}" \
+  --tp 1 --dp "${NUM_PROCESSES}" --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" --max-model-len "${MAX_MODEL_LEN}" --limit "${LIMIT}" --apply-chat-template "${APPLY_CHAT_TEMPLATE}" -- \
+  "${CMD[@]}"

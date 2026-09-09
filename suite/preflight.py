@@ -1,0 +1,203 @@
+"""Refuse work that cannot succeed, before it costs a node."""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+
+from suite.fsutil import count_files
+from suite.tasks import Registry, load_registry
+
+EXIT_PREFLIGHT = 2
+TASK_DECLARATION = re.compile(r"""^(?:task|group):[ \t]*["']?([A-Za-z0-9_.+-]+)["']?[ \t]*$""", re.M)
+
+
+@dataclass(frozen=True)
+class Check:
+    name: str
+    ok: bool
+    detail: str = ""
+
+
+def _readable_file(path: Path) -> bool:
+    try:
+        real = Path(path).resolve()
+        return real.is_file() and os.access(real, os.R_OK)
+    except OSError:
+        return False
+
+
+def check_model(model_path: Path) -> list[Check]:
+    model_path = Path(model_path)
+    out = [Check("model:dir", model_path.is_dir(), str(model_path))]
+    if not model_path.is_dir():
+        return out
+    out.append(Check("model:config", _readable_file(model_path / "config.json"), "config.json"))
+    shards = sorted(model_path.glob("*.safetensors"))
+    bad = [s.name for s in shards if not _readable_file(s) or s.resolve().stat().st_size == 0]
+    index = model_path / "model.safetensors.index.json"
+    if index.exists() or index.is_symlink():
+        try:
+            weight_map = json.loads(index.read_text())["weight_map"]
+            if not isinstance(weight_map, dict) or not weight_map or not all(isinstance(name, str) for name in weight_map.values()):
+                raise ValueError("weight_map must be a nonempty mapping of tensors to shard names")
+            for name in sorted(set(weight_map.values())):
+                shard = model_path / name
+                if Path(name).name != name or not _readable_file(shard) or shard.resolve().stat().st_size == 0:
+                    bad.append(name)
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            bad.append(f"invalid index ({exc})")
+    out.append(Check("model:weights", bool(shards) and not bad,
+                     f"{len(shards)} shards" + (f", unreadable: {bad}" if bad else "")))
+    return out
+
+
+def check_text_view(model_path: Path) -> list[Check]:
+    """An Apertus text view must be the release's pruned text backbone, not the training checkpoint's multimodal head."""
+    try:
+        cfg = json.loads((Path(model_path) / "config.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    if cfg.get("model_type") != "apertus":
+        return []
+    vocab, out_vocab = cfg.get("vocab_size"), cfg.get("output_vocab_size")
+    ok = out_vocab is not None and out_vocab == vocab
+    return [Check("model:text_view", ok,
+                  f"vocab_size={vocab} output_vocab_size={out_vocab}" + ("" if ok else
+                  "; this view carries the unpruned multimodal head, build it with scripts/extract_text_backbone.py"))]
+
+
+def check_tokenizer(tokenizer_path: Path | None) -> list[Check]:
+    if tokenizer_path is None:
+        return [Check("tokenizer", False, "no tokenizer path")]
+    tokenizer_path = Path(tokenizer_path)
+    return [Check("tokenizer:json", _readable_file(tokenizer_path / "tokenizer.json"), str(tokenizer_path)),
+            Check("tokenizer:template", _readable_file(tokenizer_path / "chat_template.jinja"), "chat_template.jinja")]
+
+
+def check_vision_tokenizer(vq_dir: Path | None) -> list[Check]:
+    if vq_dir is None:
+        return [Check("vision_tokenizer", False, "no vision tokenizer dir")]
+    vq_dir = Path(vq_dir)
+    ok = _readable_file(vq_dir / "config.yaml") and _readable_file(vq_dir / "model.ckpt")
+    return [Check("vision_tokenizer", ok, str(vq_dir))]
+
+
+def check_container(image: Path | None) -> list[Check]:
+    return [Check("container:image", image is not None and _readable_file(Path(image)), str(image))]
+
+
+def check_tasks(registry: Registry, framework: str, tasks: list[str], env: dict, max_model_len: int) -> list[Check]:
+    out = []
+    for name in tasks:
+        task = registry.lookup(framework, name)
+        if task is None:
+            out.append(Check(f"task:{name}:registry", False, "not in suite/tasks.toml"))
+            continue
+        if task.harness_id_for(framework) is None:
+            out.append(Check(f"task:{name}:framework", False, f"registered for {task.framework}, launched on {framework}"))
+        for asset in task.assets:
+            base = env.get(asset.env, "")
+            path = Path(base) / asset.relative if base else None
+            n = count_files(path, asset.min_files) if path and path.is_dir() else 0
+            out.append(Check(f"task:{name}:assets", n >= asset.min_files,
+                             f"{asset.env}={base or '<unset>'} {asset.relative}: {n} files, need {asset.min_files}; "
+                             f"restore with `python3 -m suite.stage_datasets --task {task.name}`"))
+        if task.judge:
+            out.append(Check(f"task:{name}:judge", bool(env.get(task.judge_env or "")), f"{task.judge} judge needs {task.judge_env}"))
+        if task.max_model_len > max_model_len:
+            out.append(Check(f"task:{name}:context", False, f"needs max_model_len {task.max_model_len}, launch has {max_model_len}"))
+    return out
+
+
+def task_declarations(harness_root: Path) -> dict[str, list[Path]]:
+    """Map every task or group name declared under lmms_eval/tasks to the files declaring it."""
+    declared: dict[str, list[Path]] = defaultdict(list)
+    tasks_dir = harness_root / "lmms_eval" / "tasks"
+    for path in sorted(tasks_dir.rglob("*")):
+        if not path.is_file() or not (path.suffix == ".yaml" or path.name.endswith("_yaml")):
+            continue
+        try:
+            text = path.read_text(errors="replace")
+        except OSError:
+            continue
+        for name in TASK_DECLARATION.findall(text):
+            declared[name].append(path.relative_to(tasks_dir))
+    return declared
+
+
+def check_task_names(registry: Registry, framework: str, tasks: list[str], harness_root: Path | None) -> list[Check]:
+    """A launched lmms-eval task must resolve to exactly one definition in the harness tree."""
+    if framework != "lmms-eval" or harness_root is None:
+        return []
+    if not (harness_root / "lmms_eval" / "tasks").is_dir():
+        return [Check("harness:tasks", False, f"no lmms_eval/tasks under {harness_root}")]
+    declared = task_declarations(harness_root)
+    out = []
+    for name in tasks:
+        task = registry.lookup(framework, name)
+        harness_id = (task.harness_id_for(framework) if task else None) or name
+        files = declared.get(harness_id, [])
+        if not files:
+            out.append(Check(f"task:{name}:definition", False, f"{harness_id} is declared nowhere under {harness_root}/lmms_eval/tasks"))
+        elif len(files) > 1:
+            out.append(Check(f"task:{name}:definition", False,
+                             f"{harness_id} is declared {len(files)} times ({', '.join(str(f) for f in files)}); which one loads depends on directory order"))
+        else:
+            out.append(Check(f"task:{name}:definition", True, f"{harness_id} <- {files[0]}"))
+    return out
+
+
+def run_checks(*, registry: Registry, framework: str, model_path: Path, tasks: list[str], thinking: bool,
+               tokenizer_path: Path | None, vision_tokenizer_dir: Path | None, container_image: Path | None,
+               env: dict, max_model_len: int, harness_root: Path | None = None, skip_model: bool = False) -> list[Check]:
+    """skip_model covers foreign models served by name, which have no local checkpoint or tokenizer to inspect."""
+    checks = []
+    if not skip_model:
+        checks += check_model(model_path) + check_tokenizer(tokenizer_path)
+        if framework in ("lmms-eval", "VLMEvalKit"):
+            checks += check_vision_tokenizer(vision_tokenizer_dir)
+        if framework == "lm-eval":
+            checks += check_text_view(model_path)
+    checks += check_container(container_image)
+    checks += check_tasks(registry, framework, tasks, env, max_model_len)
+    checks += check_task_names(registry, framework, tasks, harness_root)
+    return checks
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(description="Preflight checks for an evaluation launch")
+    p.add_argument("--registry")
+    p.add_argument("--framework", required=True)
+    p.add_argument("--model", required=True)
+    p.add_argument("--tasks", required=True, help="comma-separated task ids as the launcher names them")
+    p.add_argument("--thinking", action="store_true")
+    p.add_argument("--tokenizer")
+    p.add_argument("--vision-tokenizer")
+    p.add_argument("--container-image")
+    p.add_argument("--max-model-len", type=int, default=131072)
+    p.add_argument("--skip-model", action="store_true", help="foreign model served by name; no local checkpoint to check")
+    p.add_argument("--harness-root", help="lmms-eval checkout; each launched task must be declared exactly once under it")
+    a = p.parse_args(argv)
+    registry = load_registry(a.registry) if a.registry else load_registry()
+    tasks = [t for t in a.tasks.replace(" ", ",").split(",") if t]
+    checks = run_checks(registry=registry, framework=a.framework, model_path=Path(a.model), tasks=tasks,
+                        thinking=a.thinking, tokenizer_path=Path(a.tokenizer) if a.tokenizer else None,
+                        vision_tokenizer_dir=Path(a.vision_tokenizer) if a.vision_tokenizer else None,
+                        container_image=Path(a.container_image) if a.container_image else None,
+                        env=dict(os.environ), max_model_len=a.max_model_len,
+                        harness_root=Path(a.harness_root) if a.harness_root else None, skip_model=a.skip_model)
+    failed = [c for c in checks if not c.ok]
+    for c in checks:
+        print(f"{'ok  ' if c.ok else 'FAIL'} {c.name}: {c.detail}")
+    print(f"preflight: {len(checks) - len(failed)} ok, {len(failed)} failed")
+    return EXIT_PREFLIGHT if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

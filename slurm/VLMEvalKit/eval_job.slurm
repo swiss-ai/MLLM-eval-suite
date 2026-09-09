@@ -238,31 +238,9 @@ if [[ ! -d "${NLTK_DATA}/tokenizers/punkt_tab" ]]; then
   "${PYTHON_BIN}" -c "import nltk; nltk.download('punkt_tab', download_dir='${NLTK_DATA}', quiet=True)" >&2 || true
 fi
 
-"${PYTHON_BIN}" - <<'PY'
-import os
-from pathlib import Path
-
-from huggingface_hub import snapshot_download
-
-repo_id = "BAAI/Emu3.5-VisionTokenizer"
-cache_dir = Path(os.environ["VLLM_APERTUS_MODELS_CACHE"]).expanduser()
-local_dir = cache_dir / repo_id
-required = [local_dir / "config.yaml", local_dir / "model.ckpt"]
-
-if not all(path.is_file() for path in required):
-    local_dir.parent.mkdir(parents=True, exist_ok=True)
-    snapshot_download(
-        repo_id=repo_id,
-        local_dir=str(local_dir),
-        allow_patterns=["config.yaml", "model.ckpt"],
-    )
-
-missing = [str(path) for path in required if not path.is_file()]
-if missing:
-    raise FileNotFoundError(f"missing Apertus vision tokenizer files: {missing}")
-
-print("preflight apertus vision tokenizer", local_dir)
-PY
+if [[ "${FOREIGN_MODEL}" != "1" ]]; then
+  prefetch_emu35_vision_tokenizer "$VLLM_APERTUS_MODELS_CACHE" "$PYTHON_BIN"
+fi
 
 "${PYTHON_BIN}" - <<PY
 import os
@@ -324,6 +302,12 @@ PY_CMD+=(
 if [[ -n "${VLMEVAL_USE_VLLM:-}" ]]; then
   PY_CMD+=(--use-vllm)
 fi
+# Resume a cancelled/timed-out run: run.py copies the newest prior prediction
+# file for this model+dataset into the fresh eval dir, and inference skips the
+# indices it already holds. Without it a killed job re-infers from zero.
+if [[ -n "${VLMEVAL_REUSE:-}" ]]; then
+  PY_CMD+=(--reuse)
+fi
 
 if [[ "${NNODES}" -gt 1 ]]; then
   # srun launches one worker container per node. The EDF .toml sets
@@ -375,4 +359,23 @@ printf ' %q' "${RUN_CMD[@]}"
 printf '\n'
 echo "======================================="
 
-"${RUN_CMD[@]}"
+# Preflight, run manifest, harness, finalize: suite_run in slurm/shared/job_env.sh.
+SUITE_PY="${PYTHON_BIN}"
+THINKING_FLAG=()
+case "$(printf '%s' "${APERTUS_ENABLE_THINKING:-}" | tr '[:upper:]' '[:lower:]')" in 1|true|t|yes|y|on) THINKING_FLAG=(--thinking) ;; esac
+PREFLIGHT_ARGS=(--container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${APERTUS_MAX_MODEL_LEN:-131072}")
+if [[ -n "${APERTUS_MODEL_PATH}" ]]; then
+  PREFLIGHT_ARGS+=(--model "${APERTUS_MODEL_PATH}" --vision-tokenizer "${VLLM_APERTUS_MODELS_CACHE}/BAAI/Emu3.5-VisionTokenizer"
+                   --tokenizer "${APERTUS_TOKENIZER_PATH:-${DEFAULT_APERTUS_TOKENIZER:?exported by slurm/shared/sbatch_overrides.sh}}"
+                   "${THINKING_FLAG[@]}")
+else
+  PREFLIGHT_ARGS+=(--model "${MODEL}" --skip-model)
+fi
+suite_run "${WORK_DIR}" VLMEvalKit "${DATASET}" "${REPO_DIR}" "$(basename "$(dirname "$(dirname "${WORK_DIR}")")")" \
+  "${PREFLIGHT_ARGS[@]}" -- \
+  --model "${APERTUS_MODEL_PATH:-${MODEL}}" ${APERTUS_TOKENIZER_PATH:+--tokenizer "${APERTUS_TOKENIZER_PATH}"} \
+  --model-args "model=${MODEL},mode=${MODE}" \
+  --gen-kwargs "max_new_tokens=${APERTUS_MAX_NEW_TOKENS:-},temperature=${APERTUS_TEMPERATURE:-},top_p=${APERTUS_TOP_P:-}" \
+  "${THINKING_FLAG[@]}" --tp "${APERTUS_TENSOR_PARALLEL_SIZE:-1}" --dp "${NUM_PROCESSES}" --batch-size "${BATCH_SIZE}" \
+  --gpu-memory-utilization "${APERTUS_GPU_MEMORY_UTILIZATION:-}" --max-model-len "${APERTUS_MAX_MODEL_LEN:-131072}" -- \
+  "${RUN_CMD[@]}"

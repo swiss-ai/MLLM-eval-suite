@@ -11,8 +11,9 @@ no real score, so we never fabricate one.
 import glob
 import re
 from pathlib import Path
+from metric_selection import MAX_GRADER_FAILURE
 
-SUITE = Path("/iopsstor/scratch/cscs/xyixuan/apertus/MLLM-eval-suite")
+SUITE = Path(__file__).resolve().parents[1]
 LOGS = SUITE / "logs/VLMEvalKit"
 RESULTS = SUITE / "results/VLMEvalKit"
 # Single source of truth: the VLMEvalKit judge suite. Adding a judge benchmark
@@ -22,7 +23,8 @@ JUDGE_BENCH = {
     for ln in (SUITE / "task_suites/VLMEvalKit/llm_judge.txt").read_text().splitlines()
     if ln.strip() and not ln.lstrip().startswith("#")
 }
-MAX_JUDGE_FAIL = 20.0  # percent; above this the judge was broken -> no real score
+MAX_JUDGE_FAIL = MAX_GRADER_FAILURE * 100  # same fraction as the metric selector
+REJECTED_DERIVED = "metric,value\nrejected,judge or inference failure exceeds limit\n"
 
 # benchmark  infer% (n/N)  judge% (n/N)  metric  value  ...
 ROW = re.compile(r"^(\S+)\s+([\d.]+)%\s+\([\d/]+\)\s+([\d.]+)%\s+\([\d/]+\)\s+.+?\s+([\d.]+)(?=\s|$)")
@@ -56,7 +58,14 @@ def main() -> None:
             bench, infer_fail, judge_fail, value = m.groups()
             if bench not in JUDGE_BENCH:
                 continue
-            if float(judge_fail) > MAX_JUDGE_FAIL or float(infer_fail) > 5.0 or float(value) <= 0:
+            if float(judge_fail) > MAX_JUDGE_FAIL or float(infer_fail) > 5.0:
+                # Keep rejection evidence at the old artifact path: deleting a
+                # previously derived score would allow a legacy snapshot to
+                # restore it. This marker has no numeric headline.
+                for wd in glob.glob(str(RESULTS / run_id / "*" / bench)):
+                    derived = Path(wd) / "derived_acc.csv"
+                    if derived.exists():
+                        derived.write_text(REJECTED_DERIVED)
                 skipped += 1
                 continue
             for wd in glob.glob(str(RESULTS / run_id / "*" / bench)):
@@ -71,7 +80,9 @@ def main() -> None:
                     (Path(wd) / "derived_acc.csv").write_text(f"metric,value\noverall,{sval}\n")
                     written += 1
                     continue
-                if glob.glob(f"{wd}/**/*acc*.csv", recursive=True):
+                accs = glob.glob(f"{wd}/**/*acc*.csv", recursive=True)
+                if any(Path(acc).name != "derived_acc.csv" or Path(acc).read_text() != REJECTED_DERIVED
+                       for acc in accs):
                     continue
                 (Path(wd) / "derived_acc.csv").write_text(f"metric,value\noverall,{value}\n")
                 written += 1

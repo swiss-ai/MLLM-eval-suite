@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regenerate the dual-harness eval dashboard for GitHub Pages. Both eval kits
 # land on one page: lmms-eval results from RUNS_ROOT plus VLMEvalKit results
-# merged in by checkpoint identity through a symlink bridge.
+# merged in by checkpoint identity from shared outputs and native suite runs.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE="$(cd "$HERE/.." && pwd)"
@@ -10,30 +10,11 @@ RUNS_ROOT="${RUNS_ROOT:-/capstor/store/cscs/swissai/infra01/users/xyixuan/apertu
 SUITE_LMMS="${SUITE_LMMS:-$SUITE/results/lmms-eval}"
 VLMEVAL_OUTPUTS="${VLMEVAL_OUTPUTS:-/capstor/store/cscs/swissai/infra01/vision-datasets/benchmark/VLMEval_Outputs}"
 SUITE_VLMEVAL="${SUITE_VLMEVAL:-$SUITE/results/VLMEvalKit}"
-BRIDGE="${BRIDGE:-$SUITE/cache/vlmeval_bridge}"
 OUT="${OUT:-$SUITE/docs/index.html}"
 
-# one --vlmeval-root unioning the shared VLMEval_Outputs with the suite's own
-# VLMEvalKit runs (results/VLMEvalKit/<run-id>/<model>); make_dashboard follows
-# the symlinks.
 # Derive acc.csv for VLMEvalKit judge benchmarks whose headline score lives only
 # in the run log (this fork doesn't persist a result file for judge tasks).
-"$PY" "$HERE/derive_vlmeval_acc.py" 2>/dev/null || true
-
-rm -rf "$BRIDGE"; mkdir -p "$BRIDGE"
-# Link per-benchmark with a run-id suffix so every run's copy stays visible;
-# make_dashboard unions the <bench>__<run> links and picks artifacts by mtime,
-# so a re-judge in an old run-id is never shadowed by a newer stale run.
-link_model() {
-  local md="$1" tag="$2" model; model="$(basename "$md")"; mkdir -p "$BRIDGE/$model"
-  for bench in "$md"/*/; do
-    [[ -d "$bench" ]] && ln -sfn "$bench" "$BRIDGE/$model/$(basename "$bench")__${tag}"
-  done
-}
-for d in "$VLMEVAL_OUTPUTS"/*/; do [[ -d "$d" ]] && link_model "$d" outputs; done
-[[ -d "$SUITE_VLMEVAL" ]] && for rid in "$SUITE_VLMEVAL"/*/; do
-  for md in "$rid"*/; do [[ -d "$md" ]] && link_model "$md" "$(basename "$rid")"; done
-done
+"$PY" "$HERE/derive_vlmeval_acc.py"
 
 # Curated columns live in dashboard_models.txt (key[=|alias]=Label, display
 # order), parsed by make_dashboard.py itself. Register new models with
@@ -55,7 +36,16 @@ for md in "$RUNS_ROOT"/*-thinking-32k; do
 done
 
 mkdir -p "$(dirname "$OUT")"
-"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --lm-eval-root "$SUITE/results/lm-eval" --models-file "$MODELS_FILE" -o "$OUT"
+# The registry must agree with the generated judge lists before anything is built.
+(cd "$SUITE" && "$PY" -m suite.tasks --check)
+LEGACY_ARGS=()
+for legacy in "$SUITE"/docs/legacy/dashboard-*.json; do
+  [[ -f "$legacy" ]] && LEGACY_ARGS+=(--legacy-json "$legacy")
+done
+# Refuse to replace the published artifacts when distinct source directories
+# disagree under a shared model identity. Use the same roots and aliases as build.
+"$PY" "$HERE/make_dashboard.py" --verify --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$VLMEVAL_OUTPUTS" --vlmeval-results-root "$SUITE_VLMEVAL" \
+  --lm-eval-root "$SUITE/results/lm-eval" --models-file "$MODELS_FILE" "${LEGACY_ARGS[@]}" -o "$OUT"
 # internal checkpoint results: keep out of search indexes
 "$PY" - "$OUT" <<'PYEOF'
 import re,sys
