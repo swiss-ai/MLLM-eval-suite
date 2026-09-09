@@ -489,10 +489,11 @@ def test_sample_record_count_survives_unicode_line_separators(tmp_path):
 
 
 @pytest.mark.parametrize('damage, expected', [(None, 'ok'), ('missing', 'invalid'), ('nonnumeric', 'invalid'), ('partial', 'invalid')])
-def test_acp_tag_requires_all_fourteen_components(tmp_path, damage, expected):
+@pytest.mark.parametrize('task', ['acp_bench', 'acp_bench,acp_bench', ' acp_bench, '])
+def test_acp_tag_requires_all_fourteen_components(tmp_path, damage, expected, task):
     model, tokenizer = _model_dir(tmp_path)
     out = tmp_path / 'acp'
-    start(out, framework='lm-eval', task='acp_bench', run_id='r1', model_path=model,
+    start(out, framework='lm-eval', task=task, run_id='r1', model_path=model,
           harness_dir=tmp_path, tokenizer_path=tokenizer, chat_template=None,
           model_args='', gen_kwargs='', thinking=False)
     names = [f'acp_{family}_{kind}' for family in ('areach', 'app', 'just', 'land', 'prog', 'reach', 'val')
