@@ -253,7 +253,7 @@ headline = ["exact_match,flexible-extract", "exact_match"]
 
 [dashboard.mmlu_pro]
 cat = "Knowledge & Reasoning (Text)"
-lm_metric = "exact_match,custom-extract"
+lm_metric = "exact_match,ordered-extract"
 
 [dashboard.mmmu_pro_standard]
 cat = "STEM & Knowledge"
@@ -1191,7 +1191,7 @@ max_model_len = 65536
 
 [dashboard.mmlu_flan_cot_zeroshot]
 cat = "Knowledge & Reasoning (Text)"
-lm_metric = "exact_match,flexible-extract"
+lm_metric = "exact_match,ordered-extract"
 
 [tasks.commonsense_qa]
 framework = "lm-eval"
@@ -1248,7 +1248,7 @@ max_model_len = 65536
 
 [dashboard.hendrycks_math]
 cat = "Math (Text)"
-lm_metric = "exact_match,none"
+lm_metric = "math_verify,none"
 
 [tasks.minerva_math]
 framework = "lm-eval"
@@ -1257,7 +1257,7 @@ max_model_len = 65536
 
 [dashboard.minerva_math]
 cat = "Math (Text)"
-lm_metric = "exact_match,none"
+lm_metric = "math_verify,none"
 
 [tasks.mathqa]
 framework = "lm-eval"
@@ -1266,7 +1266,7 @@ max_model_len = 65536
 
 [dashboard.mathqa]
 cat = "Math (Text)"
-lm_metric = "acc_norm,none"
+lm_metric = "acc,none"
 
 [tasks.humaneval_instruct]
 framework = "lm-eval"

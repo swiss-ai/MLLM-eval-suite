@@ -77,7 +77,19 @@ Each run manifest records the actual setting in
 tokenizer template path and hash. Compare scores only with the intended prompt
 protocol and template identity: missing chat formatting caused the earlier text
 evaluation gap documented in [C10](superpowers/specs/2026-09-08-eval-suite-hardening-design.md#1210-correction-the-text-gap-was-the-chat-template-and-c10-makes-the-protocol-declared).
-The new suite does not impose common few-shot counts or decoding settings.
+The suite does not impose common few-shot counts or decoding settings.
+The pinned harness selectively ports Swiss report task configurations and math
+extraction from `4ac31da`, while retaining upstream's newer correctness fixes.
+MMLU-Flan and MMLU-Pro use ordered extraction for the headline. Both MATH tasks
+report Math Verify; their exact-match scores remain in raw results. MathQA
+reports raw accuracy, so old `acc_norm` headlines must not be compared as the
+same metric. These are protocol revisions, not retrospective changes to old run
+artifacts. Preserve the harness pin, metric key and task version when comparing.
+
+Upstream BBQ answer remapping remains intact. The Swiss report harness's mapping
+can credit incorrect concrete answers when the gold answer is unknown; the
+suite does not reproduce that inflated score. Multi-IF remains first-turn-only,
+and `mgsm_en_cot_en` still evaluates English rather than the full language group.
 
 ## Dashboard metrics
 
@@ -87,8 +99,8 @@ so a score of `0.5` stays `0.5%`. Other existing task mappings are preserved.
 
 | Requested benchmark | Dashboard metric | Scope |
 | --- | --- | --- |
-| `mmlu_flan_cot_zeroshot` | `exact_match,flexible-extract` | Zero-shot Flan CoT, subject-weighted aggregate |
-| `mmlu_pro` | `exact_match,custom-extract` | Subject-weighted aggregate |
+| `mmlu_flan_cot_zeroshot` | `exact_match,ordered-extract` | Zero-shot Flan CoT, subject-weighted aggregate |
+| `mmlu_pro` | `exact_match,ordered-extract` | Subject-weighted aggregate |
 | `truthfulqa_mc2` | `acc,none` | MC2 probability score |
 | `commonsense_qa` | `acc,none` | Multiple-choice accuracy |
 | `squadv2` | `f1,none` | Answer F1, native percent |
@@ -98,14 +110,14 @@ so a score of `0.5` stays `0.5%`. Other existing task mappings are preserved.
 | `multi-if` | `prompt_level_strict_acc,none` | **Single first turn only** |
 | `alpaca_eval` | `length_controlled_winrate,none` | Explicit judge configuration |
 | `gsm8k_cot` | `exact_match,flexible-extract` | Eight-shot CoT |
-| `hendrycks_math` | `exact_match,none` | Subject-weighted aggregate |
-| `minerva_math` | `exact_match,none` | Subject-weighted aggregate; math-verify remains a separate harness metric |
-| `mathqa` | `acc_norm,none` | Length-normalized accuracy |
+| `hendrycks_math` | `math_verify,none` | Six-shot, 2048 tokens, subject-weighted aggregate |
+| `minerva_math` | `math_verify,none` | Four-shot, 1024 tokens, subject-weighted aggregate |
+| `mathqa` | `acc,none` | Raw multiple-choice accuracy; assistant answer prefix |
 | `humaneval_instruct` | `pass@1,create_test` | Generated-code execution opt-in |
 | `mbpp_instruct` | `pass_at_1,extract_code` | Generated-code execution opt-in |
 | `bbh` | `exact_match,get-answer` | CoT few-shot aggregate |
 | `acp_bench` | 14 component rows; see below | Upstream tag, no unified aggregate |
-| `drop` | `f1,none` | Answer F1, native fraction |
+| `drop` | `f1,none` | Three-shot answer-only prompt; answer F1, native fraction |
 | `global_mmlu_gen_0shot` | `exact_match,extract-answer` | Ported language/subject aggregate |
 | `mgsm_en_cot_en` | `exact_match,flexible-extract` | English language, English CoT prompt |
 | `truthfulqa_multilingual_mc2` | `acc,none` | Multilingual MC2 aggregate |

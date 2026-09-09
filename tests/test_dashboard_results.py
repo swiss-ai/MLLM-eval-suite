@@ -422,7 +422,11 @@ def test_gather_cli_keeps_older_eligible_result(tmp_path, monkeypatch, capsys):
 
 
 @pytest.mark.parametrize('task, metrics, expected', [
-    ('mmlu_flan_cot_zeroshot', {'exact_match,strict-match': .1, 'exact_match,flexible-extract': .7}, 70),
+    ('mmlu_flan_cot_zeroshot', {'exact_match,strict-match': .1, 'exact_match,flexible-extract': .6, 'exact_match,ordered-extract': .7}, 70),
+    ('mmlu_pro', {'exact_match,custom-extract': .2, 'exact_match,ordered-extract': .5}, 50),
+    ('hendrycks_math', {'exact_match,none': .1, 'math_verify,none': .4}, 40),
+    ('minerva_math', {'exact_match,none': .2, 'math_verify,none': .5}, 50),
+    ('mathqa', {'acc_norm,none': .3, 'acc,none': .4}, 40),
     ('squadv2', {'f1,none': .5, 'exact,none': .2}, .5),
     ('squadv2', {'f1,none': 75, 'exact,none': 50}, 75),
     ('drop', {'f1,none': .5, 'em,none': .2}, 50),
