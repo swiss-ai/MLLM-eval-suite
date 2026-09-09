@@ -78,7 +78,7 @@ SEED=1234
 EVAL_SEED="${SEED}"
 ENABLE_IMAGE_TOKEN_CACHE=true
 IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
-PREFETCH_EMU35_VISION_TOKENIZER=true
+PREFETCH_EMU35_VISION_TOKENIZER="${PREFETCH_EMU35_VISION_TOKENIZER:-true}"
 ENABLE_WANDB=false
 WANDB_PROJECT="${WANDB_PROJECT:-lmms-eval}"
 WANDB_ENTITY="${WANDB_ENTITY:-rkreft-eth-z-rich}"
@@ -340,6 +340,7 @@ fi
 
 source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
 
+if [[ "${MODEL_BACKEND}" == apertus* ]]; then
 # Fail fast on known ANTLR/OmegaConf mismatch that otherwise appears late.
 python - <<'PY'
 import importlib.util
@@ -378,20 +379,7 @@ except Exception as exc:
     sys.exit(2)
 PY
 
-if is_true "${PREFETCH_EMU35_VISION_TOKENIZER}"; then
-  PREFETCH_DIR="${LMMS_EVAL_MODELS_CACHE}/BAAI/Emu3.5-VisionTokenizer"
-  if [[ ! -f "${PREFETCH_DIR}/config.yaml" || ! -f "${PREFETCH_DIR}/model.ckpt" ]]; then
-    echo "Prefetching BAAI/Emu3.5-VisionTokenizer into ${PREFETCH_DIR}"
-    PREFETCH_DIR_ENV="${PREFETCH_DIR}" python - <<'PY'
-import os
-from huggingface_hub import snapshot_download
-snapshot_download(
-    repo_id="BAAI/Emu3.5-VisionTokenizer",
-    local_dir=os.environ["PREFETCH_DIR_ENV"],
-    allow_patterns=["config.yaml", "model.ckpt"],
-)
-PY
-  fi
+prefetch_emu35_vision_tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE}" python
 fi
 
 if [[ "${MODEL_BACKEND}" != apertus* ]]; then
@@ -568,7 +556,7 @@ THINKING_FLAG=()
 case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) THINKING_FLAG=(--thinking) ;; esac
 lmms_model_preflight_args "${MODEL_BACKEND}"
 PREFLIGHT_ARGS=(--model "${MODEL_PATH}" "${LMMS_MODEL_PREFLIGHT_ARGS[@]}" "${THINKING_FLAG[@]}" --tokenizer "${TOKENIZER_PATH}"
-                --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer"
+                --vision-tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer"
                 --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}")
 if [[ "${TOKENIZE_ONLY}" == "1" ]]; then
   suite_preflight lmms-eval "${TASKS}" "${LMMS_EVAL_DEV_PATH}" "${PREFLIGHT_ARGS[@]}"

@@ -145,7 +145,7 @@ Image-token cache defaults are framework-specific and persistent under `cache/lm
 
 The default batch size is `512` for both production launchers unless overridden with `--batch-size` after `--` or via framework-specific environment variables.
 
-The combined launcher prefetches `BAAI/Emu3.5-VisionTokenizer` into `cache/models/BAAI/Emu3.5-VisionTokenizer` before it submits jobs, so the tokenizer files are present before evaluation starts.
+Each harness launcher stages `BAAI/Emu3.5-VisionTokenizer` only for Apertus models before submission, using the same models cache as its job. Foreign models and dry-runs do not download it. Dry-run preflight still reports missing required files. Set `PREFETCH_EMU35_VISION_TOKENIZER=false` to use manually staged assets.
 
 Adding new benchmarks, staging benchmark data, and dashboard regeneration go through the repo
 admin; as a user you only need the commands above.

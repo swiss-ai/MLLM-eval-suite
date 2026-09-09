@@ -17,6 +17,7 @@ REPO_ROOT="${ORCH_REPO_ROOT}"
 REPO_DIR="${REPO_DIR:-${REPO_ROOT}/third_party/VLMEvalKit}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/VLMEvalKit/eval_job.slurm}"
 source "${REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
+source "${REPO_ROOT}/slurm/shared/apertus_env.sh"
 
 RESPONSE_CACHE="${VLMEVAL_RESPONSE_CACHE:-${REPO_ROOT}/cache/VLMEvalKit}"
 IMAGE_TOKEN_CACHE_BASE="${IMAGE_TOKEN_CACHE_BASE:-}"
@@ -295,8 +296,11 @@ while IFS= read -r DATASET; do
     if [[ "${MODEL_FOREIGN}" == "1" ]]; then
       PREFLIGHT_ARGS+=(--model "${MODEL}" --skip-model)
     else
+      if [[ "$DRY_RUN" -eq 0 ]]; then
+        prefetch_emu35_vision_tokenizer "${VLLM_APERTUS_MODELS_CACHE:-${RUNTIME_CACHE}/models}"
+      fi
       PREFLIGHT_ARGS+=(--model "${APERTUS_MODEL_PATH:-${MODEL}}" --tokenizer "${APERTUS_TOKENIZER_PATH:-${DEFAULT_APERTUS_TOKENIZER}}"
-                       --vision-tokenizer "${RUNTIME_CACHE}/models/BAAI/Emu3.5-VisionTokenizer")
+                       --vision-tokenizer "${VLLM_APERTUS_MODELS_CACHE:-${RUNTIME_CACHE}/models}/BAAI/Emu3.5-VisionTokenizer")
       [[ -n "${APERTUS_ENABLE_THINKING:-}" ]] && PREFLIGHT_ARGS+=(--thinking)
     fi
     preflight_or_die VLMEvalKit "${MODEL}:${DATASET}" "${PREFLIGHT_ARGS[@]}"
