@@ -176,6 +176,101 @@ def test_source_mutation_during_render_refuses_publication(tmp_path, monkeypatch
     assert all(path.read_text() == "existing" for path in outputs)
 
 
+@pytest.mark.parametrize("change", ["failed", "limited", "provenance", "malformed", "removed"])
+def test_manifest_change_after_audit_refuses_publication(tmp_path, monkeypatch, change):
+    root = tmp_path / "runs"
+    source = result(root, "run", .6, 100)
+    meta = source.parent / "run_meta.json"
+    manifest = json.loads(meta.read_text())
+    manifest["results"] = {"artifacts": {str(source): hashlib.sha256(source.read_bytes()).hexdigest()}}
+    meta.write_text(json.dumps(manifest))
+    outputs = [tmp_path / name for name in ("index.html", "dashboard.json", "coverage.json")]
+    for path in outputs:
+        path.write_text("existing")
+    original_audit = dashboard.audit_inventory
+    def mutate(*args, **kwargs):
+        outcome = original_audit(*args, **kwargs)
+        if change == "removed":
+            meta.unlink()
+        elif change == "malformed":
+            meta.write_text("not JSON")
+        else:
+            if change == "failed":
+                manifest["status"] = "failed"
+            elif change == "limited":
+                manifest["generation"]["limit"] = 10
+            else:
+                manifest["harness"]["commit"] = "different-commit"
+            meta.write_text(json.dumps(manifest))
+        return outcome
+    monkeypatch.setattr(dashboard, "audit_inventory", mutate)
+    monkeypatch.setattr(sys, "argv", ["make_dashboard", "--runs-root", str(root),
+                                     "--verify", "-o", str(outputs[0])])
+    with pytest.raises(SystemExit) as raised:
+        dashboard.main()
+    assert raised.value.code == 1
+    assert all(path.read_text() == "existing" for path in outputs)
+
+
+def test_manifest_recheck_ignores_formatting_and_unselected_invalid_runs(tmp_path, monkeypatch):
+    root = tmp_path / "runs"
+    source = result(root, "good", .6, 100)
+    meta = source.parent / "run_meta.json"
+    manifest = json.loads(meta.read_text())
+    result(root, "failed", .9, 200, status="failed")
+    invalid = result(root, "malformed", .9, 300)
+    (invalid.parent / "run_meta.json").write_text("not JSON")
+    original_audit = dashboard.audit_inventory
+    def reformat(*args, **kwargs):
+        outcome = original_audit(*args, **kwargs)
+        meta.write_text(json.dumps(manifest, indent=2, sort_keys=True))
+        return outcome
+    monkeypatch.setattr(dashboard, "audit_inventory", reformat)
+    monkeypatch.setattr(sys, "argv", ["make_dashboard", "--runs-root", str(root),
+                                     "--verify", "-o", str(tmp_path / "index.html")])
+    dashboard.main()
+    rows = json.loads((tmp_path / "dashboard.json").read_text())["table"]
+    assert rows[0]["cells"]["model"]["v"] == 60
+    assert rows[0]["cells"]["model"]["prov"]["run_id"] == "good"
+
+
+@pytest.mark.parametrize("location", ["legacy", "root", "nearer", "outside-root"])
+def test_new_manifest_is_checked_within_collection_roots(tmp_path, monkeypatch, location):
+    root = tmp_path / "runs"
+    source = result(root, "run", .6, 100)
+    meta = source.parent / "run_meta.json"
+    if location == "nearer":
+        nested = source.parent / "nested"
+        nested.mkdir()
+        source = source.rename(nested / source.name)
+        added = nested / "run_meta.json"
+    else:
+        meta.unlink()
+        added = {"legacy": meta, "root": root / "run_meta.json",
+                 "outside-root": tmp_path / "run_meta.json"}[location]
+    outputs = [tmp_path / name for name in ("index.html", "dashboard.json", "coverage.json")]
+    for path in outputs:
+        path.write_text("existing")
+    original_audit = dashboard.audit_inventory
+    def invalidate(*args, **kwargs):
+        outcome = original_audit(*args, **kwargs)
+        added.write_text(json.dumps({"status": "failed"}))
+        return outcome
+    monkeypatch.setattr(dashboard, "audit_inventory", invalidate)
+    monkeypatch.setattr(sys, "argv", ["make_dashboard", "--runs-root", str(root),
+                                     "--verify", "-o", str(outputs[0])])
+    if location == "outside-root":
+        dashboard.main()
+        rows = json.loads(outputs[1].read_text())["table"]
+        assert rows[0]["cells"]["model"]["v"] == 60
+        assert rows[0]["cells"]["model"]["legacy"] is True
+    else:
+        with pytest.raises(SystemExit) as raised:
+            dashboard.main()
+        assert raised.value.code == 1
+        assert all(path.read_text() == "existing" for path in outputs)
+
+
 @pytest.mark.parametrize("framework", ["lmms-eval", "VLMEvalKit", "lm-eval"])
 def test_verified_build_hashes_artifact_once_on_collection_and_once_before_write(tmp_path, monkeypatch, framework):
     import suite.coverage as coverage
