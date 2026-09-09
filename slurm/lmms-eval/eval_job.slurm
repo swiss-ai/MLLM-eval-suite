@@ -227,6 +227,7 @@ fi
 # judge-intended submissions opt in with API_TYPE=openai.
 export API_TYPE="${API_TYPE:-dummy}"
 source "${ORCH_REPO_ROOT}/slurm/shared/job_env.sh"
+source "${ORCH_REPO_ROOT}/slurm/shared/lmms_env.sh"
 resolve_judge_key
 export PATH="/opt/venv/bin:${PATH}"
 # The submodule checkout is the only code source; the image carries engine and
@@ -247,11 +248,7 @@ export VLLM_WORKER_MULTIPROC_METHOD=spawn
 export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export TOKENIZERS_PARALLELISM=false
 # Remote-sensing task image trees (geospatial suite), staged under cache/rs_datasets.
-RS_DATASETS_ROOT="${RS_DATASETS_ROOT:-${ORCH_REPO_ROOT}/cache/rs_datasets}"
-export VRSBENCH_DIR="${VRSBENCH_DIR:-${RS_DATASETS_ROOT}/vrsbench}"
-export GEOBENCH_DIR="${GEOBENCH_DIR:-${RS_DATASETS_ROOT}/geobench}"
-export FRIEDA_DIR="${FRIEDA_DIR:-${RS_DATASETS_ROOT}/frieda}"
-export BIGEARTH_S2_DIR="${BIGEARTH_S2_DIR:-${RS_DATASETS_ROOT}/bigearth/BigEarthNet-S2}"
+resolve_lmms_dataset_env
 if is_true "${ENABLE_WANDB}"; then
   if [[ -z "${WANDB_API_KEY}" && -t 0 ]]; then
     read -r -s -p "Enter WANDB_API_KEY: " WANDB_API_KEY
@@ -569,7 +566,8 @@ echo "==========================================="
 SUITE_PY="${SUITE_PY:-/opt/venv/bin/python}"
 THINKING_FLAG=()
 case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) THINKING_FLAG=(--thinking) ;; esac
-PREFLIGHT_ARGS=(--model "${MODEL_PATH}" "${THINKING_FLAG[@]}" --tokenizer "${TOKENIZER_PATH}"
+lmms_model_preflight_args "${MODEL_BACKEND}"
+PREFLIGHT_ARGS=(--model "${MODEL_PATH}" "${LMMS_MODEL_PREFLIGHT_ARGS[@]}" "${THINKING_FLAG[@]}" --tokenizer "${TOKENIZER_PATH}"
                 --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer"
                 --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}")
 if [[ "${TOKENIZE_ONLY}" == "1" ]]; then
