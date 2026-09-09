@@ -62,8 +62,12 @@ def test_foreign_dispatch_never_stages_apertus_assets(tmp_path, framework):
 
 
 @pytest.mark.parametrize("framework", ["lmms-eval", "VLMEvalKit"])
-def test_native_launcher_stages_once_before_submitting(tmp_path, framework):
+@pytest.mark.parametrize("runtime_cache_override", [False, True])
+def test_native_launcher_stages_once_before_submitting(tmp_path, framework, runtime_cache_override):
     env = staging_env(tmp_path)
+    models_cache = tmp_path / "runtime-models" if runtime_cache_override else tmp_path / "models"
+    if runtime_cache_override:
+        env["VLLM_APERTUS_MODELS_CACHE"] = str(models_cache)
     model = tmp_path / "Apertus-model"
     model.mkdir()
     (model / "config.json").write_text('{"architectures":["ApertusForCausalLM"]}')
@@ -78,7 +82,7 @@ def test_native_launcher_stages_once_before_submitting(tmp_path, framework):
         run = run_launcher(args, env, framework)
         assert run.returncode == 0, run.stdout + run.stderr
     records = [json.loads(line) for line in Path(env["STAGING_LOG"]).read_text().splitlines()]
-    assert records == [["BAAI/Emu3.5-VisionTokenizer", str(tmp_path / "models/BAAI/Emu3.5-VisionTokenizer"),
+    assert records == [["BAAI/Emu3.5-VisionTokenizer", str(models_cache / "BAAI/Emu3.5-VisionTokenizer"),
                         ["config.yaml", "model.ckpt"]]]
     assert Path(env["SUBMIT_LOG"]).read_text() == "submitted\nsubmitted\n"
 

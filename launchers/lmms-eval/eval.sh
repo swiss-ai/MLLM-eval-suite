@@ -342,12 +342,12 @@ while IFS= read -r TASK; do
     fi
 
     if [[ "$DRY_RUN" -eq 0 && "${MODEL_BACKEND:-apertus_1p5_vllm}" == apertus* ]]; then
-      prefetch_emu35_vision_tokenizer "$LMMS_EVAL_MODELS_CACHE_PATH"
+      prefetch_emu35_vision_tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE_PATH}"
     fi
     lmms_model_preflight_args "${MODEL_BACKEND:-apertus_1p5_vllm}"
     preflight_or_die lmms-eval "$MODEL_PATH" "${LMMS_MODEL_PREFLIGHT_ARGS[@]}" --harness-root "${LMMS_EVAL_DEV_PATH:-${REPO_ROOT}/third_party/lmms-eval}" \
       --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" ${ENABLE_THINKING:+--thinking} \
-      --tokenizer "$TOKENIZER_PATH" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
+      --tokenizer "$TOKENIZER_PATH" --vision-tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
       --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "$TASK_MAX_MODEL_LEN"
 
     # Derive a stable model label: parent dir name if path ends in /HF, else basename.

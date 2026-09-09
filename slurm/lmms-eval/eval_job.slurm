@@ -379,7 +379,7 @@ except Exception as exc:
     sys.exit(2)
 PY
 
-prefetch_emu35_vision_tokenizer "$LMMS_EVAL_MODELS_CACHE" python
+prefetch_emu35_vision_tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE}" python
 fi
 
 if [[ "${MODEL_BACKEND}" != apertus* ]]; then
@@ -556,7 +556,7 @@ THINKING_FLAG=()
 case "${EXTRA_MODEL_ARGS}" in *enable_thinking=True*|*enable_thinking=true*) THINKING_FLAG=(--thinking) ;; esac
 lmms_model_preflight_args "${MODEL_BACKEND}"
 PREFLIGHT_ARGS=(--model "${MODEL_PATH}" "${LMMS_MODEL_PREFLIGHT_ARGS[@]}" "${THINKING_FLAG[@]}" --tokenizer "${TOKENIZER_PATH}"
-                --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer"
+                --vision-tokenizer "${VLLM_APERTUS_MODELS_CACHE:-$LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer"
                 --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "${MAX_MODEL_LEN}")
 if [[ "${TOKENIZE_ONLY}" == "1" ]]; then
   suite_preflight lmms-eval "${TASKS}" "${LMMS_EVAL_DEV_PATH}" "${PREFLIGHT_ARGS[@]}"
