@@ -1051,11 +1051,22 @@ def main():
         lm_eval_roots=[args.lm_eval_root] if args.lm_eval_root else [],
         manifest_roots=[args.vlmeval_results_root] if args.vlmeval_results_root else [],
         model_filters=args.models, include_spatial=args.include_spatial)
-    source_signatures = {}
+    source_signatures, source_manifests = {}, {}
     if args.verify:
         sources = {Path(cell["source"]["path"]) for _root, _models, rows in collections
                    for row in rows for cell in row["cells"].values()}
         source_signatures = {source: _source_signature(source) for source in sources}
+        manifest_roots = {root for root, _models, _rows in collections}
+        if args.vlmeval_results_root:
+            manifest_roots.add(args.vlmeval_results_root.resolve())
+        for source in sources:
+            for parent in source.parents:
+                if not any(parent.is_relative_to(root) for root in manifest_roots):
+                    continue
+                # Absence matters too: a new nearer manifest changes eligibility.
+                source_manifests[parent / "run_meta.json"] = manifests.by_dir.get(parent)
+                if parent in manifests.by_dir:
+                    break
         if audit_inventory(collections, aliases=aliases, only_keys=args.only):
             p.exit(1, "refusing to publish a dashboard with colliding model identities\n")
 
@@ -1137,6 +1148,15 @@ def main():
             print(f"registry: column {key!r} has no results and no manifests")
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
     html_text = HTML_TEMPLATE.replace("__DATA__", payload).replace("__META__", meta)
+    for path, original in source_manifests.items():
+        try:
+            unchanged = json.loads(path.read_text()) == original and original is not None
+        except FileNotFoundError:
+            unchanged = original is None and not path.is_symlink()
+        except (OSError, ValueError):
+            unchanged = False
+        if not unchanged:
+            p.exit(1, f"refusing to publish: manifest changed after collection: {path}\n")
     for source, signature in source_signatures.items():
         if (signature is None or _source_signature(source) != signature
                 or ineligible_reason(manifests.for_result(source))):
