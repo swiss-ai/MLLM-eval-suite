@@ -15,6 +15,9 @@ When launching GPU validation with a different EDF, also remove inherited `OCI_A
 The launcher snapshots the recipe, hashes the inputs, uses a private Podman store and uv cache in `/dev/shm`, and exports the image in the same allocation. Keeping unpacked wheels off Lustre avoids slow installation of packages such as FlashInfer, which contains about 85,000 files. Build layers and the dependency cache survive retries within the allocation; final images and build records are written to shared storage. The launcher refuses to overwrite an existing output image and never deletes another build's store.
 
 The output directory contains the `.sqsh`, its SHA256, source hashes, the build stamp and Podman inspection metadata. Inside the image, `/opt/apertus/` contains exact installed Python/system package lists, source revisions, selected harness requirements and validation results.
+Before publishing the versioned candidate, the builder uses `unsquashfs` to
+read `/etc/apertus_image_version` and requires it to match this build's stamp.
+Unreadable or mismatched exports fail without publishing an image or checksum.
 
 `generate_docker.sh [output-directory]` remains as a compatibility entrypoint to
 the same builder. It preserves the site APT sources/proxy and the persistent
@@ -24,7 +27,9 @@ candidate in the output directory; it does not rotate the production SquashFS.
 For direct builds, `UV_CACHE_DIR` overrides the default allocation-local uv cache.
 Set `APERTUS_APT_CONFIG_DIR` to a directory containing `empty.sources.list`,
 `my-sources.d`, and `99-jfrog-proxy` to use site APT configuration. Those inputs
-are copied into the build snapshot and included in its source hashes.
+are copied into the build snapshot and included in its source hashes. File and
+directory symlinks are dereferenced, including nested links, so later changes
+to the live APT configuration cannot alter the captured inputs.
 
 Promotion remains explicit: validate the candidate with the required model and
 modality workloads, then update the intended EDF to its versioned path. Retain
