@@ -1,51 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Compatibility entrypoint; every image now uses the snapshot builder.
 set -euo pipefail
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-
-export IMG="apertus-vllm-vision-eval-prod"
-export SQSH="${SCRIPT_DIR}/apertus-vllm-vision-eval-prod.sqsh"
-export SQSH_DIR="${SCRIPT_DIR}"
-export BUILD_CTX="${SCRIPT_DIR}"
-
-# Persistent uv download cache: podman's own cache mounts live in /dev/shm and
-# die with the job, so every build re-downloaded ~4-5GB (torch, vLLM wheel,
-# the 1GB flashinfer cubin) — slow, and a network blip fails the build.
+recipe_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export APERTUS_APT_CONFIG_DIR="${APERTUS_APT_CONFIG_DIR:-$recipe_dir}"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-/capstor/store/cscs/swissai/infra01/multimodal-eval/MLLM-eval-suite/build-cache/uv}"
-mkdir -p "$UV_CACHE_DIR"
-
-podman build \
-  -v "$UV_CACHE_DIR:/root/.cache/uv:z" \
-  -v "$SQSH_DIR/empty.sources.list:/etc/apt/sources.list:ro,z" \
-  -v "$SQSH_DIR/my-sources.d:/etc/apt/sources.list.d:ro,z" \
-  -v "$SQSH_DIR/99-jfrog-proxy:/etc/apt/apt.conf.d/99-jfrog-proxy:ro,z" \
-  --build-arg BUILD_STAMP="$(date -u +%Y-%m-%dT%H:%MZ) dockerfiles@$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
-  -t "$IMG" \
-  -f "$BUILD_CTX/Dockerfile.vllm-multimodal-eval-prod-cu130" \
-  "$BUILD_CTX"
-
-# import next to the current image, then rotate: the live sqsh is never
-# deleted until its replacement fully exists.
-# enroot's podman:// handler exits 1 even after a successful import (temp-dir
-# cleanup bug), so success is judged by the artifact: the stamp must read back.
-# NEVER prune here: `podman builder prune -a` empties the layer store and takes
-# the just-built image with it (measured: /dev/shm 55G -> 44M, import then had
-# nothing to read). Space is not the constraint — 279G was free when the import
-# died with "tar: Unexpected EOF", so capture podman's own stderr instead.
-df -h /dev/shm | tail -1
-podman images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | head -3
-# The import fails transiently (podman's save stream truncates: identical inputs,
-# one run fails and the next succeeds), and a failure here costs the whole build.
-# Retry, judging each attempt by the artifact rather than the exit code — enroot's
-# podman:// handler exits 1 even after writing a valid image.
-for attempt in 1 2 3; do
-  rm -f "${SQSH}.new"
-  enroot import -o "${SQSH}.new" "podman://$IMG" 2>&1 | tail -40 || true
-  if unsquashfs -cat "${SQSH}.new" /etc/apertus_image_version 2>/dev/null; then
-    break
-  fi
-  echo "import attempt ${attempt} produced no valid image" >&2
-  [ "$attempt" = 3 ] && { echo "import failed after 3 attempts" >&2; exit 1; }
-done
-if [ -f "$SQSH" ]; then mv -f "$SQSH" "${SQSH%.sqsh}-old.sqsh"; fi
-mv "${SQSH}.new" "$SQSH"
-echo "built: $SQSH  (previous kept as ${SQSH%.sqsh}-old.sqsh)"
+exec bash "$recipe_dir/build_trial_image.sh" "$@"

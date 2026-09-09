@@ -16,6 +16,21 @@ The launcher snapshots the recipe, hashes the inputs, uses a private Podman stor
 
 The output directory contains the `.sqsh`, its SHA256, source hashes, the build stamp and Podman inspection metadata. Inside the image, `/opt/apertus/` contains exact installed Python/system package lists, source revisions, selected harness requirements and validation results.
 
+`generate_docker.sh [output-directory]` remains as a compatibility entrypoint to
+the same builder. It preserves the site APT sources/proxy and the persistent
+wheel-cache default formerly used by that command. It now creates a versioned
+candidate in the output directory; it does not rotate the production SquashFS.
+
+For direct builds, `UV_CACHE_DIR` overrides the default allocation-local uv cache.
+Set `APERTUS_APT_CONFIG_DIR` to a directory containing `empty.sources.list`,
+`my-sources.d`, and `99-jfrog-proxy` to use site APT configuration. Those inputs
+are copied into the build snapshot and included in its source hashes.
+
+Promotion remains explicit: validate the candidate with the required model and
+modality workloads, then update the intended EDF to its versioned path. Retain
+the previous image and EDF path for rollback. Building a candidate does not
+change either production default.
+
 The exporter uses a private copy of Enroot's library to correct a known cleanup trap in the installed CSCS version. That trap hard-codes `docker rm` for Podman and runs after removing its working directory and export container. The correction uses the selected engine from a valid working directory and preserves the original export exit status. Export failures still stop publication; the host Enroot installation is unchanged.
 
 Every package install uses `runtime-constraints.txt`. Unexpected dependency conflicts fail the build. The sole exception is the existing `latex2sympy2==1.9.1` declaration of ANTLR 4.7.2 while the suite uses 4.9.3. MathVision needs this legacy parser. Both legacy and current parsers are checked by the GPU smoke command. Decord and cd-fvd remain excluded: neither was present in the existing certified image, and Decord has no ARM64 distribution.

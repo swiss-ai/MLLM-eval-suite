@@ -25,7 +25,15 @@ flock -n 9 || { echo "A build already owns $output_dir" >&2; exit 1; }
 
 context=$(mktemp -d "$output_dir/context.XXXXXX")
 cp "$recipe_dir/"{Dockerfile.vllm-multimodal-eval-prod-cu130,runtime-constraints.txt,image_requirements.py,verify_image.py,export_squashfs.sh} "$context/"
-(cd "$context" && sha256sum ./* > "$output_dir/source-sha256.txt")
+apt_volumes=()
+if [[ -n "${APERTUS_APT_CONFIG_DIR:-}" ]]; then
+    mkdir "$context/apt"
+    cp -R "$APERTUS_APT_CONFIG_DIR/"{empty.sources.list,my-sources.d,99-jfrog-proxy} "$context/apt/"
+    apt_volumes=(--volume "$context/apt/empty.sources.list:/etc/apt/sources.list:ro,z"
+                 --volume "$context/apt/my-sources.d:/etc/apt/sources.list.d:ro,z"
+                 --volume "$context/apt/99-jfrog-proxy:/etc/apt/apt.conf.d/99-jfrog-proxy:ro,z")
+fi
+(cd "$context" && find . -type f -print0 | sort -z | xargs -0 sha256sum > "$output_dir/source-sha256.txt")
 build_stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ) vllm@$revision context=$(basename "$context")"
 printf '%s\n' "$build_stamp" > "$output_dir/build-stamp.txt"
 
@@ -36,6 +44,9 @@ store_root="/dev/shm/apertus-build-${UID}-${SLURM_JOB_ID:-local}-$store_key"
 # Wheels such as flashinfer-cubin contain tens of thousands of small files.
 # Keep their unpacked cache off Lustre; preserve it for retries in this allocation.
 mkdir -p "$store_root/"{root,runroot,enroot,uv-cache} "$output_dir/enroot-cache"
+uv_cache="${UV_CACHE_DIR:-$store_root/uv-cache}"
+mkdir -p "$uv_cache"
+uv_cache=$(cd -- "$uv_cache" && pwd)
 export CONTAINERS_STORAGE_CONF="$output_dir/storage.conf"
 cat > "$CONTAINERS_STORAGE_CONF" <<CONF
 [storage]
@@ -50,7 +61,7 @@ mkdir -p "$ENROOT_DATA_PATH"
 tag="localhost/apertus-vllm-trial:${revision:0:9}-$store_key"
 # The launcher owns the lock; container helpers must not retain it after exit.
 podman build --platform linux/arm64 --format docker --layers \
-    --volume "$store_root/uv-cache:/root/.cache/uv:rw" \
+    --volume "$uv_cache:/root/.cache/uv:rw" "${apt_volumes[@]}" \
     --build-arg "BUILD_STAMP=$build_stamp" \
     --build-arg "MAX_JOBS=${MAX_JOBS:-8}" \
     --tag "$tag" --file "$context/Dockerfile.vllm-multimodal-eval-prod-cu130" "$context" 9>&-
