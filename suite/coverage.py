@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from suite.tasks import Registry
+from suite.fsutil import sha256_file
 from suite.result_selection import ineligible_reason
 
 
@@ -35,9 +36,27 @@ class Manifests:
 
     def for_result(self, path: Path) -> dict | None:
         """The manifest of the run that produced a results file, or None."""
-        for parent in Path(path).resolve().parents:
+        path = Path(path).resolve()
+        for parent in path.parents:
             if parent in self.by_dir:
-                return self.by_dir[parent]
+                manifest = self.by_dir[parent]
+                results = manifest.get("results")
+                if manifest.get("status") == "ok" and isinstance(results, dict):
+                    if "artifacts" in results:
+                        artifacts = results["artifacts"]
+                        try:
+                            valid = (isinstance(artifacts, dict) and str(path) in artifacts
+                                     and sha256_file(path) == artifacts[str(path)])
+                        except OSError:
+                            valid = False
+                    elif results.get("file"):
+                        # Earlier manifests attest only their recorded headline file.
+                        valid = isinstance(results["file"], str) and path == Path(results["file"]).resolve()
+                    else:
+                        valid = True
+                    if not valid:
+                        return {**manifest, "status": "invalid", "error": "artifact was not validated by this run or has changed"}
+                return manifest
         return None
 
     def by_cell(self, registry: Registry, canonical_key) -> dict[tuple[str, str], dict]:
