@@ -270,17 +270,22 @@ def _is_fresh(path: Path, manifest: dict) -> bool:
     return not isinstance(started_at, int) or signature["mtime_ns"] > started_at * 1_000_000_000
 
 
+def _requested_tasks(manifest: dict) -> list[str]:
+    return list(dict.fromkeys(task for task in re.split(r"[,\s]+", str(manifest["task"]).strip()) if task))
+
+
 def _task_ids(manifest: dict) -> set[str]:
-    task = str(manifest["task"])
-    ids = {task}
-    try:
-        registered = load_registry().lookup(manifest["framework"], task)
-    except (OSError, ValueError):
-        registered = None
-    if registered:
-        ids.add(registered.name)
-        if harness_id := registered.harness_id_for(manifest["framework"]):
-            ids.add(harness_id)
+    ids = set()
+    for task in _requested_tasks(manifest):
+        ids.add(task)
+        try:
+            registered = load_registry().lookup(manifest["framework"], task)
+        except (OSError, ValueError):
+            registered = None
+        if registered:
+            ids.add(registered.name)
+            if harness_id := registered.harness_id_for(manifest["framework"]):
+                ids.add(harness_id)
     return ids
 
 
@@ -308,7 +313,7 @@ def _sample_evidence(sample_map: dict, names: list[str]) -> dict:
     counts = [_sample_counts(sample_map.get(name)) for name in names]
     effective = sum(count[0] for count in counts) if counts and all(count[0] is not None for count in counts) else None
     original = sum(count[1] for count in counts) if counts and all(count[1] is not None for count in counts) else None
-    return {"effective": effective, "original": original,
+    return {"effective": effective, "original": original, "tasks": names,
             "partial": any(e is not None and o is not None and e < o for e, o in counts)}
 
 
@@ -328,6 +333,18 @@ def _validate_json_result(path: Path, manifest: dict) -> tuple[str | None, dict 
     if not isinstance(data, dict) or not isinstance(data.get("results"), dict) or not data["results"]:
         return f"result file {path} has no non-empty results mapping", None
     results = data["results"]
+    requested = _requested_tasks(manifest)
+    if len(requested) > 1:
+        leaves = set()
+        for task in requested:
+            error, evidence = _validate_json_result(path, {**manifest, "task": task})
+            if error:
+                return error, None
+            if evidence["effective"] == 0:
+                return f"result task {task} reports zero effective samples", None
+            leaves.update(evidence["tasks"])
+        sample_map = data.get("n-samples") if isinstance(data.get("n-samples"), dict) else {}
+        return None, _sample_evidence(sample_map, sorted(leaves))
     expected = _task_ids(manifest)
     if manifest.get("framework") == "lm-eval":
         for task_id in sorted(expected):
@@ -487,15 +504,27 @@ def finalize(manifest_path: Path, log_paths, results_dir: Path, harness_rc: int,
             status, error = "invalid", "all result files predate this run"
         else:
             result_file = _newest(fresh_results)
+            validated_files = [result_file]
             result_error, evidence = (None, {"effective": None, "original": None, "partial": False})
             if manifest["framework"] == "VLMEvalKit":
-                result_error = _validate_vlmeval_csv(result_file, manifest)
+                requested = _requested_tasks(manifest)
+                if len(requested) > 1:
+                    validated_files = []
+                    for task in requested:
+                        candidates = [path for path in fresh_results
+                                      if _validate_vlmeval_csv(path, {**manifest, "task": task}) is None]
+                        if not candidates:
+                            result_error = f"no valid fresh result for requested dataset {task}"
+                            break
+                        validated_files.append(_newest(candidates))
+                else:
+                    result_error = _validate_vlmeval_csv(result_file, manifest)
             else:
                 result_error, evidence = _validate_json_result(result_file, manifest)
             stats = output_token_stats(fresh_samples) if fresh_samples else None
             sample_records = sample_record_count(fresh_samples) if fresh_samples else None
             result_samples = evidence["effective"] if evidence else None
-            manifest["results"] = {"file": str(result_file), "n_samples": sample_records,
+            manifest["results"] = {"file": str(result_file), "n_samples": sample_records, "artifacts": {},
                                    "result_samples": result_samples,
                                    "result_original_samples": evidence["original"] if evidence else None,
                                    "partial": bool(evidence and evidence["partial"]), "output_tokens": stats}
@@ -512,6 +541,8 @@ def finalize(manifest_path: Path, log_paths, results_dir: Path, harness_rc: int,
                     status, error = "invalid", "thinking requested but effective evidence or canary pass is missing"
                 elif stats is not None and stats["mean"] < thinking_min_tokens:
                     status, error = "invalid", f"thinking requested but mean output tokens {stats['mean']:.1f} < {thinking_min_tokens}"
+            if status == "ok":
+                manifest["results"]["artifacts"] = {str(path.resolve()): sha256_file(path) for path in validated_files}
     manifest["status"], manifest["error"], manifest["finished_at"] = status, error, int(time.time())
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True))
     return status, manifest

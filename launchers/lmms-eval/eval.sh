@@ -45,6 +45,8 @@ fi
 REPO_ROOT="${ORCH_REPO_ROOT}"
 SLURM_TEMPLATE="${SLURM_TEMPLATE:-${REPO_ROOT}/slurm/lmms-eval/eval_job.slurm}"
 source "${ORCH_REPO_ROOT}/slurm/shared/sbatch_overrides.sh"
+source "${ORCH_REPO_ROOT}/slurm/shared/lmms_env.sh"
+resolve_lmms_dataset_env
 LMMS_CACHE_ROOT="${LMMS_CACHE_ROOT:-${REPO_ROOT}/cache/lmms-eval}"
 CACHE_BASE="${CACHE_BASE:-${LMMS_CACHE_ROOT}/image_token_cache}"
 declare -A HF_AUTH_CHECKED
@@ -338,7 +340,8 @@ while IFS= read -r TASK; do
       continue
     fi
 
-    preflight_or_die lmms-eval "$MODEL_PATH" --harness-root "${LMMS_EVAL_DEV_PATH:-${REPO_ROOT}/third_party/lmms-eval}" \
+    lmms_model_preflight_args "${MODEL_BACKEND:-apertus_1p5_vllm}"
+    preflight_or_die lmms-eval "$MODEL_PATH" "${LMMS_MODEL_PREFLIGHT_ARGS[@]}" --harness-root "${LMMS_EVAL_DEV_PATH:-${REPO_ROOT}/third_party/lmms-eval}" \
       --model "$MODEL_PATH" --tasks "$(echo "$TASKS" | tr '\n' ',')" ${ENABLE_THINKING:+--thinking} \
       --tokenizer "$TOKENIZER_PATH" --vision-tokenizer "${LMMS_EVAL_MODELS_CACHE_PATH}/BAAI/Emu3.5-VisionTokenizer" \
       --container-image "${SUITE_CONTAINER_IMAGE:-}" --max-model-len "$TASK_MAX_MODEL_LEN"
