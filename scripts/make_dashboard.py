@@ -316,6 +316,10 @@ def collect_vlmeval(vk_root: Path | None, model_filters: list[str] | None, manif
             all_accs, all_scores = [], []
             candidate_info = {}
             for bench_dir, tag in bench_dirs:
+                # A saved bridge names its source run in the benchmark suffix.
+                # Do not mislabel failed suite links as shared "outputs" runs.
+                if bench_dir.name.startswith(f"{vk_name}__"):
+                    tag = bench_dir.name[len(vk_name) + 2:]
                 accs = glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True)
                 scores = glob.glob(f"{bench_dir}/**/*_score.csv", recursive=True)
                 all_accs += accs
