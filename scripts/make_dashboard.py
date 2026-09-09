@@ -259,22 +259,41 @@ def parse_vk_acc(path: Path, headline: tuple[str, ...] = _VK_HEADLINE) -> float 
     return None
 
 
-def collect_vlmeval(vk_root: Path, model_filters: list[str] | None, manifests: Manifests,
-                    *, model_key=canonical_model_key):
-    model_dirs = sorted(d for d in vk_root.iterdir() if d.is_dir())
-    if model_filters:
-        model_dirs = [d for d in model_dirs
-                      if any(s in d.name or s in canonical_model_key(d.name) for s in model_filters)]
+def vlmeval_model_dirs(vk_root: Path | None, results_roots=()):
+    """Group native model/benchmark and run/model/benchmark directories by model.
+
+    Keep every run available: a rejudge in an older run can own the newest
+    artifact, and real judge files take precedence over derived fallback files.
+    """
+    parents = [vk_root] if vk_root and vk_root.is_dir() else []
+    for root in results_roots:
+        if root.is_dir():
+            parents.extend(run for run in root.iterdir() if run.is_dir())
+    models = defaultdict(list)
+    for parent in sorted(set(parents)):
+        for model in sorted(parent.iterdir()):
+            if model.is_dir():
+                models[model.name].append(model)
+    return models
+
+
+def collect_vlmeval(vk_root: Path | None, model_filters: list[str] | None, manifests: Manifests,
+                    *, model_key=canonical_model_key, results_roots=()):
+    model_dirs = vlmeval_model_dirs(vk_root, results_roots)
 
     rows: dict[tuple[str, str], dict[str, dict]] = {}
     models: set[str] = set()
     skipped: list[str] = []
-    for mdir in model_dirs:
-        canon = model_key(mdir.name)
+    for model, directories in sorted(model_dirs.items()):
+        if model_filters and not any(s in model or s in canonical_model_key(model) for s in model_filters):
+            continue
+        canon = model_key(model)
         for vk_name, task in VK_OWNED_TASKS.items():
             if task.lower().startswith(DROPPED_TASK_PREFIXES):
                 continue
-            bench_dirs = [d for d in ([mdir / vk_name] + sorted(mdir.glob(f"{vk_name}__*")))
+            # Continue accepting old saved bridges; refresh uses native roots.
+            bench_dirs = [(d, "outputs" if mdir.parent == vk_root else mdir.parent.name) for mdir in directories
+                          for d in ([mdir / vk_name] + sorted(mdir.glob(f"{vk_name}__*")))
                           if d.is_dir()]
             if not bench_dirs:
                 continue
@@ -289,15 +308,28 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None, manifests: M
                 stamped = []
                 for p in paths:
                     try:
-                        stamped.append((Path(p).stat().st_mtime, p))
+                        stamped.append((Path(p).stat().st_mtime, candidate_info[p]["order"], p))
                     except OSError:
                         continue
-                return [p for _, p in sorted(stamped)]
+                return [p for _, _, p in sorted(stamped)]
 
             all_accs, all_scores = [], []
-            for bench_dir in bench_dirs:
-                all_accs += glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True)
-                all_scores += glob.glob(f"{bench_dir}/**/*_score.csv", recursive=True)
+            candidate_info = {}
+            for bench_dir, tag in bench_dirs:
+                accs = glob.glob(f"{bench_dir}/**/*acc*.csv", recursive=True)
+                scores = glob.glob(f"{bench_dir}/**/*_score.csv", recursive=True)
+                all_accs += accs
+                all_scores += scores
+                # Preserve old bridge tie-breaking and manifestless run labels
+                # as metadata; no bridge directories need to exist on disk.
+                label = f"{vk_name}__{tag}" if results_roots and bench_dir.name == vk_name else bench_dir.name
+                for path in accs + scores:
+                    candidate = Path(path)
+                    candidate_info[path] = {
+                        "order": f"{label}/{candidate.relative_to(bench_dir)}",
+                        "run": label if candidate.parent == bench_dir else candidate.parent.name,
+                        "rejected_runs": (tag, f"{vk_name}__{tag}"),
+                    }
             real = by_mtime(a for a in all_accs if owned(Path(a).name))
             scores = by_mtime(a for a in all_scores if owned(Path(a).name))
             derived = by_mtime(a for a in all_accs if Path(a).name == "derived_acc.csv")
@@ -305,12 +337,19 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None, manifests: M
             # Newest real judge acc wins; score.csv next; broken-era derived files
             # only when nothing better parses.
             acc, value = None, None
+
+            def reject(candidate_path, run_id):
+                # Saved snapshots can lack both source paths and readable
+                # manifests. Retain their old bridge/run rejection identities.
+                for rejected_run in (run_id, *candidate_info[str(candidate_path)]["rejected_runs"]):
+                    manifests.reject_result(candidate_path, task, canon, rejected_run)
+
             for candidate in real[::-1] + scores[::-1] + derived[::-1]:
                 candidate_path = Path(candidate)
                 manifest = manifests.for_result(candidate_path)
-                run_id = (manifest or {}).get("run_id") or candidate_path.parent.name
+                run_id = (manifest or {}).get("run_id") or candidate_info[candidate]["run"]
                 if ineligible_reason(manifest):
-                    manifests.reject_result(candidate_path, task, canon, run_id)
+                    reject(candidate_path, run_id)
                     continue
                 try:
                     value = parse_vk_acc(Path(candidate), VK_HEADLINE_BY_TASK.get(task, _VK_HEADLINE))
@@ -319,12 +358,12 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None, manifests: M
                 if value is not None:
                     acc = Path(candidate)
                     break
-                manifests.reject_result(candidate_path, task, canon, run_id)
+                reject(candidate_path, run_id)
             if value is None:
-                skipped.append(f"{mdir.name}/{vk_name}")
+                skipped.append(f"{model}/{vk_name}")
                 continue
             models.add(canon)
-            cell = {"v": round(value, 2), "raw": value, "run": (manifest or {}).get("run_id") or acc.parent.name,
+            cell = {"v": round(value, 2), "raw": value, "run": run_id,
                     **artifact_metadata(acc, manifest)}
             prov = cell_provenance(manifest)
             if prov:
@@ -499,22 +538,33 @@ def collect_lm_eval(lm_root: Path, model_filters: list[str] | None, manifests: M
     return models, table
 
 
-def collect_inventory(roots, *, vlmeval_roots=(), lm_eval_roots=(), manifest_roots=(),
+def collect_inventory(roots, *, vlmeval_roots=(), vlmeval_results_roots=(), lm_eval_roots=(), manifest_roots=(),
                       model_filters=None, include_spatial=False):
     """Collect once, retaining source directories until collision verification.
 
     Each collection is (root, raw model names, rows). Rendering canonicalizes
     these same cells only after the optional audit has examined every directory.
     """
+    vlmeval_roots = sorted({Path(root).resolve() for root in vlmeval_roots})
+    vlmeval_results_roots = sorted({Path(root).resolve() for root in vlmeval_results_roots})
+    if vlmeval_results_roots and len(vlmeval_roots) > 1:
+        raise ValueError("suite result sources can join at most one shared VLMEvalKit root; "
+                         "audit independent shared roots separately")
     lanes = [(collect, roots), (collect_vlmeval, vlmeval_roots), (collect_lm_eval, lm_eval_roots)]
     all_roots = [root for _collector, lane_roots in lanes for root in lane_roots]
-    manifests = Manifests(all_roots + list(manifest_roots))
+    manifests = Manifests(all_roots + vlmeval_results_roots + list(manifest_roots))
     collections = []
     for collector, lane_roots in lanes:
         for root in sorted({Path(root).resolve() for root in lane_roots}):
             kwargs = {"include_spatial": include_spatial} if collector is collect else {}
+            if collector is collect_vlmeval:
+                kwargs["results_roots"] = vlmeval_results_roots
             models, rows = collector(root, model_filters, manifests, model_key=lambda name: name, **kwargs)
             collections.append((root, models, rows))
+    if vlmeval_results_roots and not vlmeval_roots:
+        models, rows = collect_vlmeval(None, model_filters, manifests, model_key=lambda name: name,
+                                       results_roots=vlmeval_results_roots)
+        collections.append((vlmeval_results_roots[0], models, rows))
     # Rejection evidence is consumed by legacy import under canonical identities,
     # even though the collected cells still use raw names for collision checking.
     manifests.rejected_results = {(task, canonical_model_key(model), run, source)
@@ -523,7 +573,7 @@ def collect_inventory(roots, *, vlmeval_roots=(), lm_eval_roots=(), manifest_roo
 
 
 def audit_inventory(collections, *, aliases=None, only_keys=None) -> int:
-    """Check unmerged collected cells for conflicting source directories."""
+    """Check raw model identities within each collection before canonical merging."""
     keep = set(only_keys) if only_keys else None
     by_key = defaultdict(lambda: defaultdict(dict))
     for root, _models, rows in collections:
@@ -533,7 +583,7 @@ def audit_inventory(collections, *, aliases=None, only_keys=None) -> int:
                 key = (aliases or {}).get(key, key)
                 if keep is not None and key not in keep:
                     continue
-                by_key[key][str((root / model).resolve())][(row["task"], row["metric"])] = cell["v"]
+                by_key[key][(root, model)][(row["task"], row["metric"])] = cell
 
     bad = 0
     for key, vals in sorted(by_key.items()):
@@ -542,17 +592,18 @@ def audit_inventory(collections, *, aliases=None, only_keys=None) -> int:
         conflicts = []
         for t in sorted(set().union(*(v.keys() for v in vals.values()))):
             present = {n: v[t] for n, v in vals.items() if t in v}
-            if len({round(x, 3) for x in present.values()}) > 1:
+            if len({round(cell["v"], 3) for cell in present.values()}) > 1:
                 conflicts.append((t, present))
         if conflicts:
             bad += 1
-            print(f"COLLISION  key '{key}'  <-  {len(vals)} dirs:")
-            for directory in vals:
-                print(f"             {directory}")
+            print(f"COLLISION  key '{key}'  <-  {len(vals)} model identities:")
+            for root, model in vals:
+                print(f"             {model} (collection {root})")
             print(f"           {len(conflicts)} conflicting benchmark(s), e.g.:")
             for (task, metric), present in conflicts[:3]:
-                shown = ", ".join(f"{n[-28:]}={x:.1f}" for n, x in present.items())
-                print(f"             {task}: {shown}")
+                print(f"             {task} ({metric}):")
+                for cell in present.values():
+                    print(f"               {cell['source']['path']}={cell['v']:.1f}")
     print(f"\n{'PASS — no contaminating collisions' if not bad else f'FAIL — {bad} colliding key(s)'}")
     return bad
 
@@ -565,34 +616,9 @@ def _source_signature(path: Path):
     return (stat.st_dev, stat.st_ino, stat.st_mode, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
 
 
-# Benchmark taxonomy for the matrix band grouping. Bands follow the category
-# conventions of recent VLM reports (Qwen3-VL, InternVL3.5): pure-text evals get
-# their own top-level band instead of mixing into multimodal domains. One
-# declarative structure — dict order is display order, modality defaults to
-# "vision", tasks match by exact name or prefix.
-TAXONOMY = {
-    cat: {
-        **({"modality": modality} if modality != "vision" else {}),
-        "exact": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and not b.get("cat_prefix")],
-        "prefix": [k for k, b in BENCHMARKS.items() if b.get("cat") == cat and b.get("cat_prefix")],
-    }
-    for cat, modality in CATEGORIES
-}
-
-CATEGORY_ORDER = list(TAXONOMY)
-CATEGORY_MODALITY = {cat: spec.get("modality", "vision") for cat, spec in TAXONOMY.items()}
-_TASK_TO_CAT = {t: cat for cat, spec in TAXONOMY.items() for t in spec.get("exact", ())}
-_CAT_PREFIX = [(p, cat) for cat, spec in TAXONOMY.items() for p in spec.get("prefix", ())]
-
-
-def category_for(task: str) -> str | None:
-    lowered = task.lower()
-    if lowered in _TASK_TO_CAT:
-        return _TASK_TO_CAT[lowered]
-    for prefix, cat in _CAT_PREFIX:
-        if lowered.startswith(prefix):
-            return cat
-    return None
+CATEGORY_ORDER = [cat for cat, _modality in CATEGORIES]
+CATEGORY_MODALITY = dict(CATEGORIES)
+category_for = REGISTRY.category
 
 
 HTML_TEMPLATE = """<!doctype html>
@@ -1026,7 +1052,7 @@ def main():
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
     p.add_argument("--lm-eval-root", type=Path, help="results/lm-eval tree; ingests lm-eval-owned text benchmarks, merged by checkpoint identity")
     p.add_argument("--vlmeval-results-root", type=Path,
-                   help="results/VLMEvalKit tree (run/<model>/<dataset>) whose run_meta.json manifests feed the coverage report")
+                   help="results/VLMEvalKit tree (run/<model>/<dataset>); union its artifacts with --vlmeval-root and index its manifests")
     p.add_argument("--legacy-json", type=Path, action="append", default=[],
                    help="dashboard.json of an earlier build; its cells fill (task, metric, model) slots no current result covers, marked legacy")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
@@ -1049,7 +1075,7 @@ def main():
         [root for root in args.runs_root if root.is_dir()],
         vlmeval_roots=[args.vlmeval_root] if args.vlmeval_root else [],
         lm_eval_roots=[args.lm_eval_root] if args.lm_eval_root else [],
-        manifest_roots=[args.vlmeval_results_root] if args.vlmeval_results_root else [],
+        vlmeval_results_roots=[args.vlmeval_results_root] if args.vlmeval_results_root else [],
         model_filters=args.models, include_spatial=args.include_spatial)
     source_signatures, source_manifests = {}, {}
     if args.verify:
