@@ -9,6 +9,11 @@ from suite.fsutil import sha256_file
 from suite.result_selection import ineligible_reason
 
 
+def _artifact_signature(path: Path) -> tuple[int, ...]:
+    st = path.stat()
+    return st.st_dev, st.st_ino, st.st_mode, st.st_size, st.st_mtime_ns, st.st_ctime_ns
+
+
 class Manifests:
     """Every run_meta.json under the results roots, read once.
 
@@ -34,6 +39,14 @@ class Manifests:
                 self.entries.append((root, path, man))
                 self.by_dir[path.parent.resolve()] = man
 
+    def _valid_artifact(self, path: Path, expected) -> bool:
+        """Require the attested content and a stable file across the hash read."""
+        try:
+            before = _artifact_signature(path)
+            return sha256_file(path) == expected and _artifact_signature(path) == before
+        except OSError:
+            return False
+
     def for_result(self, path: Path) -> dict | None:
         """The manifest of the run that produced a results file, or None."""
         path = Path(path).resolve()
@@ -44,11 +57,8 @@ class Manifests:
                 if manifest.get("status") == "ok" and isinstance(results, dict):
                     if "artifacts" in results:
                         artifacts = results["artifacts"]
-                        try:
-                            valid = (isinstance(artifacts, dict) and str(path) in artifacts
-                                     and sha256_file(path) == artifacts[str(path)])
-                        except OSError:
-                            valid = False
+                        valid = (isinstance(artifacts, dict) and str(path) in artifacts
+                                 and self._valid_artifact(path, artifacts[str(path)]))
                     elif results.get("file"):
                         # Earlier manifests attest only their recorded headline file.
                         valid = isinstance(results["file"], str) and path == Path(results["file"]).resolve()

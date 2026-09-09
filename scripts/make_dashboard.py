@@ -19,6 +19,7 @@ import json
 import math
 import sys
 import re
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -322,7 +323,6 @@ def collect_vlmeval(vk_root: Path, model_filters: list[str] | None, manifests: M
             if value is None:
                 skipped.append(f"{mdir.name}/{vk_name}")
                 continue
-            manifest = manifests.for_result(acc)
             models.add(canon)
             cell = {"v": round(value, 2), "raw": value, "run": (manifest or {}).get("run_id") or acc.parent.name,
                     **artifact_metadata(acc, manifest)}
@@ -391,6 +391,9 @@ def collect(runs_root: Path, model_filters: list[str] | None, manifests: Manifes
     for mdir in model_dirs:
         canon = model_key(mdir.name)
         trunc = _truncation_for(mdir.name)
+        # All tasks in one parsed artifact share its provenance check. Keep it
+        # only for this collection; verified publication checks the bytes again.
+        result_manifests = {}
         def invalid(path):
             manifest = manifests.for_result(path)
             relative = path.relative_to(mdir).parts
@@ -401,7 +404,9 @@ def collect(runs_root: Path, model_filters: list[str] | None, manifests: Manifes
             manifests.reject_result(path, row_task, canon, run_id)
 
         def eligible(task, path, data):
-            manifest = manifests.for_result(path)
+            if path not in result_manifests:
+                result_manifests[path] = manifests.for_result(path)
+            manifest = result_manifests[path]
             if ineligible_reason(manifest, data, task) or not lmms_result_rows(task, data, include_spatial):
                 registered = REGISTRY.resolve("lmms-eval", task)
                 row_task = registered.name if registered else task
@@ -411,7 +416,7 @@ def collect(runs_root: Path, model_filters: list[str] | None, manifests: Manifes
             return True
 
         for task, (path, data) in newest_per_task(mdir, eligible, invalid).items():
-            manifest = manifests.for_result(path)
+            manifest = result_manifests[path]
             run_id = (manifest or {}).get("run_id") or path.relative_to(mdir).parts[0]
             prov = cell_provenance(manifest)
             for row_task, metric, value, norm in lmms_result_rows(task, data, include_spatial):
@@ -498,6 +503,72 @@ def collect_lm_eval(lm_root: Path, model_filters: list[str] | None, manifests: M
         for (task, metric), cells in sorted(rows.items())
     ]
     return models, table
+
+
+def collect_inventory(roots, *, vlmeval_roots=(), lm_eval_roots=(), manifest_roots=(),
+                      model_filters=None, include_spatial=False):
+    """Collect once, retaining source directories until collision verification.
+
+    Each collection is (root, raw model names, rows). Rendering canonicalizes
+    these same cells only after the optional audit has examined every directory.
+    """
+    lanes = [(collect, roots), (collect_vlmeval, vlmeval_roots), (collect_lm_eval, lm_eval_roots)]
+    all_roots = [root for _collector, lane_roots in lanes for root in lane_roots]
+    manifests = Manifests(all_roots + list(manifest_roots))
+    collections = []
+    for collector, lane_roots in lanes:
+        for root in sorted({Path(root).resolve() for root in lane_roots}):
+            kwargs = {"include_spatial": include_spatial} if collector is collect else {}
+            models, rows = collector(root, model_filters, manifests, model_key=lambda name: name, **kwargs)
+            collections.append((root, models, rows))
+    # Rejection evidence is consumed by legacy import under canonical identities,
+    # even though the collected cells still use raw names for collision checking.
+    manifests.rejected_results = {(task, canonical_model_key(model), run, source)
+                                  for task, model, run, source in manifests.rejected_results}
+    return manifests, collections
+
+
+def audit_inventory(collections, *, aliases=None, only_keys=None) -> int:
+    """Check unmerged collected cells for conflicting source directories."""
+    keep = set(only_keys) if only_keys else None
+    by_key = defaultdict(lambda: defaultdict(dict))
+    for root, _models, rows in collections:
+        for row in rows:
+            for model, cell in row["cells"].items():
+                key = canonical_model_key(model)
+                key = (aliases or {}).get(key, key)
+                if keep is not None and key not in keep:
+                    continue
+                by_key[key][str((root / model).resolve())][(row["task"], row["metric"])] = cell["v"]
+
+    bad = 0
+    for key, vals in sorted(by_key.items()):
+        if len(vals) < 2:
+            continue
+        conflicts = []
+        for t in sorted(set().union(*(v.keys() for v in vals.values()))):
+            present = {n: v[t] for n, v in vals.items() if t in v}
+            if len({round(x, 3) for x in present.values()}) > 1:
+                conflicts.append((t, present))
+        if conflicts:
+            bad += 1
+            print(f"COLLISION  key '{key}'  <-  {len(vals)} dirs:")
+            for directory in vals:
+                print(f"             {directory}")
+            print(f"           {len(conflicts)} conflicting benchmark(s), e.g.:")
+            for (task, metric), present in conflicts[:3]:
+                shown = ", ".join(f"{n[-28:]}={x:.1f}" for n, x in present.items())
+                print(f"             {task}: {shown}")
+    print(f"\n{'PASS — no contaminating collisions' if not bad else f'FAIL — {bad} colliding key(s)'}")
+    return bad
+
+
+def _source_signature(path: Path):
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (stat.st_dev, stat.st_ino, stat.st_mode, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
 
 
 # Benchmark taxonomy for the matrix band grouping. Bands follow the category
@@ -967,6 +1038,8 @@ def main():
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
     p.add_argument("--models-file", type=Path,
                    help="column manifest (key[|alias]=Label per line); overrides --only/--label")
+    p.add_argument("--verify", action="store_true",
+                   help="refuse publication if collected source directories have conflicting canonical scores")
     p.add_argument("-o", "--output", type=Path, default=Path("dashboard.html"))
     args = p.parse_args()
 
@@ -975,46 +1048,40 @@ def main():
     if args.models_file:
         args.only, args.label, aliases, model_groups = parse_models_manifest(args.models_file)
 
-    manifest_roots = list(args.runs_root) + [root for root in
-        (args.vlmeval_root, args.vlmeval_results_root, args.lm_eval_root) if root is not None]
-    manifests = Manifests(manifest_roots)
-    models_l: list[str] = []
-    table_l: list[dict] = []
     for root in args.runs_root:
         if not root.is_dir():
             print(f"runs-root not found, skipping: {root}")
-            continue
-        m, t = collect(root.resolve(), args.models, manifests, args.include_spatial)
-        models_l = sorted(set(models_l) | set(m))
-        table_l += t
-    models_v, table_v = ([], [])
-    if args.vlmeval_root:
-        models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models, manifests)
-    models_t, table_t = ([], [])
-    if args.lm_eval_root:
-        models_t, table_t = collect_lm_eval(args.lm_eval_root.resolve(), args.models, manifests)
-    if aliases:
-        models_l = [aliases.get(m, m) for m in models_l]
-        models_v = [aliases.get(m, m) for m in models_v]
-        models_t = [aliases.get(m, m) for m in models_t]
-        for row in table_l + table_v + table_t:
-            cells = {}
-            for k, v in row["cells"].items():
-                merge_cells(cells, {aliases.get(k, k): v})
-            row["cells"] = cells
-    models = sorted(set(models_l) | set(models_v) | set(models_t))
+    manifests, collections = collect_inventory(
+        [root for root in args.runs_root if root.is_dir()],
+        vlmeval_roots=[args.vlmeval_root] if args.vlmeval_root else [],
+        lm_eval_roots=[args.lm_eval_root] if args.lm_eval_root else [],
+        manifest_roots=[args.vlmeval_results_root] if args.vlmeval_results_root else [],
+        model_filters=args.models, include_spatial=args.include_spatial)
+    source_signatures = {}
+    if args.verify:
+        sources = {Path(cell["source"]["path"]) for _root, _models, rows in collections
+                   for row in rows for cell in row["cells"].values()}
+        source_signatures = {source: _source_signature(source) for source in sources}
+        if audit_inventory(collections, aliases=aliases, only_keys=args.only):
+            p.exit(1, "refusing to publish a dashboard with colliding model identities\n")
+
+    def model_key(name):
+        key = canonical_model_key(name)
+        return aliases.get(key, key)
+
+    models = sorted({model_key(name) for _root, names, _rows in collections for name in names})
     if args.only:
         present = set(models)
         models = [m for m in args.only if m in present]
     # Ownership partitions benchmarks, so no (task, metric) appears in both
     # harnesses; cells merge defensively if one ever does.
     merged: dict[tuple[str, str], dict] = {}
-    for row in table_l + table_v + table_t:
-        key = (row["task"], row["metric"])
-        if key in merged:
-            merge_cells(merged[key]["cells"], row["cells"])
-        else:
-            merged[key] = dict(row)
+    for _root, _models, rows in collections:
+        for row in rows:
+            key = (row["task"], row["metric"])
+            target = merged.setdefault(key, {**row, "cells": {}})
+            for name, cell in row["cells"].items():
+                merge_cells(target["cells"], {model_key(name): cell})
     n_legacy = import_legacy(merged, models, args.legacy_json,
                              manifests.rejected_runs(REGISTRY, canonical_model_key, aliases),
                              {(task, source) for task, _model, _run, source in manifests.rejected_results}, aliases)
@@ -1076,6 +1143,10 @@ def main():
             print(f"registry: column {key!r} has no results and no manifests")
     payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
     html_text = HTML_TEMPLATE.replace("__DATA__", payload).replace("__META__", meta)
+    for source, signature in source_signatures.items():
+        if (signature is None or _source_signature(source) != signature
+                or ineligible_reason(manifests.for_result(source))):
+            p.exit(1, f"refusing to publish: source changed after collection: {source}\n")
     args.output.write_text(html_text)
     print(f"wrote {args.output.resolve()}  ({args.output.stat().st_size / 1024:.0f} KB)")
     json_path = args.output.with_name("dashboard.json")

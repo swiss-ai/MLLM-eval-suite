@@ -13,32 +13,40 @@ from suite.coverage import Manifests
 from verify_dashboard import audit
 
 
-def test_refresh_preserves_dashboard_on_collision(tmp_path):
+@pytest.mark.parametrize("collision", [False, True])
+def test_refresh_preserves_dashboard_on_collision(tmp_path, collision):
     runner = tmp_path / "python-probe"
-    calls = tmp_path / "calls.jsonl"
-    runner.write_text(f"#!{sys.executable}\n" + '''import json, os, sys
-from pathlib import Path
-with open(os.environ['REVIEW_CALLS'], 'a') as fh:
-    fh.write(json.dumps(sys.argv[1:]) + '\\n')
-if any(arg.endswith('verify_dashboard.py') for arg in sys.argv):
-    sys.exit(1)
-if any(arg.endswith('make_dashboard.py') for arg in sys.argv):
-    Path(sys.argv[sys.argv.index('-o') + 1]).write_text('replaced')
+    # Run the real dashboard entrypoints; isolate unrelated log derivation.
+    runner.write_text(f"#!{sys.executable}\n" + '''import os, sys
+if any(arg.endswith('derive_vlmeval_acc.py') for arg in sys.argv):
+    sys.exit(0)
+os.execv(sys.executable, [sys.executable, *sys.argv[1:]])
 ''')
     runner.chmod(0o755)
     out = tmp_path / "index.html"
-    out.write_text("previous dashboard")
-    env = dict(os.environ, PY=str(runner), OUT=str(out), REVIEW_CALLS=str(calls),
+    outputs = [out, tmp_path / "dashboard.json", tmp_path / "coverage.json"]
+    for path in outputs:
+        path.write_text("previous dashboard")
+    result(tmp_path / "runs", "one", .6, 100)
+    result(tmp_path / "lmms", "two", .9 if collision else .6, 200)
+    models = tmp_path / "models.txt"
+    models.write_text("model=Model\n")
+    env = dict(os.environ, PY=str(runner), OUT=str(out), MODELS_FILE=str(models),
                RUNS_ROOT=str(tmp_path / "runs"), SUITE_LMMS=str(tmp_path / "lmms"),
                VLMEVAL_OUTPUTS=str(tmp_path / "vk-shared"), SUITE_VLMEVAL=str(tmp_path / "vk"),
                BRIDGE=str(tmp_path / "bridge"))
     script = Path(__file__).resolve().parents[1] / "scripts/refresh_dashboard.sh"
     process = subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True)
-    assert process.returncode != 0
-    recorded = [json.loads(line) for line in calls.read_text().splitlines()]
-    assert any(any(arg.endswith("verify_dashboard.py") for arg in call) for call in recorded)
-    assert out.read_text() == "previous dashboard"
-    assert not any(any(arg.endswith("make_dashboard.py") for arg in call) for call in recorded)
+    if collision:
+        assert process.returncode == 1
+        assert "COLLISION" in process.stdout
+        assert all(path.read_text() == "previous dashboard" for path in outputs)
+    else:
+        assert process.returncode == 0, process.stderr
+        assert "PASS — no contaminating collisions" in process.stdout
+        assert 'name="robots"' in out.read_text()
+        rows = json.loads(outputs[1].read_text())["table"]
+        assert next(row for row in rows if row["task"] == "gqa")["cells"]["model"]["v"] == 60
 
 
 def result(root, run, score, stamp, *, task="gqa", framework="lmms-eval",
