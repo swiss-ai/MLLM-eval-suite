@@ -63,10 +63,7 @@ for legacy in "$SUITE"/docs/legacy/dashboard-*.json; do
 done
 # Refuse to replace the published artifacts when distinct source directories
 # disagree under a shared model identity. Use the same roots and aliases as build.
-"$PY" "$HERE/verify_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" \
-  --vlmeval-root "$BRIDGE" --vlmeval-results-root "$SUITE_VLMEVAL" \
-  --lm-eval-root "$SUITE/results/lm-eval" --models-file "$MODELS_FILE"
-"$PY" "$HERE/make_dashboard.py" --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --vlmeval-results-root "$SUITE_VLMEVAL" \
+"$PY" "$HERE/make_dashboard.py" --verify --runs-root "$RUNS_ROOT" "$SUITE_LMMS" --vlmeval-root "$BRIDGE" --vlmeval-results-root "$SUITE_VLMEVAL" \
   --lm-eval-root "$SUITE/results/lm-eval" --models-file "$MODELS_FILE" "${LEGACY_ARGS[@]}" -o "$OUT"
 # internal checkpoint results: keep out of search indexes
 "$PY" - "$OUT" <<'PYEOF'
