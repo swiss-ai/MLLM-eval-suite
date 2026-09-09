@@ -453,3 +453,22 @@ def test_acp_tag_keeps_both_component_families_without_inventing_overall(tmp_pat
     _, rows = dashboard.collect_lm_eval(tmp_path, None, Manifests([tmp_path]))
     assert {row['task']: row['cells']['model']['v'] for row in rows} == {
         'acp_areach_bool': 40, 'acp_areach_mcq': 80}
+
+
+@pytest.mark.parametrize("template,expected_rows", [(None, 0), (False, 0), ("{{ messages }}", 14)])
+def test_manifestless_acp_components_obey_parent_chat_protocol(tmp_path, template, expected_rows):
+    path = tmp_path / "model/run/acp_bench/results_x.json"
+    path.parent.mkdir(parents=True)
+    components = {
+        f"acp_{name}_{kind}": {metric: .8}
+        for name in ("areach", "app", "just", "land", "prog", "reach", "val")
+        for kind, metric in (("bool", "exact_match,extract-yes-no"), ("mcq", "exact_match,mcq-extract"))
+    }
+    path.write_text(json.dumps({"results": components, "chat_template": template}))
+    manifests = Manifests([tmp_path])
+    _, rows = dashboard.collect_lm_eval(tmp_path, None, manifests)
+    assert len(rows) == expected_rows
+    if expected_rows:
+        assert all(row["cells"]["model"]["v"] == 80 for row in rows)
+    else:
+        assert {task for task, _, _, _ in manifests.rejected_results} == set(components)

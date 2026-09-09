@@ -26,8 +26,14 @@ def declared_chat_template(task: str | None) -> bool | None:
     """The prompting protocol the registry declares for a text task, or None when the task is not a text task."""
     if not task:
         return None
-    registered = _registry().lookup("lm-eval", task)
-    return registered.chat_template if registered and registered.framework == "lm-eval" else None
+    registry = _registry()
+    registered = registry.lookup("lm-eval", task)
+    if registered and registered.framework == "lm-eval":
+        return registered.chat_template
+    for parent in registry.by_framework("lm-eval"):
+        if task in parent.result_tasks:
+            return parent.chat_template
+    return None
 
 
 def protocol_mismatch(data: dict | None, task: str | None) -> bool:
