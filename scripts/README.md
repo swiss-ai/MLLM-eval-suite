@@ -20,10 +20,18 @@ results/VLMEvalKit/<run-id>/<model>/<dataset>/  ──────┤   derive_v
 ```
 
 - **`refresh_dashboard.sh`** — one-shot regeneration of `docs/index.html`. Knobs: `RUNS_ROOT`
-  (lmms results tree), `VLMEVAL_OUTPUTS`, `TRUNC_TOOL`. Column curation lives in its `CURATED`
-  array (`key=Label`, one line per dashboard column).
+  (lmms results tree), `VLMEVAL_OUTPUTS`, `TRUNC_TOOL`. Column curation lives in
+  `dashboard_models.txt` (`key[|alias]=Label`, one line per dashboard column).
 - **`make_dashboard.py`** — the generator. Benchmark→category mapping is the `TAXONOMY` dict;
   display-dropped tasks are `DROPPED_TASK_PREFIXES` (drop policy for *runs* lives in `task_suites/`).
+  Audio report headings map to native checkpoint identities, with display labels kept
+  separately. Historical report cells fill gaps; native results take precedence, including
+  after manifest alias merging. `--models` accepts report labels or canonical keys, and a
+  pretrain-only filter retains all 13 supplied FLEURS values.
+  Error-rate rows and homogeneous error-rate means are lower-is-better. Micro means
+  weight common rows equally; macro means weight their categories equally. Cards and
+  category bands omit a combined mean when their common cohort mixes error rates and
+  higher-is-better scores. Raw values and source runs remain available on each cell.
 - **`metric_selection.py`** — single source of truth for each benchmark's headline metric and score
   normalization; imported by every reporting script.
 - **`gather_results.py`** — newest-result-per-task selection + CLI table.
@@ -31,9 +39,12 @@ results/VLMEvalKit/<run-id>/<model>/<dataset>/  ──────┤   derive_v
   failure class). Run it after every refresh; PASS expected.
 - **`derive_vlmeval_acc.py`** — reconstructs `derived_acc.csv` for VK judge benchmarks whose score
   only exists in job logs. Skips runs with high judge-failure rates rather than fabricating scores.
-  Direction contract: every dashboard row is higher-is-better; benchmarks whose native metric
-  is lower-is-better are normalized at derivation (mm_safetybench: attack_rate -> safety_rate,
-  labeled `safety_rate` on the row).
+  Its derived metrics are higher-is-better (mm_safetybench: attack_rate -> safety_rate,
+  labeled `safety_rate` on the row). Audio WER/CER retain their native error-rate direction.
+
+CPU dashboard and launcher regressions: `python3 -m unittest discover -s tests -v`.
+The browser-logic test runs the generated inline script with Node.js and a minimal DOM
+sink, without extra packages; set `NODE=/path/to/node` if Node is not on `PATH`.
 
 ## HealthBench grading
 

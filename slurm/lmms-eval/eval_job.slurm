@@ -77,7 +77,6 @@ SEED=1234
 EVAL_SEED="${SEED}"
 ENABLE_IMAGE_TOKEN_CACHE=true
 IMAGE_TOKEN_CACHE_MODE="${IMAGE_TOKEN_CACHE_MODE:-fill}"
-PREFETCH_EMU35_VISION_TOKENIZER=true
 ENABLE_WANDB=false
 WANDB_PROJECT="${WANDB_PROJECT:-lmms-eval}"
 WANDB_ENTITY="${WANDB_ENTITY:-rkreft-eth-z-rich}"
@@ -129,8 +128,6 @@ Options:
   --image-token-cache-dir <path>         Existing directory for SQLite cache.
   --image-token-cache-mode <fill|readonly>
                                          fill builds the cache; readonly uses a sealed one. Default: fill.
-  --prefetch-emu35-vision-tokenizer <true|false>
-                                         Prefetch BAAI/Emu3.5-VisionTokenizer once before launch.
   --enable-wandb <true|false>            Enable W&B metric logging. Default: false (forced off in this script).
   --wandb-project <name>                 W&B project. Default: lmms-eval.
   --wandb-entity <name>                  W&B entity/team. Default: rkreft-eth-z-rich.
@@ -179,7 +176,6 @@ while [[ $# -gt 0 ]]; do
     --enable-image-token-cache) ENABLE_IMAGE_TOKEN_CACHE="$2"; shift 2 ;;
     --image-token-cache-dir) IMAGE_TOKEN_CACHE_DIR="$2"; shift 2 ;;
     --image-token-cache-mode) IMAGE_TOKEN_CACHE_MODE="$2"; shift 2 ;;
-    --prefetch-emu35-vision-tokenizer) PREFETCH_EMU35_VISION_TOKENIZER="$2"; shift 2 ;;
     --enable-wandb) echo "Info: W&B is disabled in this script; ignoring --enable-wandb=$2"; shift 2 ;;
     --wandb-project) WANDB_PROJECT="$2"; shift 2 ;;
     --wandb-entity) WANDB_ENTITY="$2"; shift 2 ;;
@@ -209,14 +205,6 @@ is_true() {
     *) return 1 ;;
   esac
 }
-
-# Default generation cap: 16384 for non-thinking runs (Artificial Analysis
-# standard). Thinking recipes pass their own 32k cap explicitly.
-if [[ -z "${GEN_KWARGS}" ]]; then
-  GEN_KWARGS="max_new_tokens=16384"
-elif [[ ! "${GEN_KWARGS}" =~ (^|,)max_new_tokens= ]]; then
-  GEN_KWARGS="${GEN_KWARGS},max_new_tokens=16384"
-fi
 
 ########################################
 # Runtime environment
@@ -343,60 +331,6 @@ if [[ "${PIN_ANTLR_RUNTIME:-true}" == "true" ]]; then
 fi
 
 source "${ORCH_REPO_ROOT}/slurm/shared/apertus_env.sh"
-
-# Fail fast on known ANTLR/OmegaConf mismatch that otherwise appears late.
-python - <<'PY'
-import importlib.util
-import os
-import sys
-
-try:
-    import omegaconf  # noqa: F401
-except Exception as exc:
-    print("Preflight failed: cannot import omegaconf.", file=sys.stderr)
-    print(f"Root cause: {exc}", file=sys.stderr)
-    sys.exit(2)
-
-emu35_root = os.environ["VLLM_APERTUS_EMU35_CODEBASE"]
-module_path = os.path.join(emu35_root, "src", "vision_tokenizer", "__init__.py")
-if not os.path.isfile(module_path):
-    print(f"Preflight failed: missing Emu3.5 vision tokenizer module: {module_path}", file=sys.stderr)
-    sys.exit(2)
-
-spec = importlib.util.spec_from_file_location(
-    "emu35_preflight_module",
-    module_path,
-    submodule_search_locations=[os.path.dirname(module_path)],
-)
-if spec is None or spec.loader is None:
-    print(f"Preflight failed: unable to build import spec for {module_path}", file=sys.stderr)
-    sys.exit(2)
-
-module = importlib.util.module_from_spec(spec)
-sys.modules["emu35_preflight_module"] = module
-try:
-    spec.loader.exec_module(module)
-except Exception as exc:
-    print("Preflight failed: cannot import Emu3.5 vision tokenizer module.", file=sys.stderr)
-    print(f"Root cause: {exc}", file=sys.stderr)
-    sys.exit(2)
-PY
-
-if is_true "${PREFETCH_EMU35_VISION_TOKENIZER}"; then
-  PREFETCH_DIR="${LMMS_EVAL_MODELS_CACHE}/BAAI/Emu3.5-VisionTokenizer"
-  if [[ ! -f "${PREFETCH_DIR}/config.yaml" || ! -f "${PREFETCH_DIR}/model.ckpt" ]]; then
-    echo "Prefetching BAAI/Emu3.5-VisionTokenizer into ${PREFETCH_DIR}"
-    PREFETCH_DIR_ENV="${PREFETCH_DIR}" python - <<'PY'
-import os
-from huggingface_hub import snapshot_download
-snapshot_download(
-    repo_id="BAAI/Emu3.5-VisionTokenizer",
-    local_dir=os.environ["PREFETCH_DIR_ENV"],
-    allow_patterns=["config.yaml", "model.ckpt"],
-)
-PY
-  fi
-fi
 
 if [[ "${MODEL_BACKEND}" != apertus* ]]; then
   # Foreign backends (emu3, llava_hf, qwen3_vl, ...) own their own arg schema;
@@ -560,7 +494,6 @@ echo "XDG_CACHE_HOME=${XDG_CACHE_HOME}"
 echo "VLLM_CACHE_ROOT=${VLLM_CACHE_ROOT}"
 echo "LMMS_EVAL_MODELS_CACHE=${LMMS_EVAL_MODELS_CACHE}"
 echo "OUTPUT_PATH=${OUTPUT_PATH}"
-echo "PREFETCH_EMU35_VISION_TOKENIZER=${PREFETCH_EMU35_VISION_TOKENIZER}"
 if [[ -n "${GEN_KWARGS}" ]]; then
   echo "GEN_KWARGS=${GEN_KWARGS}"
 fi

@@ -35,3 +35,14 @@ gemma4-26b-a4b-it|gemma-4-26b-a4b-it=Gemma4-26B-A4B
 pixtral-12b=Pixtral-12B
 eurovlm-9b-preview=EuroVLM-9B
 emu3-chat=Emu3-Chat
+
+# group: Audio
+# Report-only headings are translated to these native result identities by
+# collect_audio_report; existing sDPO and 70B-SDPO columns above are shared.
+sft-rl-dpo-sdpo-low-less-refuse-feedback=Apertus-1.5-8B-SFT-RL-DPO-SDPO-Low-Less-Refuse-Feedback
+apertus-v1.5-8b=swiss-ai/Apertus-v1.5-8B
+apertus-v1.5-70b=swiss-ai/Apertus-v1.5-70B
+qwen2.5-omni-7b=Qwen2.5 Omni 7B
+qwen2-audio-7b-instruct=Qwen2 Audio 7B
+kimi-audio-7b-instruct=Kimi Audio 7B
+apertus 8b 1.5 pretrain long context=Apertus 8B 1.5 pretrain long context

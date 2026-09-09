@@ -15,6 +15,8 @@ import argparse
 import csv
 import datetime
 import glob
+import html
+from html.parser import HTMLParser
 import json
 import re
 from pathlib import Path
@@ -134,6 +136,8 @@ BENCHMARKS = {
 # Categories in display order, with modality.
 CATEGORIES = [('General VQA & Perception', 'vision'), ('Robustness & Bias', 'vision'), ('Spatial & Embodied', 'vision'), ('Multi-Image', 'vision'), ('Instruction Following', 'vision'), ('Counting & Grounding', 'vision'), ('Docs, Charts & OCR', 'vision'), ('Math & Logic', 'vision'), ('STEM & Knowledge', 'vision'), ('Remote Sensing', 'vision'), ('Alignment', 'vision'), ('Medical VQA', 'vision'), ('Medical', 'text')]
 
+CATEGORIES += [(cat, "audio") for cat in ("ASR", "Multilingual ASR", "Speech Translation", "Audio QA", "Audio Understanding", "Audio Classification", "VoiceBench", "Music")]
+
 EXTRA_VK_PREFIXES = ('muirbench', 'mm_ifeval', 'mia_bench')
 
 EASI_SPATIAL_PREFIXES = tuple(k for k, b in BENCHMARKS.items() if b.get("vk_prefix"))
@@ -213,7 +217,12 @@ def canonical_model_key(name: str) -> str:
     if s.startswith("capstor_store_"):
         s = re.split(r"(?:hf_checkpoints|hf-checkpoints|rleval|final_8b)_", s)[-1]
     mode = None
-    if (t := _THINKING_RE.search(s)):
+    # Filters and manifest aliases may already use our canonical bracket form.
+    # Preserve its mode when canonicalizing again instead of dropping it while
+    # rebuilding a step-based checkpoint key.
+    if (t := re.search(r" \[([^\[\]]+)\]$", s)):
+        s, mode = s[: t.start()], t.group(1)
+    elif (t := _THINKING_RE.search(s)):
         s, mode = s[: t.start()], "thinking" + (t.group(1) or "")
     else:
         for suffix, tag in _MODE_SUFFIXES:
@@ -416,10 +425,10 @@ def short_labels(names: list[str]) -> dict[str, str]:
     return {n: (n[cut:] or n) for n in names}
 
 
-def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: bool = False):
+def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: bool = False, *, aliases=None):
     model_dirs = sorted(d for d in runs_root.iterdir() if d.is_dir())
     if model_filters:
-        model_dirs = [d for d in model_dirs if any(s in d.name for s in model_filters)]
+        model_dirs = [d for d in model_dirs if matches_model_filter(d.name, model_filters, aliases)]
     if not model_dirs:
         print(f"no model dirs under {runs_root}; skipping")
         return [], []
@@ -468,6 +477,189 @@ def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: b
         for (task, metric), cells in sorted(rows.items())
     ]
     return models, table
+
+
+class AudioReportParser(HTMLParser):
+    """Extract sectioned benchmark tables from the generated audio report."""
+
+    def __init__(self):
+        super().__init__()
+        self.sections: list[dict] = []
+        self._section: dict | None = None
+        self._in_h2 = False
+        self._h2_parts: list[str] = []
+        self._in_table = False
+        self._in_row = False
+        self._in_cell = False
+        self._cell_tag = ""
+        self._cell_title = ""
+        self._cell_parts: list[str] = []
+        self._row: list[dict] = []
+        self._rows: list[list[dict]] = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "h2":
+            self._in_h2 = True
+            self._h2_parts = []
+        elif tag == "table":
+            self._in_table = True
+            self._rows = []
+        elif self._in_table and tag == "tr":
+            self._in_row = True
+            self._row = []
+        elif self._in_row and tag in {"th", "td"}:
+            self._in_cell = True
+            self._cell_tag = tag
+            self._cell_title = attrs.get("title", "")
+            self._cell_parts = []
+
+    def handle_data(self, data):
+        if self._in_h2:
+            self._h2_parts.append(data)
+        if self._in_cell:
+            self._cell_parts.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "h2" and self._in_h2:
+            title = " ".join("".join(self._h2_parts).split())
+            self._section = {"title": title, "tables": []}
+            self.sections.append(self._section)
+            self._in_h2 = False
+        elif self._in_cell and tag == self._cell_tag:
+            text = html.unescape(" ".join("".join(self._cell_parts).split()))
+            self._row.append({"text": text, "title": self._cell_title})
+            self._in_cell = False
+        elif self._in_row and tag == "tr":
+            self._rows.append(self._row)
+            self._in_row = False
+        elif self._in_table and tag == "table":
+            if self._section is not None:
+                self._section["tables"].append(self._rows)
+            self._in_table = False
+
+
+# Report headings that differ from the native result directory names. Keep
+# this translation separate from display labels and checkpoint-mode aliases.
+AUDIO_REPORT_MODEL_DIRS = {
+    "swiss-ai/Apertus-v1.5-8B": "Apertus-v1.5-8B",
+    "swiss-ai/Apertus-v1.5-70B": "Apertus-v1.5-70B",
+    "Qwen2.5 Omni 7B": "Qwen2.5-Omni-7B",
+    "Qwen2 Audio 7B Instruct": "Qwen2-Audio-7B-Instruct",
+    "Kimi Audio 7B Instruct": "Kimi-Audio-7B-Instruct",
+}
+
+
+def matches_model_filter(name: str, model_filters, aliases=None) -> bool:
+    """Match headings and native names after resolving declared checkpoint aliases."""
+    if not model_filters:
+        return True
+    aliases = aliases or {}
+    key = canonical_model_key(AUDIO_REPORT_MODEL_DIRS.get(name, name))
+    resolved = aliases.get(key, key)
+    for query in model_filters:
+        query_key = canonical_model_key(AUDIO_REPORT_MODEL_DIRS.get(query, query))
+        if query in name or query in key or aliases.get(query_key, query_key) in resolved:
+            return True
+    return False
+
+
+def collect_audio_report(path: Path, model_filters: list[str] | None, *, labels: dict | None = None, aliases=None):
+    """Import historical audio cells using native checkpoint identities.
+
+    Optional labels retain the report's readable headings. Filtering happens
+    after the supplied pretrain cells are inserted, so a pretrain-only request
+    has the same rows as the corresponding column of an unfiltered import.
+    """
+    if not path.is_file():
+        return [], []
+
+    parser = AudioReportParser()
+    parser.feed(path.read_text())
+    rows: dict[tuple[str, str, str], dict[str, dict]] = {}
+    model_labels: dict[str, str] = {}
+    for section in parser.sections:
+        cat = section["title"]
+        for table in section["tables"]:
+            if not table or len(table[0]) < 3:
+                continue
+            model_names = [" ".join(c["text"].split()) for c in table[0][2:]]
+            for raw_row in table[1:]:
+                if len(raw_row) < 2:
+                    continue
+                task = raw_row[0]["text"]
+                metric = raw_row[1]["text"]
+                for model, cell in zip(model_names, raw_row[2:]):
+                    text = cell["text"].strip()
+                    if not text or text == "-":
+                        continue
+                    try:
+                        value = float(text.replace(",", ""))
+                    except ValueError:
+                        continue
+                    canon = canonical_model_key(AUDIO_REPORT_MODEL_DIRS.get(model, model))
+                    model_labels[canon] = model
+                    rows.setdefault((cat, task, metric), {})[canon] = {
+                        "v": round(value, 4),
+                        "raw": value,
+                        "run": cell["title"] or path.name,
+                    }
+
+    pretrain = canonical_model_key(PRETRAIN_LONG_CONTEXT_AUDIO_MODEL)
+    model_labels[pretrain] = PRETRAIN_LONG_CONTEXT_AUDIO_MODEL
+    for (task, metric), value in PRETRAIN_LONG_CONTEXT_FLEURS.items():
+        rows.setdefault(("Multilingual ASR", task, metric), {})[pretrain] = {
+            "v": value,
+            "raw": value,
+            "run": "provided google_fleurs long-context pretrain results",
+        }
+    models = {m for m, label in model_labels.items()
+              if matches_model_filter(label, model_filters, aliases)}
+    table = []
+    for (cat, task, metric), cells in sorted(rows.items()):
+        cells = {m: cell for m, cell in cells.items() if m in models}
+        if cells:
+            table.append({"task": task, "metric": metric, "framework": "lmms-eval", "cat": cat, "cells": cells})
+    if labels is not None:
+        labels.update({m: model_labels[m] for m in models})
+    return sorted(models), table
+
+
+LOWER_IS_BETTER_METRICS = {
+    "wer",
+    "cer",
+    "mer",
+    "ter",
+    "wil",
+    "error",
+    "error_rate",
+}
+
+PRETRAIN_LONG_CONTEXT_AUDIO_MODEL = "Apertus 8B 1.5 pretrain long context"
+PRETRAIN_LONG_CONTEXT_FLEURS = {
+    ("fleurs_it_it", "wer"): 9.60,
+    ("fleurs_en_us", "wer"): 14.23,
+    ("fleurs_pt_br", "wer"): 14.36,
+    ("fleurs_de_de", "wer"): 17.21,
+    ("fleurs_th_th", "cer"): 20.02,
+    ("fleurs_fr_fr", "wer"): 21.30,
+    ("fleurs_es_419", "wer"): 25.20,
+    ("fleurs_vi_vn", "wer"): 26.06,
+    ("fleurs_ca_es", "wer"): 26.26,
+    ("google_fleurs_cmn_hans_cn", "cer"): 29.01,
+    ("fleurs_pl_pl", "wer"): 31.45,
+    ("fleurs_uk_ua", "wer"): 35.47,
+    ("fleurs_hi_in", "wer"): 39.70,
+}
+
+
+def metric_direction(metric: str) -> int:
+    normalized = metric.strip().lower().replace(" ", "_").replace("-", "_")
+    if normalized in LOWER_IS_BETTER_METRICS:
+        return -1
+    if normalized.endswith("_error") or normalized.endswith("_error_rate"):
+        return -1
+    return 1
 
 
 # Benchmark taxonomy for the matrix band grouping. Bands follow the category
@@ -678,7 +870,8 @@ footer code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
 <div class="matrix-wrap" id="matrix-view"><table id="matrix"></table></div>
 
 <footer>
-  Scores share one absolute 0–100 scale · newest result per task across each model's runs ·
+  Error rates retain their reported percent scale (and may exceed 100); lower is better ·
+  native results take precedence over historical audio report cells ·
   canonical headline metrics via <code>metric_selection.py</code> · hover for raw value and source run ·
   generated by <a href="https://github.com/swiss-ai/MLLM-eval-suite/blob/yxu/bump-lmms-eval/scripts/make_dashboard.py" target="_blank" rel="noopener"><code>make_dashboard.py</code></a>
 </footer>
@@ -697,10 +890,17 @@ let state = {
 
 const fmt = v => v.toFixed(1);
 const avg = vs => vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
+const bestValue = (values, dir) => dir < 0 ? Math.min(...values) : Math.max(...values);
+// Raw error and accuracy values do not define a meaningful combined mean.
+const commonDirection = rows => {
+  const dirs = new Set(rows.map(r => r.dir || 1));
+  return dirs.size === 1 ? [...dirs][0] : null;
+};
 const hbadge = fw => fw === "VLMEvalKit"
   ? '<span class="hbadge vlme">VLMEvalKit</span>'
   : '<span class="hbadge lmms">lmms-eval</span>';
 const selModels = () => D.models.filter(m => state.sel.has(m));
+const modModels = rows => selModels().filter(m => rows.some(r => r.cells[m]));
 const visRows = () => {
   const q = state.q.toLowerCase();
   return D.table.filter(r =>
@@ -742,11 +942,14 @@ function renderChips() {
 }
 
 function renderCards() {
-  const sel = selModels();
   const inMod = D.table.filter(r => (D.modality[r.cat] || "vision") === state.mod);
+  const sel = modModels(inMod);
   const common = inMod.filter(r => sel.length && sel.every(m => r.cells[m]));
   const nCats = new Set(common.map(r => r.cat)).size;
+  const direction = commonDirection(common);
+  const mixed = common.length > 0 && direction == null;
   const means = sel.map(m => {
+    if (direction == null) return { m, mean: null };
     if (state.avg === "macro") {
       const byCat = {};
       for (const r of common) (byCat[r.cat] ??= []).push(r.cells[m].v);
@@ -754,44 +957,54 @@ function renderCards() {
     }
     return { m, mean: avg(common.map(r => r.cells[m].v)) };
   });
-  const top = Math.max(...means.map(x => x.mean ?? -Infinity));
+  const values = means.map(x => x.mean).filter(v => v != null);
+  const top = values.length ? bestValue(values, direction) : null;
   document.getElementById("cards").innerHTML = means.map(x =>
-    `<div class="card ${x.mean === top && means.length > 1 ? "best" : ""}" style="--c:${color[x.m]}" title="${x.m}">` +
+    `<div class="card ${x.mean != null && x.mean === top && means.length > 1 ? "best" : ""}" style="--c:${color[x.m]}" title="${x.m}">` +
     `<div class="name">${D.labels[x.m]}</div>` +
-    `<div class="big mono">${x.mean == null ? "—" : fmt(x.mean)}<small> / 100</small></div>` +
+    `<div class="big mono">${x.mean == null ? "—" : fmt(x.mean)}<small>${x.mean == null ? "" : direction < 0 ? "% error" : " / 100"}</small></div>` +
     `<div class="cov">${coverage[x.m]} tasks covered</div></div>`).join("");
-  document.getElementById("cards-note").textContent = sel.length
+  const cohortNote = sel.length
     ? (state.avg === "macro"
         ? `macro mean: equal weight per category, over ${nCats} ${state.mod} categories (${common.length} benchmarks covered by all ${sel.length} selected models)`
         : `micro mean: equal weight per benchmark, over the ${common.length} ${state.mod} benchmarks covered by all ${sel.length} selected models`)
     : "select models above";
+  document.getElementById("cards-note").textContent = mixed
+    ? `No combined mean: the ${common.length} common ${state.mod} benchmarks mix error rates (lower is better) and scores (higher is better). Compare the individual rows.`
+    : cohortNote + (direction == null ? "" : `; ${direction < 0 ? "lower error" : "higher score"} is better`);
 }
 
 function renderMatrix() {
-  const sel = selModels();
   let rows = visRows();
+  const sel = modModels(rows);
   if (state.sort && state.sel.has(state.sort)) {
     rows = rows.slice().sort((a, b) => {
       const av = a.cells[state.sort]?.v, bv = b.cells[state.sort]?.v;
-      if (av == null && bv == null) return 0;
+      const tie = a.task.localeCompare(b.task) || a.metric.localeCompare(b.metric);
+      if (av == null && bv == null) return tie;
       if (av == null) return 1;
       if (bv == null) return -1;
-      return state.dir * (av - bv);
+      const ad = a.dir || 1, bd = b.dir || 1;
+      // Separate incomparable directions; rank values only within each group.
+      return ad - bd || state.dir * ad * (av - bv) || tie;
     });
   }
   let h = "<thead><tr><th class='task-h' data-k=''>benchmark / metric</th>";
+  if (state.sort && rows.length && commonDirection(rows) == null)
+    h = '<caption>Error rates and scores are sorted in separate groups.</caption>' + h;
   for (const m of sel) {
     const dir = state.sort === m ? (state.dir < 0 ? " <span class='dir'>↓</span>" : " <span class='dir'>↑</span>") : "";
     h += `<th data-k="${m}" title="${m}" style="--c:${color[m]}"><span class="dot"></span>${D.labels[m]}${dir}</th>`;
   }
   h += "</tr></thead><tbody>";
   const baseOn = state.base && state.sel.has(state.base);
-  const deltaFor = (v, b) => {
+  const deltaFor = (v, b, dir) => {
     if (!baseOn || b == null || v == null) return "";
     const d = v - b;
-    return `<span class="delta ${d >= 0 ? "up" : "down"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`;
+    const good = dir < 0 ? d <= 0 : d >= 0;
+    return `<span class="delta ${good ? "up" : "down"}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</span>`;
   };
-  const slotFor = (m, v, bv) => baseOn ? `<span class="delta-slot">${state.base === m ? "" : deltaFor(v, bv)}</span>` : "";
+  const slotFor = (m, v, bv, dir = 1) => baseOn ? `<span class="delta-slot">${state.base === m ? "" : deltaFor(v, bv, dir)}</span>` : "";
   let lastCat = null;
   for (const r of rows) {
     if (!state.sort && r.cat !== lastCat) {
@@ -799,24 +1012,29 @@ function renderMatrix() {
       const catRows = rows.filter(x => x.cat === r.cat);
       const covered = sel.filter(m => catRows.some(x => x.cells[m]));
       const commonCat = catRows.filter(x => covered.every(m => x.cells[m]));
+      const catDir = commonDirection(commonCat);
       const cm = {};
-      for (const m of sel) cm[m] = covered.includes(m) ? avg(commonCat.map(x => x.cells[m].v)) : null;
-      const bestM = Math.max(...sel.map(m => cm[m] ?? -Infinity));
+      for (const m of sel) cm[m] = catDir != null && covered.includes(m) ? avg(commonCat.map(x => x.cells[m].v)) : null;
+      const catValues = sel.map(m => cm[m]).filter(v => v != null);
+      const bestM = catValues.length ? bestValue(catValues, catDir) : null;
       h += `<tr class="catrow"><th>${r.cat}</th>` + sel.map(m => {
         const v = cm[m];
-        if (v == null) return "<td class='cmean'>·</td>";
-        const slot = slotFor(m, v, cm[state.base]);
+        if (v == null) return commonCat.length && catDir == null
+          ? '<td class="cmean" title="No combined mean for mixed error rates and scores">—</td>'
+          : "<td class='cmean'>·</td>";
+        const slot = slotFor(m, v, cm[state.base], catDir);
         return `<td class="cmean mono ${v === bestM && sel.length > 1 ? "best" : ""}" ` +
-               `title="mean over the ${commonCat.length} ${r.cat} benchmarks common to the ${covered.length} models with coverage">${fmt(v)}${slot}</td>`;
+               `title="mean over the ${commonCat.length} ${r.cat} benchmarks common to the ${covered.length} models with coverage; ${catDir < 0 ? "lower" : "higher"} is better">${fmt(v)}${slot}</td>`;
       }).join("") + "</tr>";
     }
     const present = sel.filter(m => r.cells[m]);
-    const best = Math.max(...present.map(m => r.cells[m].v));
+    const rowDir = r.dir || 1;
+    const best = bestValue(present.map(m => r.cells[m].v), rowDir);
     h += `<tr><th class="task"><div class="t">${r.task}${hbadge(r.framework)}</div><div class="m">${r.metric}</div></th>`;
     for (const m of sel) {
       const c = r.cells[m];
       if (!c) { h += "<td class='missing'>·</td>"; continue; }
-      const slot = slotFor(m, c.v, r.cells[state.base]?.v);
+      const slot = slotFor(m, c.v, r.cells[state.base]?.v, rowDir);
       const trtip = c.t != null ? `\\ntruncated: ${c.t}% hit the 32k cap` : "";
       const tr = c.t != null ? `<sup class="tr" title="${c.t}% of outputs hit the 32k token cap (non-terminating)">⌁${Math.round(c.t)}</sup>` : "";
       h += `<td class="cell mono ${c.v === best && present.length > 1 ? "best" : ""}" ` +
@@ -889,6 +1107,8 @@ def main():
     p.add_argument("--only", nargs="*", help="curate to these exact canonical checkpoint keys (drops all others)")
     p.add_argument("--label", nargs="*", default=[], help="override column labels as 'canonical_key=Display Name'")
     p.add_argument("--vlmeval-root", type=Path, help="VLMEval_Outputs tree; ingests VLMEvalKit-owned (spatial/multi-image) benchmarks, merged by checkpoint identity")
+    p.add_argument("--audio-report", type=Path, default=Path("docs/audio/audio_benchmark_results.html"),
+                   help="generated audio benchmark HTML report to ingest into the Audio tab")
     p.add_argument("--include-spatial", action="store_true", help="include EASI spatial benchmarks from lmms-eval data (tracked on VLMEvalKit by default)")
     p.add_argument("--models-file", type=Path,
                    help="column manifest (key[|alias]=Label per line); overrides --only/--label")
@@ -906,35 +1126,43 @@ def main():
         if not root.is_dir():
             print(f"runs-root not found, skipping: {root}")
             continue
-        m, t = collect(root.resolve(), args.models, args.include_spatial)
+        m, t = collect(root.resolve(), args.models, args.include_spatial, aliases=aliases)
         models_l = sorted(set(models_l) | set(m))
         table_l += t
     models_v, table_v = ([], [])
     if args.vlmeval_root:
         models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
+    audio_path = args.audio_report if args.audio_report.is_absolute() else Path(__file__).resolve().parent.parent / args.audio_report
+    audio_labels: dict[str, str] = {}
+    models_a, table_a = collect_audio_report(audio_path.resolve(), args.models, labels=audio_labels, aliases=aliases)
     if aliases:
         models_l = [aliases.get(m, m) for m in models_l]
         models_v = [aliases.get(m, m) for m in models_v]
-        for row in table_l + table_v:
+        models_a = [aliases.get(m, m) for m in models_a]
+        audio_labels = {aliases.get(m, m): label for m, label in audio_labels.items()}
+        for row in table_l + table_v + table_a:
             cells = {}
             for k, v in row["cells"].items():
                 cells.setdefault(aliases.get(k, k), v)
             row["cells"] = cells
-    models = sorted(set(models_l) | set(models_v))
+    models = sorted(set(models_l) | set(models_v) | set(models_a))
     if args.only:
         present = set(models)
         models = [m for m in args.only if m in present]
-    # Ownership partitions benchmarks, so no (task, metric) appears in both
-    # harnesses; cells merge defensively if one ever does.
+    # The historical report fills gaps. Native result cells are authoritative,
+    # including after model-manifest aliases coalesce checkpoint spellings.
     merged: dict[tuple[str, str], dict] = {}
-    for row in table_l + table_v:
+    for row in table_a + table_l + table_v:
         key = (row["task"], row["metric"])
         if key in merged:
             merged[key]["cells"].update(row["cells"])
+            if row.get("cat") and not merged[key].get("cat"):
+                merged[key]["cat"] = row["cat"]
         else:
             merged[key] = dict(row)
     table = [merged[key] for key in sorted(merged)]
     labels = short_labels(models)
+    labels.update({m: label for m, label in audio_labels.items() if m in labels})
     for pair in args.label:
         key, _, disp = pair.partition("=")
         if key in labels:
@@ -942,7 +1170,8 @@ def main():
     keep = set(models)
     cells_rows = [
         {"task": r["task"], "metric": r["metric"], "framework": r["framework"],
-         "cat": category_for(r["task"]) or "Uncategorized",
+         "cat": r.get("cat") or category_for(r["task"]) or "Uncategorized",
+         "dir": metric_direction(r["metric"]),
          "cells": {m: v for m, v in r["cells"].items() if m in keep}}
         for r in table
     ]

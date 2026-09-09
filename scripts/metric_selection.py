@@ -210,6 +210,10 @@ def iter_headline_metrics(task: str, metrics: dict[str, Any]) -> list[tuple[str,
 
 def normalize_score(metric: str, value: float) -> float | None:
     lowered = metric.lower()
+    # BLEU is conventionally reported on a 0-100 scale, including valid
+    # low-performing scores below one. Do not treat those as fractions.
+    if "bleu" in lowered:
+        return value / 100.0
     if "cider" in lowered:
         return value
     if "mme_total" in lowered:
