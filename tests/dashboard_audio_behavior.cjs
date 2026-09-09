@@ -105,4 +105,35 @@ test('models with disjoint coverage do not invent a common score', () => {
   assert.equal(cards(p).length, 2);
   assert.ok(cards(p).every(c => c.body.includes('—')));
 });
+test('column sorting groups directions and is consistent across input permutations', () => {
+  const rows = [
+    ['wer', 'wer', -1, 20, 40], ['cer', 'cer', -1, 10, 30],
+    ['qa', 'accuracy', 1, 80, 60], ['classification', 'accuracy', 1, 60, 40],
+    ['missing', 'wer', -1, null, 30],
+  ];
+  for (const input of [rows, [...rows].reverse(), [...rows.slice(2), ...rows.slice(0, 2)]]) {
+    const p = page(synthetic(input));
+    // Capture the comparator passed by the real renderMatrix implementation.
+    p.run(`
+      const originalSort = Array.prototype.sort;
+      Array.prototype.sort = function(compare) {
+        if (compare) globalThis.matrixComparator = compare;
+        return originalSort.call(this, compare);
+      };
+      state.mod = 'audio'; state.sort = 'a'; state.dir = -1; renderMatrix();
+    `);
+    const order = () => [...p.get('matrix').innerHTML.matchAll(/<div class="t">([^<]+)/g)].map(m => m[1]);
+    assert.deepEqual(order(), ['cer', 'wer', 'qa', 'classification', 'missing']);
+    assert.match(p.get('matrix').innerHTML, /error rates and scores.*separate groups/i);
+    assert.equal(p.run(`D.table.every(a => D.table.every(b =>
+      Math.sign(matrixComparator(a, b)) === -Math.sign(matrixComparator(b, a))))`), true);
+    assert.equal(p.run(`D.table.every(a => D.table.every(b => D.table.every(c =>
+      !(matrixComparator(a, b) <= 0 && matrixComparator(b, c) <= 0) || matrixComparator(a, c) <= 0)))`), true);
+    p.run('state.dir = 1; renderMatrix()');
+    assert.deepEqual(order(), ['wer', 'cer', 'classification', 'qa', 'missing']);
+    // Filtering to homogeneous error rates retains the original minimum-first behavior.
+    p.run("D.table = D.table.filter(r => r.dir < 0); state.dir = -1; renderMatrix()");
+    assert.deepEqual(order(), ['cer', 'wer', 'missing']);
+  }
+});
 if (failures) process.exitCode = 1;

@@ -122,6 +122,27 @@ class AudioCollectionTests(unittest.TestCase):
             row = next(r for r in data['table'] if r['task'] == 'fleurs_it_it')
             self.assertEqual(row['cells']['apertus-v1.5-8b']['raw'], 1.2)
 
+    def test_full_report_label_filter_resolves_manifest_native_alias(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model = root / 'sdpo-mix-less-refuse-feedback'
+            model.mkdir()
+            (model / 'fresh_results.json').write_text(json.dumps({
+                'results': {'fleurs_it_it': {'wer,none': 1.2}}}))
+            for model_filter in [
+                'Apertus-1.5-8B-SFT-RL-DPO-SDPO-Mix-Less-Refuse-Feedback',
+                'sft-rl-dpo-sdpo-mix-less-refuse-feedback',
+                'sdpo-mix-less-refuse-feedback',
+            ]:
+                with self.subTest(model_filter=model_filter):
+                    _, data = generate(root, '--models-file', str(ROOT / 'scripts/dashboard_models.txt'),
+                                       '--models', model_filter)
+                    self.assertEqual(data['models'], ['sdpo-mix-less-refuse-feedback'])
+                    self.assertEqual(len(data['table']), 73)
+                    row = next(r for r in data['table'] if r['task'] == 'fleurs_it_it')
+                    self.assertEqual(row['cells']['sdpo-mix-less-refuse-feedback'],
+                                     {'v': 1.2, 'raw': 1.2, 'run': 'fresh_results.json'})
+
     @unittest.skipUnless(os.environ.get('NODE') or shutil.which('node'), 'Node.js unavailable (set NODE)')
     def test_browser_summary_matrix_and_selection_behavior(self):
         with tempfile.TemporaryDirectory() as tmp:

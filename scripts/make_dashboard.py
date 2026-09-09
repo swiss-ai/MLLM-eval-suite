@@ -420,12 +420,10 @@ def short_labels(names: list[str]) -> dict[str, str]:
     return {n: (n[cut:] or n) for n in names}
 
 
-def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: bool = False):
+def collect(runs_root: Path, model_filters: list[str] | None, include_spatial: bool = False, *, aliases=None):
     model_dirs = sorted(d for d in runs_root.iterdir() if d.is_dir())
     if model_filters:
-        model_filters = [AUDIO_REPORT_MODEL_DIRS.get(s, s) for s in model_filters]
-        model_dirs = [d for d in model_dirs
-                      if any(s in d.name or s in canonical_model_key(d.name) for s in model_filters)]
+        model_dirs = [d for d in model_dirs if matches_model_filter(d.name, model_filters, aliases)]
     if not model_dirs:
         print(f"no model dirs under {runs_root}; skipping")
         return [], []
@@ -547,7 +545,21 @@ AUDIO_REPORT_MODEL_DIRS = {
 }
 
 
-def collect_audio_report(path: Path, model_filters: list[str] | None, *, labels: dict | None = None):
+def matches_model_filter(name: str, model_filters, aliases=None) -> bool:
+    """Match headings and native names after resolving declared checkpoint aliases."""
+    if not model_filters:
+        return True
+    aliases = aliases or {}
+    key = canonical_model_key(AUDIO_REPORT_MODEL_DIRS.get(name, name))
+    resolved = aliases.get(key, key)
+    for query in model_filters:
+        query_key = canonical_model_key(AUDIO_REPORT_MODEL_DIRS.get(query, query))
+        if query in name or query in key or aliases.get(query_key, query_key) in resolved:
+            return True
+    return False
+
+
+def collect_audio_report(path: Path, model_filters: list[str] | None, *, labels: dict | None = None, aliases=None):
     """Import historical audio cells using native checkpoint identities.
 
     Optional labels retain the report's readable headings. Filtering happens
@@ -597,7 +609,7 @@ def collect_audio_report(path: Path, model_filters: list[str] | None, *, labels:
             "run": "provided google_fleurs long-context pretrain results",
         }
     models = {m for m, label in model_labels.items()
-              if not model_filters or any(s in m or s in label for s in model_filters)}
+              if matches_model_filter(label, model_filters, aliases)}
     table = []
     for (cat, task, metric), cells in sorted(rows.items()):
         cells = {m: cell for m, cell in cells.items() if m in models}
@@ -963,13 +975,18 @@ function renderMatrix() {
   if (state.sort && state.sel.has(state.sort)) {
     rows = rows.slice().sort((a, b) => {
       const av = a.cells[state.sort]?.v, bv = b.cells[state.sort]?.v;
-      if (av == null && bv == null) return 0;
+      const tie = a.task.localeCompare(b.task) || a.metric.localeCompare(b.metric);
+      if (av == null && bv == null) return tie;
       if (av == null) return 1;
       if (bv == null) return -1;
-      return state.dir * (a.dir || 1) * (av - bv);
+      const ad = a.dir || 1, bd = b.dir || 1;
+      // Separate incomparable directions; rank values only within each group.
+      return ad - bd || state.dir * ad * (av - bv) || tie;
     });
   }
   let h = "<thead><tr><th class='task-h' data-k=''>benchmark / metric</th>";
+  if (state.sort && rows.length && commonDirection(rows) == null)
+    h = '<caption>Error rates and scores are sorted in separate groups.</caption>' + h;
   for (const m of sel) {
     const dir = state.sort === m ? (state.dir < 0 ? " <span class='dir'>↓</span>" : " <span class='dir'>↑</span>") : "";
     h += `<th data-k="${m}" title="${m}" style="--c:${color[m]}"><span class="dot"></span>${D.labels[m]}${dir}</th>`;
@@ -1104,7 +1121,7 @@ def main():
         if not root.is_dir():
             print(f"runs-root not found, skipping: {root}")
             continue
-        m, t = collect(root.resolve(), args.models, args.include_spatial)
+        m, t = collect(root.resolve(), args.models, args.include_spatial, aliases=aliases)
         models_l = sorted(set(models_l) | set(m))
         table_l += t
     models_v, table_v = ([], [])
@@ -1112,7 +1129,7 @@ def main():
         models_v, table_v = collect_vlmeval(args.vlmeval_root.resolve(), args.models)
     audio_path = args.audio_report if args.audio_report.is_absolute() else Path(__file__).resolve().parent.parent / args.audio_report
     audio_labels: dict[str, str] = {}
-    models_a, table_a = collect_audio_report(audio_path.resolve(), args.models, labels=audio_labels)
+    models_a, table_a = collect_audio_report(audio_path.resolve(), args.models, labels=audio_labels, aliases=aliases)
     if aliases:
         models_l = [aliases.get(m, m) for m in models_l]
         models_v = [aliases.get(m, m) for m in models_v]

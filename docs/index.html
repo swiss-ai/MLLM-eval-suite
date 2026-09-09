@@ -287,13 +287,18 @@ function renderMatrix() {
   if (state.sort && state.sel.has(state.sort)) {
     rows = rows.slice().sort((a, b) => {
       const av = a.cells[state.sort]?.v, bv = b.cells[state.sort]?.v;
-      if (av == null && bv == null) return 0;
+      const tie = a.task.localeCompare(b.task) || a.metric.localeCompare(b.metric);
+      if (av == null && bv == null) return tie;
       if (av == null) return 1;
       if (bv == null) return -1;
-      return state.dir * (a.dir || 1) * (av - bv);
+      const ad = a.dir || 1, bd = b.dir || 1;
+      // Separate incomparable directions; rank values only within each group.
+      return ad - bd || state.dir * ad * (av - bv) || tie;
     });
   }
   let h = "<thead><tr><th class='task-h' data-k=''>benchmark / metric</th>";
+  if (state.sort && rows.length && commonDirection(rows) == null)
+    h = '<caption>Error rates and scores are sorted in separate groups.</caption>' + h;
   for (const m of sel) {
     const dir = state.sort === m ? (state.dir < 0 ? " <span class='dir'>↓</span>" : " <span class='dir'>↑</span>") : "";
     h += `<th data-k="${m}" title="${m}" style="--c:${color[m]}"><span class="dot"></span>${D.labels[m]}${dir}</th>`;
