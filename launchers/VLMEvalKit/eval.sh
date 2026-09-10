@@ -239,11 +239,7 @@ fi
 [[ -n "${MODELS}" ]] || { echo "no models resolved" >&2; exit 1; }
 [[ -f "${SLURM_TEMPLATE}" ]] || { echo "slurm template not found: ${SLURM_TEMPLATE}" >&2; exit 1; }
 
-# sbatch from inside an existing Pyxis container can inherit SPANK variables that
-# conflict with a new --environment. Match the lmms-eval submission wrapper.
-while IFS='=' read -r key _; do
-  [[ "${key}" == SLURM_SPANK* ]] && unset "${key}"
-done < <(env)
+# The shared submission helper above clears inherited SPANK options.
 export LD_LIBRARY_PATH="/capstor/store/cscs/swissai/infra01/MLLM/wheelhouse:${LD_LIBRARY_PATH:-}"
 
 mkdir -p "${LOG_DIR}" "${RESPONSE_CACHE}" "${LMU_DATA}" "${WORK_BASE}" "${RUNTIME_CACHE}"

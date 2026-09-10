@@ -204,15 +204,10 @@ if [[ -f "$SUITE_VISUAL_LLM_JUDGE" && "${ALLOW_NO_JUDGE:-0}" != "1" ]]; then
 fi
 
 # ------------------------------------------------------------------
-# Container-environment fixes for sbatch from inside Pyxis container.
-#
-# This script is invoked from inside a container. Two things bite sbatch here:
-#   1. The container inherits SLURM_SPANK_* env vars from the parent job which
-#      conflict with the new submission's --environment flag. Strip them.
-#   2. libjson-c.so.5 (needed by pyxis) is missing from default library path
-#      inside the container; we keep a copy in the team wheelhouse.
+# libjson-c.so.5 (needed by pyxis) is missing from the container's default
+# library path; we keep a copy in the team wheelhouse. The shared submission
+# helper above clears inherited SPANK options.
 # ------------------------------------------------------------------
-unset $(env | awk -F= '/^SLURM_SPANK/{print $1}') 2>/dev/null || true
 export LD_LIBRARY_PATH="/capstor/store/cscs/swissai/infra01/MLLM/wheelhouse:${LD_LIBRARY_PATH:-}"
 
 # ------------------------------------------------------------------

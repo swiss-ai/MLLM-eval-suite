@@ -1,5 +1,5 @@
 # Single source of truth for the cluster-account contract, so a clone can
-# submit without editing any template. Sourced by both framework launchers;
+# submit without editing any template. Sourced by all framework launchers;
 # for a direct submission:  source slurm/shared/sbatch_overrides.sh &&
 # sbatch "${SBATCH_OVERRIDES[@]}" slurm/<fw>/eval_job.slurm ...
 #
@@ -22,6 +22,16 @@ EVAL_ENVIRONMENT="${EVAL_ENVIRONMENT:-${_EVAL_ROOT}/toml/shared/apertus-vllm-vis
   echo "EVAL_ENVIRONMENT toml not found: ${EVAL_ENVIRONMENT}" >&2
   return 1 2>/dev/null || exit 1
 }
+
+# Pyxis exports both spellings inside an allocation. Inheriting the parent's
+# options can break batch startup before it creates logs. Keep ordinary SLURM_*
+# allocation variables and use the explicitly selected EVAL_ENVIRONMENT below.
+while IFS= read -r _EVAL_SPANK_KEY; do
+  case "${_EVAL_SPANK_KEY}" in
+    SLURM_SPANK*|_SLURM_SPANK*) unset "${_EVAL_SPANK_KEY}" ;;
+  esac
+done < <(compgen -e)
+unset _EVAL_SPANK_KEY
 
 SBATCH_OVERRIDES=(--account="${EVAL_ACCOUNT}" --environment="${EVAL_ENVIRONMENT}")
 if [[ -n "${EVAL_RESERVATION}" ]]; then
