@@ -8,7 +8,11 @@
 # PEER_MODEL_DIR holds `hf download --local-dir` snapshots of
 #   Qwen/Qwen2-Audio-7B-Instruct  (revision 0a095220c30b7b31434169c3086508ef3ea5bf0a)
 #   Qwen/Qwen2.5-Omni-7B          (revision ae9e1690543ffd5c0221dc27f79834d0294cba00)
-# Peers run in the default prod image (Hugging Face backends).
+# Peers run in the default prod image (Hugging Face backends). Qwen2.5-Omni also
+# needs qwen-omni-utils, which the image lacks; install it (pure Python) into an
+# overlay and export its path as EXTRA_PYTHONPATH (the job script prepends it):
+#   uv pip install --target "$DIR" --no-deps qwen-omni-utils==0.0.8 audioread==3.0.1
+#   export EXTRA_PYTHONPATH=$DIR
 # Qwen2.5-Omni uses the per-category system prompts listed on the audio
 # results page; speech translation and audio QA are not listed there and use
 # the audio-understanding prompt.
@@ -30,7 +34,9 @@ VOICE=voicebench_advbench,voicebench_bbh,voicebench_ifeval,voicebench_mmsu,voice
 
 case "$BACKEND" in
   qwen2_audio)  MODEL="$PEER_MODEL_DIR/Qwen2-Audio-7B-Instruct" ;;
-  qwen2_5_omni) MODEL="$PEER_MODEL_DIR/Qwen2.5-Omni-7B" ;;
+  qwen2_5_omni) MODEL="$PEER_MODEL_DIR/Qwen2.5-Omni-7B"
+                [[ -f "${EXTRA_PYTHONPATH:-}/qwen_omni_utils/__init__.py" ]] || {
+                  echo "set EXTRA_PYTHONPATH to an overlay with qwen-omni-utils (see header)" >&2; exit 1; } ;;
   *) echo "backend must be qwen2_audio or qwen2_5_omni" >&2; exit 2 ;;
 esac
 

@@ -11,7 +11,7 @@ pinned and one fixed generation setting. It is based on `audio-results`
 | Input | Pin |
 |---|---|
 | Suite | this branch |
-| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-repro` @ abe6c324 (three commits on f30dc97, below) |
+| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-repro` @ 0745eae6 (on f30dc97, below) |
 | Image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64` |
 | Weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3; every file's sha256 matches the Hub |
 | Peers | `Qwen/Qwen2-Audio-7B-Instruct` @ 0a095220, `Qwen/Qwen2.5-Omni-7B` @ ae9e1690, run in the default prod image |
@@ -28,6 +28,12 @@ lmms-eval changes on top of f30dc97:
 3. abe6c324: peer backends run audio-only tasks (Qwen2.5-Omni imported
    moviepy at load; Qwen2-Audio got `(channels, samples)` audio from
    VoiceBench/MMSU and now downmixes to mono).
+4. 0745eae6: Qwen2-Audio and Kimi-Audio look up each request in its own task.
+   A batch can span the subtasks of a group (VoiceBench MMSU subjects), and
+   both fetched every request's audio from the first request's dataset.
+
+(a2e49f18 between 3 and 4 is the repository's automatic black/isort fix.)
+The Apertus results below ran on 1-3; 4 only touches peer backends.
 
 ## Why these settings
 
@@ -73,6 +79,9 @@ for size in 8b 70b; do
   bash scripts/audio_repro/submit_apertus.sh $size voice apertus_${size}_voice_r1
 done
 export PEER_MODEL_DIR=/path/with/peer/snapshots
+# Qwen2.5-Omni needs qwen-omni-utils, which the prod image lacks:
+uv pip install --target "$PWD/cache/pyoverlay" --no-deps qwen-omni-utils==0.0.8 audioread==3.0.1
+export EXTRA_PYTHONPATH=$PWD/cache/pyoverlay
 bash scripts/audio_repro/submit_peers.sh qwen2_audio  peers_qwen2_audio_r1
 bash scripts/audio_repro/submit_peers.sh qwen2_5_omni peers_qwen2_5_omni_r1
 
