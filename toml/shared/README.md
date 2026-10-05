@@ -3,7 +3,7 @@
 Store shared configuration fragments or documented conventions used by both evaluation frameworks.
 
 - `apertus-vllm-vision-eval-prod.toml`: combined Apertus vLLM vision evaluation runtime config copied from the VLMEvalKit submodule for launcher use.
-- `apertus-vllm-release-eval.toml`: prod with `image =` pointing at the release-vLLM eval image (`dockerfiles/Dockerfile.vllm-apertus-release-eval`), for the Apertus 1.5 release checkpoints. See `docs/audio/RELEASE_VLLM.md`.
+- `apertus-vllm-release-eval.toml`: prod with `image =` pointing at the release-vLLM eval image (`dockerfiles/Dockerfile.vllm-apertus-release-eval`), for the Apertus 1.5 release checkpoints. See `docs/audio/REPRODUCING.md`.
 
 ## Canary deploys
 
