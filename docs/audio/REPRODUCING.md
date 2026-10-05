@@ -19,7 +19,7 @@ lmms-eval commits on top of `main`:
 3. 37e5ae90: CoVoST2 en-zh loads the dataset's `default` config (`lmms-lab-audio/covost2_en-zh` no longer has `en_zh`).
 4. 6bd2671b: a task's `max_new_tokens` is used as given. The vLLM backend took `max(task cap, 4096)`, so every cap of 256 or less silently became 4096.
 
-The results below were produced on cce67fa7, the same changes on top of f30dc97 (`codex/pr2-preserve-audio`). Against 649a28e2 (6bd2671b plus the repository's automatic black/isort commit), the code the audio tasks use (the seven FLEURS tasks, CoVoST2, the cap rule, the Apertus wrapper) is byte-identical; the branches differ only in `main`'s mtvqa changes, #12's other FLEURS languages and splits, test formatting, and `main`'s `emu3p5.py`.
+The results below come from two runs per model (2026-10-05) from a fresh clone of this branch at 530b67d (lmms-eval 649a28e2), with all caches empty: datasets, vLLM compilation and image tokens.
 
 ## Configuration
 
@@ -95,44 +95,44 @@ python scripts/audio_repro/compare_runs.py \
 
 To compare against the old cap rule, check out lmms-eval 37e5ae90 (the commit before the cap fix) and submit again.
 
-## Reproducibility check (2026-10-05)
+## Reproducibility check
 
-Each configuration ran twice; `compare_runs.py` compares the generated text sample by sample.
+Each model ran twice; `compare_runs.py` compares the generated text sample by sample.
 
-| Model | Identical outputs, run 1 vs run 2 | Score difference |
+| Model | Identical outputs, run 1 vs run 2 | Largest score difference |
 |---|---|---|
-| 8B | 100% on all 16 tasks | none |
-| 70B | 67-99% per task | within 0.5, except TED-LIUM long-form (69.3 / 63.3) |
+| 8B | 75-100% per task | 0.2, on MMAU test-mini; most tasks within 0.05 |
+| 70B | 38-99% per task | TED-LIUM long-form 0.8 and SPGISpeech 0.4; all other tasks within 0.3 |
 
-8B is deterministic. 70B with TP=4 depends slightly on batch timing; scores agree except on TED-LIUM long-form, which has only 8 talks.
+Each job compiles its own vLLM kernels from an empty cache, and kernel autotuning differs slightly between jobs, so outputs are not byte-identical. They differ only on borderline samples and move scores by a few tenths at most. 70B with TP=4 also depends on batch timing. Two earlier runs per model (on cce67fa7, the same audio code with a warm shared cache) agree with these within 0.7 on every task except TED-LIUM long-form (8B 31.2 against 32.3; 70B 63.3 to 72.7 across the four runs), which has only 8 talks.
 
 ## Results
 
-WER lower is better; BLEU and accuracies higher is better (accuracies ×100). 70B shows both runs.
+WER lower is better; BLEU and accuracies higher is better (accuracies ×100). Both runs are shown.
 
 | Benchmark | Metric | 8B | 70B |
 |---|---|---|---|
-| LibriSpeech test-clean | WER | 6.3 | 6.0 / 6.0 |
-| LibriSpeech test-other | WER | 19.3 | 18.8 / 18.8 |
-| VoxPopuli | WER | 20.3 ¹ | 10.5 / 10.4 |
-| SPGISpeech | WER | 16.7 | 12.4 / 12.4 |
-| TED-LIUM long form | WER | 32.3 | 69.3 / 63.3 ² |
-| FLEURS English | WER | 14.8 | 14.5 / 14.2 |
-| FLEURS German | WER | 15.7 | 18.0 / 17.9 |
-| FLEURS French | WER | 22.2 | 21.1 / 21.2 |
-| FLEURS Italian | WER | 7.6 | 7.2 / 7.2 |
-| FLEURS Spanish | WER | 8.4 | 8.0 / 8.0 |
-| FLEURS Polish | WER | 44.0 | 44.4 / 44.9 |
-| FLEURS Ukrainian | WER | 34.2 | 32.0 / 31.6 |
-| CoVoST2 en-zh test | BLEU | 16.4 | 13.3 / 13.3 |
-| MMAU test-mini | accuracy | 53.5 | 55.3 / 55.7 |
-| MuChoMusic | accuracy | 51.5 | 58.5 / 58.7 |
-| Clotho-AQA test | exact match | 54.2 | 58.7 / 58.7 |
-| VocalSound | accuracy | 16.4 | 14.0 / 13.9 ³ |
+| LibriSpeech test-clean | WER | 6.4 / 6.3 | 6.0 / 6.0 |
+| LibriSpeech test-other | WER | 19.4 / 19.3 | 18.8 / 18.9 |
+| VoxPopuli | WER | 20.4 / 20.3 ¹ | 10.4 / 10.4 |
+| SPGISpeech | WER | 17.2 / 17.2 | 12.8 / 12.4 |
+| TED-LIUM long form | WER | 31.2 / 31.2 | 72.7 / 71.9 ² |
+| FLEURS English | WER | 14.9 / 14.9 | 14.3 / 14.2 |
+| FLEURS German | WER | 15.6 / 15.7 | 17.9 / 17.8 |
+| FLEURS French | WER | 22.1 / 22.1 | 21.3 / 21.3 |
+| FLEURS Italian | WER | 7.6 / 7.6 | 7.2 / 7.2 |
+| FLEURS Spanish | WER | 8.4 / 8.5 | 8.0 / 8.0 |
+| FLEURS Polish | WER | 44.6 / 44.6 | 45.0 / 45.0 |
+| FLEURS Ukrainian | WER | 34.5 / 34.5 | 31.7 / 31.9 |
+| CoVoST2 en-zh test | BLEU | 16.5 / 16.5 | 13.3 / 13.3 |
+| MMAU test-mini | accuracy | 53.5 / 53.7 | 55.7 / 55.6 |
+| MuChoMusic | accuracy | 51.8 / 51.8 | 58.3 / 58.6 |
+| Clotho-AQA test | exact match | 54.2 / 54.2 | 58.6 / 58.6 |
+| VocalSound | accuracy | 16.4 / 16.4 | 14.0 / 14.1 ³ |
 
 ¹ One sample loops to VoxPopuli's own 4096-token cap in both runs, adding about 9 WER; without it the score is about 11.2.
 
-² 8 talks; the output for some talks differs between runs. Report as a range.
+² 8 talks; the output for several talks differs between runs, and the score ranges from 63.3 to 72.7 across four runs. Report as a range.
 
 ³ The task prompt does not list the six classes; the score reflects the prompt more than audio recognition.
 
