@@ -22,12 +22,16 @@ unset GEN_KWARGS BATCH_SIZE NUM_PROCESSES GPU_MEMORY_UTILIZATION EXTRA_MODEL_ARG
 
 TASKS=librispeech,open_asr_voxpopuli,open_asr_spgispeech,fleurs_en_us,fleurs_de_de,fleurs_fr_fr,fleurs_it_it,fleurs_es_419,fleurs_pl_pl,fleurs_uk_ua,covost2,mmau,muchomusic,clotho_aqa,vocalsound_test
 
+# Generation cap for tasks that declare none (MuChoMusic, VocalSound). A task's
+# own max_new_tokens always takes precedence.
+CAP=max_new_tokens=4096
+
 case "$SIZE" in
-  8b)  MODEL=(--model "$CKPT_DIR/Apertus-v1.5-8B"); TED=() ;;
+  8b)  MODEL=(--model "$CKPT_DIR/Apertus-v1.5-8B" --extra-model-args "$CAP"); TED=() ;;
   # TP=4 with CUDA graphs. The fused all-reduce + RMSNorm pass crashes graph
   # capture at <=128 tokens on this vLLM build, so only that pass is disabled.
   70b) MODEL=(--model "$CKPT_DIR/Apertus-v1.5-70B" --size 70b
-              --extra-model-args 'tensor_parallel_size=4,compilation_config={"pass_config":{"fuse_allreduce_rms":false}}')
+              --extra-model-args "$CAP,tensor_parallel_size=4,compilation_config={\"pass_config\":{\"fuse_allreduce_rms\":false}}")
        TED=(--gpu-memory-utilization 0.75) ;;   # graphs need memory outside vLLM's share
   *)   echo "size must be 8b or 70b" >&2; exit 2 ;;
 esac
