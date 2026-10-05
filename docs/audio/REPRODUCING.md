@@ -21,6 +21,45 @@ lmms-eval commits on top of `main`:
 
 The results below were produced on cce67fa7, the same changes on top of f30dc97 (`codex/pr2-preserve-audio`). Against 649a28e2 (6bd2671b plus the repository's automatic black/isort commit), the code the audio tasks use (the seven FLEURS tasks, CoVoST2, the cap rule, the Apertus wrapper) is byte-identical; the branches differ only in `main`'s mtvqa changes, #12's other FLEURS languages and splits, test formatting, and `main`'s `emu3p5.py`.
 
+## Configuration
+
+These are the settings recorded in the result files of the reported runs.
+
+### Tasks and generation
+
+All tasks decode greedily (temperature 0, no sampling, one beam). Tasks that declare no temperature get 0 from the `apertus_1p5_vllm` wrapper.
+
+| Task (lmms-eval) | Dataset | Split(s) | max_new_tokens |
+|---|---|---|---|
+| `librispeech` | `lmms-lab-audio/librispeech` | dev-clean, dev-other, test-clean, test-other | 256 |
+| `open_asr_voxpopuli` | `hf-audio/esb-datasets-test-only-sorted` | test | 4096 |
+| `open_asr_spgispeech` | `hf-audio/esb-datasets-test-only-sorted` | test | 4096 |
+| `tedlium_long_form` | `lmms-lab-audio/tedlium` | val | 4096 (passed with `--gen-kwargs`; the task declares 256) |
+| `fleurs_en_us`, `fleurs_de_de`, `fleurs_fr_fr`, `fleurs_it_it`, `fleurs_es_419`, `fleurs_pl_pl`, `fleurs_uk_ua` | `google/fleurs` | test | 256 |
+| `covost2` | `lmms-lab-audio/covost2_en-zh` (en-zh), `lmms-lab-audio/covost2` (zh-en) | dev, test | 256 |
+| `mmau` | `lmms-lab-audio/mmau` | test, test_mini (only test_mini is scored) | 128 |
+| `muchomusic` | `lmms-lab-audio/muchomusic` | test | 4096 (no task cap; backend fallback) |
+| `clotho_aqa` | `lmms-lab-audio/ClothoAQA` | val, test (filtered) | 8 |
+| `vocalsound_test` | `lmms-lab-audio/vocalsound` | test | 4096 (no task cap; backend fallback) |
+
+### Engine
+
+| Setting | 8B | 70B |
+|---|---|---|
+| Backend | `apertus_1p5_vllm` | `apertus_1p5_vllm` |
+| Tokenizer and chat template | `/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed` (and its `chat_template.jinja`) | same |
+| Workers | 4 data-parallel processes, one GPU each (`tensor_parallel_size=1`) | 1 process, `tensor_parallel_size=4` |
+| CUDA graphs | on (`enforce_eager=false`) | on, with `compilation_config={"pass_config":{"fuse_allreduce_rms":false}}` |
+| `gpu_memory_utilization` | 0.6 | 0.85 (TED-LIUM long-form: 0.75) |
+| `max_model_len` | 131072, with `hf_overrides={"max_position_embeddings":131072}` | same |
+| `max_num_batched_tokens` | 49152 (TED-LIUM long-form: 65536) | 49152 (TED-LIUM long-form: 65536) |
+| `enable_prefix_caching` | true | true |
+| lmms-eval `--batch_size` | 512 | 512 |
+| Seed | 1 | 1 |
+| Environment | `VLLM_MAX_AUDIO_DECODE_DURATION_S=3600` | same |
+
+`scripts/audio_repro/submit_apertus.sh` sets the model-specific values and the TED-LIUM overrides; the launcher defaults supply the rest (backend, tokenizer, `max_model_len`, batch size, seed).
+
 ## Why these settings
 
 - **Image.** The release checkpoints use the Transformers 5.14 layout (`Apertus1p5ForConditionalGeneration`) with `lm_head` pruned to the 131,072 text ids. The prod image's vLLM cannot load them (vocab-size assertion in `vocab_parallel_embedding`); the release vLLM can.
