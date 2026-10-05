@@ -1,10 +1,6 @@
 # Reproducing the audio evaluation of the Apertus 1.5 release checkpoints
 
-This branch evaluates the public release checkpoints `swiss-ai/Apertus-v1.5-8B`
-and `swiss-ai/Apertus-v1.5-70B` on 16 audio benchmarks (speech recognition,
-speech translation, audio understanding, audio question answering and sound
-classification), with every input pinned and one fixed generation setting. It
-is based on `audio-results` (8ac19a5).
+This branch evaluates the public release checkpoints `swiss-ai/Apertus-v1.5-8B` and `swiss-ai/Apertus-v1.5-70B` on 16 audio benchmarks (speech recognition, speech translation, audio understanding, audio question answering and sound classification), with every input pinned and one fixed generation setting. It is based on `audio-results` (8ac19a5).
 
 ## Pinned inputs
 
@@ -18,43 +14,19 @@ is based on `audio-results` (8ac19a5).
 
 lmms-eval commits on top of `main`:
 
-1. de31accd, 00a3ae16: Apertus thinking mode and audio chat in the
-   `apertus_1p5_vllm` wrapper (from `codex/pr2-preserve-audio`).
-2. 255f9d18: the `google_fluers` per-language FLEURS tasks (from
-   swiss-ai/lmms-eval#12); this evaluation uses `fleurs_en_us`, `de_de`,
-   `fr_fr`, `it_it`, `es_419`, `pl_pl` and `uk_ua`.
-3. 37e5ae90: CoVoST2 en-zh loads the dataset's `default` config
-   (`lmms-lab-audio/covost2_en-zh` no longer has `en_zh`).
-4. 6bd2671b: a task's `max_new_tokens` is used as given. The vLLM backend took
-   `max(task cap, 4096)`, so every cap of 256 or less silently became 4096.
+1. de31accd, 00a3ae16: Apertus thinking mode and audio chat in the `apertus_1p5_vllm` wrapper (from `codex/pr2-preserve-audio`).
+2. 255f9d18: the `google_fluers` per-language FLEURS tasks (from swiss-ai/lmms-eval#12); this evaluation uses `fleurs_en_us`, `de_de`, `fr_fr`, `it_it`, `es_419`, `pl_pl` and `uk_ua`.
+3. 37e5ae90: CoVoST2 en-zh loads the dataset's `default` config (`lmms-lab-audio/covost2_en-zh` no longer has `en_zh`).
+4. 6bd2671b: a task's `max_new_tokens` is used as given. The vLLM backend took `max(task cap, 4096)`, so every cap of 256 or less silently became 4096.
 
-The results below were produced on cce67fa7, the same changes on top of
-f30dc97 (`codex/pr2-preserve-audio`). Against 649a28e2 (6bd2671b plus the
-repository's automatic black/isort commit), the code the audio tasks use (the
-seven FLEURS tasks, CoVoST2, the cap rule, the Apertus wrapper) is
-byte-identical; the branches differ only in `main`'s mtvqa changes, #12's other
-FLEURS languages and splits, test formatting, and `main`'s `emu3p5.py`.
+The results below were produced on cce67fa7, the same changes on top of f30dc97 (`codex/pr2-preserve-audio`). Against 649a28e2 (6bd2671b plus the repository's automatic black/isort commit), the code the audio tasks use (the seven FLEURS tasks, CoVoST2, the cap rule, the Apertus wrapper) is byte-identical; the branches differ only in `main`'s mtvqa changes, #12's other FLEURS languages and splits, test formatting, and `main`'s `emu3p5.py`.
 
 ## Why these settings
 
-- **Image.** The release checkpoints use the Transformers 5.14 layout
-  (`Apertus1p5ForConditionalGeneration`) with `lm_head` pruned to the 131,072
-  text ids. The prod image's vLLM cannot load them (vocab-size assertion in
-  `vocab_parallel_embedding`); the release vLLM can.
-- **Generation.** Each task's declared cap, temperature 0. TED-LIUM long-form
-  gets 4096, because its task cap of 256 truncates the transcripts of its
-  20-minute talks (about 3,000 words); tasks that declare no cap
-  (MuChoMusic, VocalSound) use the backend fallback of 4096. With the old
-  `max()` rule, one looping sample added about 10 WER to 70B FLEURS Italian
-  (16.2 against 7.2).
-- **70B.** TP=4 with CUDA graphs. On this vLLM build the fused all-reduce +
-  RMSNorm pass (`fuse_allreduce_rms`) fails graph capture at batch sizes up to
-  128 tokens with an illegal memory access, so only that pass is disabled.
-  Running eager instead gives the same scores within about 1 point.
-- **TED-LIUM long-form.** Talks run about 22 minutes, 36k-52k audio tokens
-  each: `VLLM_MAX_AUDIO_DECODE_DURATION_S=3600`, `max_num_batched_tokens=65536`
-  (the encoder cache follows it), and on 70B `gpu_memory_utilization=0.75`
-  (CUDA graphs need memory outside vLLM's share).
+- **Image.** The release checkpoints use the Transformers 5.14 layout (`Apertus1p5ForConditionalGeneration`) with `lm_head` pruned to the 131,072 text ids. The prod image's vLLM cannot load them (vocab-size assertion in `vocab_parallel_embedding`); the release vLLM can.
+- **Generation.** Each task's declared cap, temperature 0. TED-LIUM long-form gets 4096, because its task cap of 256 truncates the transcripts of its 20-minute talks (about 3,000 words); tasks that declare no cap (MuChoMusic, VocalSound) use the backend fallback of 4096. With the old `max()` rule, one looping sample added about 10 WER to 70B FLEURS Italian (16.2 against 7.2).
+- **70B.** TP=4 with CUDA graphs. On this vLLM build the fused all-reduce + RMSNorm pass (`fuse_allreduce_rms`) fails graph capture at batch sizes up to 128 tokens with an illegal memory access, so only that pass is disabled. Running eager instead gives the same scores within about 1 point.
+- **TED-LIUM long-form.** Talks run about 22 minutes, 36k-52k audio tokens each: `VLLM_MAX_AUDIO_DECODE_DURATION_S=3600`, `max_num_batched_tokens=65536` (the encoder cache follows it), and on 70B `gpu_memory_utilization=0.75` (CUDA graphs need memory outside vLLM's share).
 
 ## Steps
 
@@ -62,8 +34,7 @@ FLEURS languages and splits, test formatting, and `main`'s `emu3p5.py`.
 git clone --recurse-submodules -b ahadinia/audio-release-ckpt https://github.com/swiss-ai/MLLM-eval-suite
 cd MLLM-eval-suite
 
-# 1. Image (once): build it, check the sha256 above, and point `image =` in
-#    toml/shared/apertus-vllm-release-eval.toml at it.
+# 1. Image (once): build it, check the sha256 above, and point `image =` in toml/shared/apertus-vllm-release-eval.toml at it.
 sbatch --account=infra01 --nodes=1 --exclusive --time=04:00:00 \
   dockerfiles/build_release_eval_image.sh "$PWD" "$PWD/cache/image-builds/release-eval"
 
@@ -82,26 +53,22 @@ python scripts/audio_repro/compare_runs.py \
   results/lmms-eval/Apertus-v1.5-8B/apertus_8b_r1 results/lmms-eval/Apertus-v1.5-8B/apertus_8b_r2
 ```
 
-To compare against the old cap rule, check out lmms-eval 37e5ae90 (the commit
-before the cap fix) and submit again.
+To compare against the old cap rule, check out lmms-eval 37e5ae90 (the commit before the cap fix) and submit again.
 
 ## Reproducibility check (2026-10-05)
 
-Each configuration ran twice; `compare_runs.py` compares the generated text
-sample by sample.
+Each configuration ran twice; `compare_runs.py` compares the generated text sample by sample.
 
 | Model | Identical outputs, run 1 vs run 2 | Score difference |
 |---|---|---|
 | 8B | 100% on all 16 tasks | none |
 | 70B | 67-99% per task | within 0.5, except TED-LIUM long-form (69.3 / 63.3) |
 
-8B is deterministic. 70B with TP=4 depends slightly on batch timing; scores
-agree except on TED-LIUM long-form, which has only 8 talks.
+8B is deterministic. 70B with TP=4 depends slightly on batch timing; scores agree except on TED-LIUM long-form, which has only 8 talks.
 
 ## Results
 
-WER lower is better; BLEU and accuracies higher is better (accuracies ×100).
-70B shows both runs.
+WER lower is better; BLEU and accuracies higher is better (accuracies ×100). 70B shows both runs.
 
 | Benchmark | Metric | 8B | 70B |
 |---|---|---|---|
@@ -123,14 +90,12 @@ WER lower is better; BLEU and accuracies higher is better (accuracies ×100).
 | Clotho-AQA test | exact match | 54.2 | 58.7 / 58.7 |
 | VocalSound | accuracy | 16.4 | 14.0 / 13.9 ³ |
 
-¹ One sample loops to VoxPopuli's own 4096-token cap in both runs, adding about
-9 WER; without it the score is about 11.2.
+¹ One sample loops to VoxPopuli's own 4096-token cap in both runs, adding about 9 WER; without it the score is about 11.2.
+
 ² 8 talks; the output for some talks differs between runs. Report as a range.
-³ The task prompt does not list the six classes; the score reflects the prompt
-more than audio recognition.
+
+³ The task prompt does not list the six classes; the score reflects the prompt more than audio recognition.
 
 ## Notes
 
-CoVoST2 zh-en BLEU is near zero for both models (8B 1.6): the translations are
-fluent but mostly unrelated to the references, while en-zh and Mandarin ASR
-work. This points to the zh-en data and is not reported.
+CoVoST2 zh-en BLEU is near zero for both models (8B 1.6): the translations are fluent but mostly unrelated to the references, while en-zh and Mandarin ASR work. This points to the zh-en data and is not reported.
