@@ -11,7 +11,7 @@ pinned and one fixed generation setting. It is based on `audio-results`
 | Input | Pin |
 |---|---|
 | Suite | this branch |
-| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-repro` @ 0745eae6 (on f30dc97, below) |
+| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-repro` @ c136a27c (on f30dc97, below) |
 | Image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64` |
 | Weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3; every file's sha256 matches the Hub |
 | Peers | `Qwen/Qwen2-Audio-7B-Instruct` @ 0a095220 and `Qwen/Qwen2.5-Omni-7B` @ ae9e1690 in the default prod image; `moonshotai/Kimi-Audio-7B-Instruct` @ 9a82a84c in the archived 2026-05 image with a Kimi-Audio overlay (MoonshotAI/Kimi-Audio @ 349251e1, flash-attn 2.7.4.post1) |
@@ -31,9 +31,16 @@ lmms-eval changes on top of f30dc97:
 4. 0745eae6: Qwen2-Audio and Kimi-Audio look up each request in its own task.
    A batch can span the subtasks of a group (VoiceBench MMSU subjects), and
    both fetched every request's audio from the first request's dataset.
+5. 856f282d: an MMAU answer letter past the question's last choice scores as
+   wrong instead of raising (some questions have fewer than four choices).
+   Responses that parsed before score the same.
+6. c136a27c: chat backends (Qwen2.5-Omni and others built on `ChatMixin`)
+   answer every request in a batch, not only the first; Qwen2.5-Omni decodes
+   dataset audio to mono 16 kHz before `process_mm_info`.
 
-(a2e49f18 between 3 and 4 is the repository's automatic black/isort fix.)
-The Apertus results below ran on 1-3; 4 only touches peer backends.
+a2e49f18 and 92fec7e8 are the repository's automatic black/isort fixes. The
+Apertus results below ran on 1-3; 4-6 only touch peer backends and MMAU
+scoring of out-of-range letters, which never occurs in the Apertus outputs.
 
 ## Why these settings
 
