@@ -3,21 +3,24 @@
 # submit_apertus.sh (each task's declared cap, TED-LIUM 4096, greedy).
 #
 #   PEER_MODEL_DIR=/path/with/model/snapshots \
-#     bash scripts/audio_repro/submit_peers.sh <qwen2_audio|qwen2_5_omni> <run-id>
+#     bash scripts/audio_repro/submit_peers.sh <qwen2_audio|qwen2_5_omni|kimi_audio> <run-id>
 #
 # PEER_MODEL_DIR holds `hf download --local-dir` snapshots of
 #   Qwen/Qwen2-Audio-7B-Instruct  (revision 0a095220c30b7b31434169c3086508ef3ea5bf0a)
 #   Qwen/Qwen2.5-Omni-7B          (revision ae9e1690543ffd5c0221dc27f79834d0294cba00)
+#   moonshotai/Kimi-Audio-7B-Instruct (revision 9a82a84c37ad9eb1307fb6ed8d7b397862ef9e6b)
 # Peers run in the default prod image (Hugging Face backends). Qwen2.5-Omni also
 # needs qwen-omni-utils, which the image lacks; install it (pure Python) into an
 # overlay and export its path as EXTRA_PYTHONPATH (the job script prepends it):
 #   uv pip install --target "$DIR" --no-deps qwen-omni-utils==0.0.8 audioread==3.0.1
 #   export EXTRA_PYTHONPATH=$DIR
+# Kimi-Audio runs in the archived 2026-05 image with the overlay built by
+# build_kimi_overlay.sbatch on EXTRA_PYTHONPATH.
 # Qwen2.5-Omni uses the per-category system prompts listed on the audio
 # results page; speech translation and audio QA are not listed there and use
 # the audio-understanding prompt.
 set -euo pipefail
-BACKEND=${1:?qwen2_audio|qwen2_5_omni}; RUN_ID=${2:?run id}
+BACKEND=${1:?qwen2_audio|qwen2_5_omni|kimi_audio}; RUN_ID=${2:?run id}
 : "${PEER_MODEL_DIR:?set PEER_MODEL_DIR to the directory holding the model snapshots}"
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -37,7 +40,11 @@ case "$BACKEND" in
   qwen2_5_omni) MODEL="$PEER_MODEL_DIR/Qwen2.5-Omni-7B"
                 [[ -f "${EXTRA_PYTHONPATH:-}/qwen_omni_utils/__init__.py" ]] || {
                   echo "set EXTRA_PYTHONPATH to an overlay with qwen-omni-utils (see header)" >&2; exit 1; } ;;
-  *) echo "backend must be qwen2_audio or qwen2_5_omni" >&2; exit 2 ;;
+  kimi_audio)   MODEL="$PEER_MODEL_DIR/Kimi-Audio-7B-Instruct"
+                [[ -d "${EXTRA_PYTHONPATH:-}/kimia_infer" ]] || {
+                  echo "set EXTRA_PYTHONPATH to the overlay from build_kimi_overlay.sbatch" >&2; exit 1; }
+                export EVAL_ENVIRONMENT=$ROOT/toml/shared/apertus-vllm-vision-eval-2026-05-torch210.toml ;;
+  *) echo "backend must be qwen2_audio, qwen2_5_omni or kimi_audio" >&2; exit 2 ;;
 esac
 
 submit() {  # <tasks> <system prompt or empty> [launcher args...]

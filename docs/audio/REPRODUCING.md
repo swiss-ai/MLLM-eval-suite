@@ -14,7 +14,7 @@ pinned and one fixed generation setting. It is based on `audio-results`
 | lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-repro` @ 0745eae6 (on f30dc97, below) |
 | Image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64` |
 | Weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3; every file's sha256 matches the Hub |
-| Peers | `Qwen/Qwen2-Audio-7B-Instruct` @ 0a095220, `Qwen/Qwen2.5-Omni-7B` @ ae9e1690, run in the default prod image |
+| Peers | `Qwen/Qwen2-Audio-7B-Instruct` @ 0a095220 and `Qwen/Qwen2.5-Omni-7B` @ ae9e1690 in the default prod image; `moonshotai/Kimi-Audio-7B-Instruct` @ 9a82a84c in the archived 2026-05 image with a Kimi-Audio overlay (MoonshotAI/Kimi-Audio @ 349251e1, flash-attn 2.7.4.post1) |
 | Backend | `apertus_1p5_vllm` (suite default) with the suite's Apertus tokenizer and chat template |
 
 lmms-eval changes on top of f30dc97:
@@ -84,6 +84,10 @@ uv pip install --target "$PWD/cache/pyoverlay" --no-deps qwen-omni-utils==0.0.8 
 export EXTRA_PYTHONPATH=$PWD/cache/pyoverlay
 bash scripts/audio_repro/submit_peers.sh qwen2_audio  peers_qwen2_audio_r1
 bash scripts/audio_repro/submit_peers.sh qwen2_5_omni peers_qwen2_5_omni_r1
+# Kimi-Audio: build its overlay once (compiles flash-attn, about 15 min), then submit.
+sbatch --account=infra01 --environment=$PWD/toml/shared/apertus-vllm-vision-eval-2026-05-torch210.toml \
+  scripts/audio_repro/build_kimi_overlay.sbatch "$PWD/cache/kimi_overlay"
+EXTRA_PYTHONPATH=$PWD/cache/kimi_overlay bash scripts/audio_repro/submit_peers.sh kimi_audio peers_kimi_audio_r1
 
 # 4. Repeat with a second run id, then compare the two runs.
 python scripts/audio_repro/compare_runs.py \
