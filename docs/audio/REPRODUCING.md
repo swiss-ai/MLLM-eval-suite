@@ -38,9 +38,9 @@ All tasks decode greedily (temperature 0, no sampling, one beam). Tasks that dec
 | `fleurs_en_us`, `fleurs_de_de`, `fleurs_fr_fr`, `fleurs_it_it`, `fleurs_es_419`, `fleurs_pl_pl`, `fleurs_uk_ua` | `google/fleurs` | test | 256 |
 | `covost2` | `lmms-lab-audio/covost2_en-zh` (en-zh), `lmms-lab-audio/covost2` (zh-en) | dev, test | 256 |
 | `mmau` | `lmms-lab-audio/mmau` | test, test_mini (only test_mini is scored) | 128 |
-| `muchomusic` | `lmms-lab-audio/muchomusic` | test | 4096 (no task cap; backend fallback) |
+| `muchomusic` | `lmms-lab-audio/muchomusic` | test | 4096 (no task cap; model-level default, see Engine) |
 | `clotho_aqa` | `lmms-lab-audio/ClothoAQA` | val, test (filtered) | 8 |
-| `vocalsound_test` | `lmms-lab-audio/vocalsound` | test | 4096 (no task cap; backend fallback) |
+| `vocalsound_test` | `lmms-lab-audio/vocalsound` | test | 4096 (no task cap; model-level default, see Engine) |
 
 ### Engine
 
@@ -54,6 +54,7 @@ All tasks decode greedily (temperature 0, no sampling, one beam). Tasks that dec
 | `max_model_len` | 131072, with `hf_overrides={"max_position_embeddings":131072}` | same |
 | `max_num_batched_tokens` | 49152 (TED-LIUM long-form: 65536) | 49152 (TED-LIUM long-form: 65536) |
 | `enable_prefix_caching` | true | true |
+| Model-level `max_new_tokens` | 4096, not passed: the default of lmms-eval's chat `VLLM` backend (`lmms_eval/models/chat/vllm.py`), which `apertus_1p5_vllm` subclasses. It applies only to tasks that declare no cap (MuChoMusic, VocalSound). | same |
 | lmms-eval `--batch_size` | 512 | 512 |
 | Seed | 1 | 1 |
 | Environment | `VLLM_MAX_AUDIO_DECODE_DURATION_S=3600` | same |
@@ -63,7 +64,7 @@ All tasks decode greedily (temperature 0, no sampling, one beam). Tasks that dec
 ## Why these settings
 
 - **Image.** The release checkpoints use the Transformers 5.14 layout (`Apertus1p5ForConditionalGeneration`) with `lm_head` pruned to the 131,072 text ids. The prod image's vLLM cannot load them (vocab-size assertion in `vocab_parallel_embedding`); the release vLLM can.
-- **Generation.** Each task's declared cap, temperature 0. TED-LIUM long-form gets 4096, because its task cap of 256 truncates the transcripts of its 20-minute talks (about 3,000 words); tasks that declare no cap (MuChoMusic, VocalSound) use the backend fallback of 4096. With the old `max()` rule, one looping sample added about 10 WER to 70B FLEURS Italian (16.2 against 7.2).
+- **Generation.** Each task's declared cap, temperature 0. TED-LIUM long-form gets 4096, because its task cap of 256 truncates the transcripts of its 20-minute talks (about 3,000 words); tasks that declare no cap (MuChoMusic, VocalSound) fall back to the model-level default of 4096, which these runs do not set (see Engine). With the old `max()` rule, one looping sample added about 10 WER to 70B FLEURS Italian (16.2 against 7.2).
 - **70B.** TP=4 with CUDA graphs. On this vLLM build the fused all-reduce + RMSNorm pass (`fuse_allreduce_rms`) fails graph capture at batch sizes up to 128 tokens with an illegal memory access, so only that pass is disabled. Running eager instead gives the same scores within about 1 point.
 - **TED-LIUM long-form.** Talks run about 22 minutes, 36k-52k audio tokens each: `VLLM_MAX_AUDIO_DECODE_DURATION_S=3600`, `max_num_batched_tokens=65536` (the encoder cache follows it), and on 70B `gpu_memory_utilization=0.75` (CUDA graphs need memory outside vLLM's share).
 
