@@ -11,19 +11,29 @@ the results page was produced from.
 | Input | Pin |
 |---|---|
 | Suite | this branch |
-| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-ckpt` @ cce67fa7 (two commits on f30dc97, below) |
+| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-ckpt` @ 649a28e2 (swiss-ai/lmms-eval#27, on `main`; below) |
 | Image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64` |
 | Weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3; every file's sha256 matches the Hub |
 | Backend | `apertus_1p5_vllm` (suite default) with the suite's Apertus tokenizer and chat template |
 
-lmms-eval changes on top of f30dc97:
+lmms-eval commits on top of `main`:
 
-1. 74a74363: per-language FLEURS tasks (`fleurs_en_us`, `de_de`, `fr_fr`,
-   `it_it`, `es_419`, `pl_pl`, `uk_ua`, copied from the unmerged
-   `google-fluers` branch), and `dataset_name: default` for CoVoST2 en-zh
-   (`lmms-lab-audio/covost2_en-zh` no longer has an `en_zh` config).
-2. cce67fa7: a task's `max_new_tokens` is used as given. The vLLM backend took
+1. de31accd, 00a3ae16: Apertus thinking mode and audio chat in the
+   `apertus_1p5_vllm` wrapper (from `codex/pr2-preserve-audio`).
+2. 255f9d18: the `google_fluers` per-language FLEURS tasks (from
+   swiss-ai/lmms-eval#12); this evaluation uses `fleurs_en_us`, `de_de`,
+   `fr_fr`, `it_it`, `es_419`, `pl_pl` and `uk_ua`.
+3. 37e5ae90: CoVoST2 en-zh loads the dataset's `default` config
+   (`lmms-lab-audio/covost2_en-zh` no longer has `en_zh`).
+4. 6bd2671b: a task's `max_new_tokens` is used as given. The vLLM backend took
    `max(task cap, 4096)`, so every cap of 256 or less silently became 4096.
+
+The results below were produced on cce67fa7, the same changes on top of
+f30dc97 (`codex/pr2-preserve-audio`). Against 649a28e2 (6bd2671b plus the
+repository's automatic black/isort commit), the code the audio tasks use (the
+seven FLEURS tasks, CoVoST2, the cap rule, the Apertus wrapper) is
+byte-identical; the branches differ only in `main`'s mtvqa changes, #12's other
+FLEURS languages and splits, test formatting, and `main`'s `emu3p5.py`.
 
 ## Why these settings
 
@@ -71,7 +81,7 @@ python scripts/audio_repro/compare_runs.py \
   results/lmms-eval/Apertus-v1.5-8B/apertus_8b_r1 results/lmms-eval/Apertus-v1.5-8B/apertus_8b_r2
 ```
 
-To compare against the old cap rule, check out lmms-eval 74a74363 (the commit
+To compare against the old cap rule, check out lmms-eval 37e5ae90 (the commit
 before the cap fix) and submit again.
 
 ## Reproducibility check (2026-10-05)
