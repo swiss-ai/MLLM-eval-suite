@@ -1,10 +1,10 @@
 # Reproducing the audio evaluation of the Apertus 1.5 release checkpoints
 
 This branch evaluates the public release checkpoints `swiss-ai/Apertus-v1.5-8B`
-and `swiss-ai/Apertus-v1.5-70B` on the audio benchmarks of
-`docs/audio/audio_benchmark_results.html`, with every input pinned and one
-fixed generation setting. It is based on `audio-results` (8ac19a5), the code
-the results page was produced from.
+and `swiss-ai/Apertus-v1.5-70B` on 16 audio benchmarks (speech recognition,
+speech translation, audio understanding, audio question answering and sound
+classification), with every input pinned and one fixed generation setting. It
+is based on `audio-results` (8ac19a5).
 
 ## Pinned inputs
 
@@ -42,7 +42,8 @@ FLEURS languages and splits, test formatting, and `main`'s `emu3p5.py`.
   text ids. The prod image's vLLM cannot load them (vocab-size assertion in
   `vocab_parallel_embedding`); the release vLLM can.
 - **Generation.** Each task's declared cap, temperature 0. TED-LIUM long-form
-  gets 4096, the cap the results page states for it; tasks that declare no cap
+  gets 4096, because its task cap of 256 truncates the transcripts of its
+  20-minute talks (about 3,000 words); tasks that declare no cap
   (MuChoMusic, VocalSound) use the backend fallback of 4096. With the old
   `max()` rule, one looping sample added about 10 WER to 70B FLEURS Italian
   (16.2 against 7.2).
@@ -128,22 +129,7 @@ WER lower is better; BLEU and accuracies higher is better (accuracies ×100).
 ³ The task prompt does not list the six classes; the score reflects the prompt
 more than audio recognition.
 
-## Differences from the results page
-
-28 of the 34 values above are within 2 points of the page's
-`swiss-ai/Apertus-v1.5-8B` and `-70B` columns. Larger differences: 8B
-VoxPopuli (+8.7, the one looping sample), 70B TED-LIUM long-form (+14 to +20,
-unstable), and 70B VocalSound (14.0 against 4.9). The page does not record how
-those columns were run.
-
-The page author's 2026-09-23 "audio-official" runs used a different method:
-the prod image, an unpushed lmms-eval commit (5d05caf3, branch
-`codex/audio-review-20260923`), a rewritten model config
-(`ApertusAudioReleaseForCausalLM`, `output_vocab_size` 131072) over the same
-weight files, and client-side audio tokenization. They agree with the results
-above within about 1.5 points except 70B VocalSound (5.1 official). That
-method cannot be rerun from public code until the commit and its audio
-tokenizer codebase are published.
+## Notes
 
 CoVoST2 zh-en BLEU is near zero for both models (8B 1.6): the translations are
 fluent but mostly unrelated to the references, while en-zh and Mandarin ASR

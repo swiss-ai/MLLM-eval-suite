@@ -37,5 +37,5 @@ submit() { bash launchers/eval.sh --eval-framework lmms-eval "${MODEL[@]}" --run
 echo "run $RUN_ID: suite $(git rev-parse --short HEAD), lmms-eval $(git -C third_party/lmms-eval rev-parse --short HEAD)"
 submit --tasks "$TASKS"
 # Long-form items are 36k-52k audio tokens; the encoder cache follows
-# max_num_batched_tokens. 4096 is the cap the audio results page states.
+# max_num_batched_tokens. The task cap of 256 truncates the ~3,000-word transcripts.
 submit --tasks tedlium_long_form --max-num-batched-tokens 65536 --gen-kwargs max_new_tokens=4096 "${TED[@]}"
