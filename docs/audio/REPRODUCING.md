@@ -10,7 +10,7 @@ This branch evaluates the public release checkpoints `swiss-ai/Apertus-v1.5-8B` 
 | lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-ckpt` @ 649a28e2 (swiss-ai/lmms-eval#27, on `main`; below) |
 | Image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64` |
 | Weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3; every file's sha256 matches the Hub |
-| Backend | `apertus_1p5_vllm` (suite default) with the suite's Apertus tokenizer and chat template |
+| Backend | `apertus_1p5_vllm` (suite default) with the tokenizer and chat template shipped with each checkpoint |
 
 lmms-eval commits on top of `main`:
 
@@ -47,7 +47,7 @@ All tasks decode greedily (temperature 0, no sampling, one beam). Tasks that dec
 | Setting | 8B | 70B |
 |---|---|---|
 | Backend | `apertus_1p5_vllm` | `apertus_1p5_vllm` |
-| Tokenizer and chat template | `/capstor/store/cscs/swissai/infra01/MLLM/tokenizer/apertus_emu3.5_wavtok_instruct_thinking_token_fixed` (and its `chat_template.jinja`) | same |
+| Tokenizer and chat template | The checkpoint's own (`Apertus-v1.5-8B/` and its `chat_template.jinja`), set in `submit_apertus.sh` through `TOKENIZER_PATH` and `CHAT_TEMPLATE`. The launcher's default, the suite's internal Apertus tokenizer, renders audio requests with an extra newline after the audio. | The checkpoint's own (`Apertus-v1.5-70B/`) |
 | Workers | 4 data-parallel processes, one GPU each (`tensor_parallel_size=1`) | 1 process, `tensor_parallel_size=4` |
 | CUDA graphs | on (`enforce_eager=false`) | on, with `compilation_config={"pass_config":{"fuse_allreduce_rms":false}}` |
 | `gpu_memory_utilization` | 0.6 | 0.85 (TED-LIUM long-form: 0.75) |
@@ -59,7 +59,7 @@ All tasks decode greedily (temperature 0, no sampling, one beam). Tasks that dec
 | Seed | 1 | 1 |
 | Environment | `VLLM_MAX_AUDIO_DECODE_DURATION_S=3600` | same |
 
-`scripts/audio_repro/submit_apertus.sh` sets the model-specific values and the TED-LIUM overrides; the launcher defaults supply the rest (backend, tokenizer, `max_model_len`, batch size, seed).
+`scripts/audio_repro/submit_apertus.sh` sets the model-specific values and the TED-LIUM overrides; the launcher defaults supply the rest (backend, `max_model_len`, batch size, seed).
 
 ## Why these settings
 
