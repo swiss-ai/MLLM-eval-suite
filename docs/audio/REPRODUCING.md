@@ -169,7 +169,7 @@ The report's peer numbers come from the audio results page, except TED-LIUM long
 
 Kimi-Audio produces identical transcripts in every run. Qwen2-Audio's differ only on one talk, where it outputs a short garbage string in two variants with the same score. Qwen2.5-Omni with `sdpa` is not deterministic: 3 to 6 of the 8 transcripts match between runs, and in one run a talk continues further before stopping.
 
-Qwen2-Audio accepts inputs of up to about 30 s and answers each 20-minute talk with a sentence or less; Kimi-Audio and Qwen2.5-Omni stop early on the longest talks.
+Qwen2-Audio processes audio in 30-second windows and returns at most 26 words per talk; Kimi-Audio and Qwen2.5-Omni stop early on the longest talks.
 
 Known limits: Qwen2-Audio stalls on one data-parallel rank on CoVoST2, so its CoVoST2 score is not available. In earlier runs (lmms-eval 0745eae6), Kimi-Audio's VoiceBench and MMSU answers came back empty; they are not used.
 

@@ -64,12 +64,12 @@ echo "run $RUN_ID: suite $(git rev-parse --short HEAD), lmms-eval $(git -C third
 if [[ "$BACKEND" == qwen2_5_omni ]]; then
   submit "$ASR"            "system_prompt=You are a speech recognition model."
   # Eager attention (the backend default) runs out of GPU memory on the longest
-  # 20-minute talks; sdpa computes the same attention without the full matrix.
+  # talks; sdpa computes the same attention without the full matrix.
   submit tedlium_long_form "system_prompt=You are a speech recognition model.,attn_implementation=sdpa" --gen-kwargs max_new_tokens=4096
   submit "$UNDERSTAND"     "system_prompt=You are an audio understanding model."
   submit vocalsound_test   "system_prompt=You are a vocal sound classification model."
   submit "$VOICE"          "system_prompt=You are a helpful voice assistant."
 else
   submit "$ASR,$UNDERSTAND,vocalsound_test,$VOICE" ""
-  BATCH_SIZE=1 submit tedlium_long_form "" --gen-kwargs max_new_tokens=4096   # ~20-minute talks
+  BATCH_SIZE=1 submit tedlium_long_form "" --gen-kwargs max_new_tokens=4096   # talks of up to 22 minutes
 fi
