@@ -1,0 +1,83 @@
+# Apertus 1.5 release vLLM (the engine named on the HF model card) plus the
+# lmms-eval harness runtime. The release engine is never re-resolved: every
+# package it ships that the harness could pull in is frozen at its installed
+# version before any harness install.
+# Build context: a directory holding image_requirements.py, lmms-pyproject.toml
+# and empty-vlmeval-requirements.txt (see build_release_eval_image.sh).
+ARG BASE_IMAGE=ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64
+FROM ${BASE_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH=/opt/venv/bin:${PATH} \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_HTTP_TIMEOUT=500 \
+    UV_HTTP_RETRIES=5 \
+    UV_LINK_MODE=copy \
+    NLTK_DATA=/usr/share/nltk_data
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg openjdk-17-jre-headless libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY image_requirements.py lmms-pyproject.toml empty-vlmeval-requirements.txt /opt/apertus/
+
+# Freeze the release engine stack.
+RUN mkdir -p /opt/apertus && python - <<'PY'
+from importlib import metadata
+protected = ["vllm", "torch", "torchvision", "torchaudio", "torchcodec", "transformers",
+             "triton", "flashinfer-python", "flashinfer-cubin", "xgrammar", "tokenizers",
+             "safetensors", "huggingface-hub", "numpy", "nvidia-cutlass-dsl"]
+lines = []
+for dist in metadata.distributions():
+    name = dist.metadata["Name"].lower().replace("_", "-")
+    if name in protected or name.startswith("nvidia-"):
+        lines.append(f"{name}=={dist.version}")
+# lmms-eval pins wandb 0.25, which needs protobuf<7; the prod image runs vLLM on 6.33.
+lines.append("protobuf>=6.33,<7")
+open("/opt/apertus/release-constraints.txt", "w").write("\n".join(sorted(set(lines))) + "\n")
+print(open("/opt/apertus/release-constraints.txt").read())
+PY
+ENV UV_CONSTRAINT=/opt/apertus/release-constraints.txt
+
+RUN python /opt/apertus/image_requirements.py /opt/apertus/lmms-pyproject.toml \
+      /opt/apertus/empty-vlmeval-requirements.txt /opt/apertus/harness-requirements.txt && \
+    uv pip install --python /opt/venv/bin/python \
+      -r /opt/apertus/harness-requirements.txt \
+      scipy tblib jieba distance apted lxml zss sacrebleu Polygon3 matplotlib spacy \
+      editdistance nltk lmdb pymupdf "antlr4-python3-runtime==4.9.3" "soundfile>=0.12" \
+      "beautifulsoup4>=4.12" rouge-score sqlitedict word2number langdetect immutabledict \
+      emoji syllapy func_timeout datasets pyarrow latex2sympy2_extended math-verify \
+      librosa jiwer && \
+    uv pip install --python /opt/venv/bin/python --no-deps latex2sympy2==1.9.1 && \
+    python -c "import nltk; assert nltk.download('wordnet', download_dir='/usr/share/nltk_data', quiet=True, raise_on_error=True)" && \
+    python - <<'PY'
+# Fail the build if any frozen engine package moved.
+from importlib import metadata
+for line in open("/opt/apertus/release-constraints.txt"):
+    if "==" not in line:
+        continue
+    name, version = line.strip().split("==")
+    assert metadata.version(name) == version, (name, metadata.version(name), version)
+import vllm, transformers, torch, librosa  # noqa: F401
+print("vllm", vllm.__version__, "transformers", transformers.__version__, "torch", torch.__version__)
+PY
+# Packages the prod eval image carries beyond lmms-eval's declared deps
+# (extras, optional metric and media backends), still under the release pins.
+RUN uv pip install --python /opt/venv/bin/python \
+      aiohttp-cors asttokens bert-score brotli cairocffi cairosvg colorful colormath \
+      cssselect2 docopt executing fastuuid google-api-core gradio gradio-client groovy \
+      hf-gradio imageio importlib-metadata json-repair lightning-utilities litellm lpips \
+      matplotlib-inline mcp-types mypy-extensions nest-asyncio num2words omegaconf \
+      openai-clip opencensus opencensus-context opencv-python \
+      opentelemetry-exporter-prometheus pathspec pdf2image pexpect prompt-toolkit \
+      proto-plus ptyprocess pure-eval pydub pylatexenc pytokens ray safehttpx \
+      scikit-image stack-data sty termcolor tifffile timeout-decorator tinycss2 tomlkit \
+      torchmetrics traitlets validators webencodings xlsxwriter zipp && \
+    python -c "import omegaconf, pydub, cv2, num2words, timeout_decorator"
+RUN uv pip freeze --python /opt/venv/bin/python > /opt/apertus/pip-freeze.txt
+
+WORKDIR /workspace
+ARG BUILD_STAMP=unknown
+RUN printf '%s\n' "$BUILD_STAMP" > /etc/apertus_image_version
