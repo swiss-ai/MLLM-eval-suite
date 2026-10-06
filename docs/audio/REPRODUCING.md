@@ -137,6 +137,42 @@ WER lower is better; BLEU and accuracies higher is better (accuracies ×100). Bo
 
 ² The task prompt does not list the six classes. The 70B mostly answers as if no audio were given (asks for a recording, or classifies the prompt text), so it scores below chance (16.7%); the score reflects the prompt more than audio recognition.
 
+## Peer baselines
+
+`scripts/audio_repro/submit_peers.sh` runs the open audio models of the comparison with the same generation setting as the Apertus runs (each task's declared cap, TED-LIUM long form 4096, greedy). They run on Hugging Face generate, not vLLM.
+
+| Model | Revision | Backend and settings |
+|---|---|---|
+| `Qwen/Qwen2-Audio-7B-Instruct` | `0a095220` | `qwen2_audio`, batch size 8 (TED-LIUM long form 1), prod eval image |
+| `Qwen/Qwen2.5-Omni-7B` | `ae9e1690` | `qwen2_5_omni`, batch size 1, the per-category system prompts of the audio results page, `attn_implementation=sdpa` on TED-LIUM long form, prod eval image with a `qwen-omni-utils==0.0.8` and `audioread==3.0.1` overlay |
+| `moonshotai/Kimi-Audio-7B-Instruct` | `9a82a84c` | `kimi_audio`, batch size 1, archived 2026-05 image with the overlay from `build_kimi_overlay.sbatch` (Kimi-Audio `349251e1`) |
+
+```bash
+export PEER_MODEL_DIR=/path/with/hf-download-snapshots
+bash scripts/audio_repro/submit_peers.sh qwen2_audio peers_qwen2_audio_r1
+EXTRA_PYTHONPATH=/path/to/qwen-omni-overlay bash scripts/audio_repro/submit_peers.sh qwen2_5_omni peers_qwen2_5_omni_r1
+EXTRA_PYTHONPATH=/path/to/kimi-overlay bash scripts/audio_repro/submit_peers.sh kimi_audio peers_kimi_audio_r1
+```
+
+Why the backend settings differ from the Apertus runs:
+
+- **Batch size.** The launcher's default of 512 is a vLLM setting. At 512 Qwen2-Audio runs out of GPU memory and its backend returns empty answers for the whole batch; at 8 its outputs are identical to batch size 1 on 64 LibriSpeech samples.
+- **Attention on TED-LIUM long form.** With the backend's default eager attention, Qwen2.5-Omni runs out of GPU memory on the four longest talks and returns empty transcripts. `sdpa` computes the same attention without materializing the full matrix.
+
+The report's peer numbers come from the audio results page, except TED-LIUM long form, where the page ran the peers with the task's 256-token cap. TED-LIUM long form was rerun with these settings (lmms-eval 9aee58f2 from swiss-ai/lmms-eval#26, whose peer code matches the pinned commit apart from the TED-LIUM login flag):
+
+| Model | TED-LIUM long form WER, every run |
+|---|---|
+| Qwen2-Audio | 99.6 in all 6 runs |
+| Qwen2.5-Omni | 76.2, 76.2, 76.2, 76.2, 75.6 |
+| Kimi-Audio | 61.8 in all 4 runs |
+
+Kimi-Audio produces identical transcripts in every run. Qwen2-Audio's differ only on one talk, where it outputs a short garbage string in two variants with the same score. Qwen2.5-Omni with `sdpa` is not deterministic: 3 to 6 of the 8 transcripts match between runs, and in one run a talk continues further before stopping.
+
+Qwen2-Audio accepts inputs of up to about 30 s and answers each 20-minute talk with a sentence or less; Kimi-Audio and Qwen2.5-Omni stop early on the longest talks.
+
+Known limits: Qwen2-Audio stalls on one data-parallel rank on CoVoST2, so its CoVoST2 score is not available; Kimi-Audio's VoiceBench and MMSU answers come back empty and are not used.
+
 ## Notes
 
 CoVoST2 zh-en BLEU is near zero for both models (8B 1.1 in both runs, 70B 1.5 and 1.4): the translations are mostly unrelated to the references. It is not reported.
