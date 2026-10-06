@@ -7,7 +7,7 @@ This branch evaluates the public release checkpoints `swiss-ai/Apertus-v1.5-8B` 
 | Input | Pin |
 |---|---|
 | Suite | this branch |
-| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-ckpt` @ 649a28e2 (swiss-ai/lmms-eval#27, on `main`; below) |
+| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-ckpt-peers` @ 585073ca (swiss-ai/lmms-eval#28, on top of swiss-ai/lmms-eval#27 at 649a28e2, which produced the Apertus results; #28 changes only the peer backends, the chat-backend mixin they share with other chat models, MMAU's handling of out-of-range answer letters, and the login flag of the two TED-LIUM tasks) |
 | Image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64`; that base tag moves, so a rebuild can give a different hash |
 | Weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3; every file's sha256 matches the Hub |
 | Backend | `apertus_1p5_vllm` (suite default) with the tokenizer and chat template shipped with each checkpoint |
@@ -171,7 +171,7 @@ Kimi-Audio produces identical transcripts in every run. Qwen2-Audio's differ onl
 
 Qwen2-Audio accepts inputs of up to about 30 s and answers each 20-minute talk with a sentence or less; Kimi-Audio and Qwen2.5-Omni stop early on the longest talks.
 
-Known limits: Qwen2-Audio stalls on one data-parallel rank on CoVoST2, so its CoVoST2 score is not available; Kimi-Audio's VoiceBench and MMSU answers come back empty and are not used.
+Known limits: Qwen2-Audio stalls on one data-parallel rank on CoVoST2, so its CoVoST2 score is not available. In earlier runs (lmms-eval 0745eae6), Kimi-Audio's VoiceBench and MMSU answers came back empty; they are not used.
 
 ## Notes
 
