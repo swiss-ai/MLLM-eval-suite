@@ -19,7 +19,7 @@ lmms-eval commits on top of `main`:
 3. 37e5ae90: CoVoST2 en-zh loads the dataset's `default` config (`lmms-lab-audio/covost2_en-zh` no longer has `en_zh`).
 4. 6bd2671b: a task's `max_new_tokens` is used as given. The vLLM backend took `max(task cap, 4096)`, so every cap of 256 or less silently became 4096.
 
-The results below come from two runs per model (2026-10-05) from a fresh clone of this branch at 530b67d (lmms-eval 649a28e2), with all caches empty: datasets, vLLM compilation and image tokens.
+The results below come from two runs per model (2026-10-06) from a fresh clone of this branch at f06baa9 (lmms-eval 649a28e2), with all caches empty: datasets, vLLM compilation and image tokens.
 
 ## Configuration
 
@@ -97,14 +97,14 @@ To compare against the old cap rule, check out lmms-eval 37e5ae90 (the commit be
 
 ## Reproducibility check
 
-Each model ran twice; `compare_runs.py` compares the generated text sample by sample.
+Each model ran twice from empty caches; `compare_runs.py` compares the generated text sample by sample.
 
 | Model | Identical outputs, run 1 vs run 2 | Largest score difference |
 |---|---|---|
-| 8B | 75-100% per task | 0.2, on MMAU test-mini; most tasks within 0.05 |
-| 70B | 38-99% per task | TED-LIUM long-form 0.8 and SPGISpeech 0.4; all other tasks within 0.3 |
+| 8B | 100% on every task | none; all scores identical |
+| 70B | 57-99% per task (TED-LIUM long form 2 of 8 talks) | TED-LIUM long form 5.0; all other tasks within 0.4 |
 
-Each job compiles its own vLLM kernels from an empty cache, and kernel autotuning differs slightly between jobs, so outputs are not byte-identical. They differ only on borderline samples and move scores by a few tenths at most. 70B with TP=4 also depends on batch timing. Two earlier runs per model (on cce67fa7, the same audio code with a warm shared cache) agree with these within 0.7 on every task except TED-LIUM long-form (8B 31.2 against 32.3; 70B 63.3 to 72.7 across the four runs), which has only 8 talks.
+The 8B runs are byte-identical. With TP=4 the 70B outputs also depend on batch timing and kernel autotuning, so they differ on borderline samples, which moves scores by a few tenths. TED-LIUM long form has only 8 talks, so one talk that changes moves the score by several points.
 
 ## Results
 
@@ -112,30 +112,28 @@ WER lower is better; BLEU and accuracies higher is better (accuracies ×100). Bo
 
 | Benchmark | Metric | 8B | 70B |
 |---|---|---|---|
-| LibriSpeech test-clean | WER | 6.4 / 6.3 | 6.0 / 6.0 |
-| LibriSpeech test-other | WER | 19.4 / 19.3 | 18.8 / 18.9 |
-| VoxPopuli | WER | 20.4 / 20.3 ¹ | 10.4 / 10.4 |
-| SPGISpeech | WER | 17.2 / 17.2 | 12.8 / 12.4 |
-| TED-LIUM long form | WER | 31.2 / 31.2 | 72.7 / 71.9 ² |
-| FLEURS English | WER | 14.9 / 14.9 | 14.3 / 14.2 |
-| FLEURS German | WER | 15.6 / 15.7 | 17.9 / 17.8 |
-| FLEURS French | WER | 22.1 / 22.1 | 21.3 / 21.3 |
-| FLEURS Italian | WER | 7.6 / 7.6 | 7.2 / 7.2 |
-| FLEURS Spanish | WER | 8.4 / 8.5 | 8.0 / 8.0 |
-| FLEURS Polish | WER | 44.6 / 44.6 | 45.0 / 45.0 |
-| FLEURS Ukrainian | WER | 34.5 / 34.5 | 31.7 / 31.9 |
-| CoVoST2 en-zh test | BLEU | 16.5 / 16.5 | 13.3 / 13.3 |
-| MMAU test-mini | accuracy | 53.5 / 53.7 | 55.7 / 55.6 |
-| MuChoMusic | accuracy | 51.8 / 51.8 | 58.3 / 58.6 |
-| Clotho-AQA test | exact match | 54.2 / 54.2 | 58.6 / 58.6 |
-| VocalSound | accuracy | 16.4 / 16.4 | 14.0 / 14.1 ³ |
+| LibriSpeech test-clean | WER | 6.6 / 6.6 | 6.1 / 6.2 |
+| LibriSpeech test-other | WER | 19.9 / 19.9 | 19.4 / 19.4 |
+| VoxPopuli | WER | 11.2 / 11.2 | 10.3 / 10.3 |
+| SPGISpeech | WER | 18.8 / 18.8 | 12.6 / 12.6 |
+| TED-LIUM long form | WER | 35.0 / 35.0 | 42.8 / 47.8 ¹ |
+| FLEURS English | WER | 15.1 / 15.1 | 14.1 / 14.1 |
+| FLEURS German | WER | 16.1 / 16.1 | 17.8 / 17.8 |
+| FLEURS French | WER | 22.4 / 22.4 | 21.1 / 21.1 |
+| FLEURS Italian | WER | 7.6 / 7.6 | 7.3 / 7.2 |
+| FLEURS Spanish | WER | 8.7 / 8.7 | 7.8 / 7.9 |
+| FLEURS Polish | WER | 43.8 / 43.8 | 44.2 / 44.5 |
+| FLEURS Ukrainian | WER | 34.9 / 34.9 | 31.5 / 31.7 |
+| CoVoST2 en-zh test | BLEU | 15.3 / 15.3 | 13.1 / 13.1 |
+| MMAU test-mini | accuracy | 55.2 / 55.2 | 55.8 / 55.9 |
+| MuChoMusic | accuracy | 51.3 / 51.3 | 57.5 / 57.3 |
+| Clotho-AQA test | exact match | 52.8 / 52.8 | 57.3 / 57.4 |
+| VocalSound | accuracy | 16.1 / 16.1 | 5.0 / 5.3 ² |
 
-¹ One sample loops to VoxPopuli's own 4096-token cap in both runs, adding about 9 WER; without it the score is about 11.2.
+¹ 8 talks. On the four longest talks the 70B stops after 50-70% of the transcript in both runs; in run 2 one talk also repeats a passage, which accounts for the difference.
 
-² 8 talks; the output for several talks differs between runs, and the score ranges from 63.3 to 72.7 across four runs. Report as a range.
-
-³ The task prompt does not list the six classes; the score reflects the prompt more than audio recognition.
+² The task prompt does not list the six classes. The 70B mostly answers as if no audio were given (asks for a recording, or classifies the prompt text), so it scores below chance (16.7%); the score reflects the prompt more than audio recognition.
 
 ## Notes
 
-CoVoST2 zh-en BLEU is near zero for both models (8B 1.6): the translations are fluent but mostly unrelated to the references, while en-zh and Mandarin ASR work. This points to the zh-en data and is not reported.
+CoVoST2 zh-en BLEU is near zero for both models (8B 1.1, 70B 1.5): the translations are fluent but mostly unrelated to the references, while en-zh and Mandarin ASR work. This points to the zh-en data and is not reported.
