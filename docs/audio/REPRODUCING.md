@@ -157,7 +157,7 @@ EXTRA_PYTHONPATH=/path/to/kimi-overlay bash scripts/audio_repro/submit_peers.sh 
 Why the backend settings differ from the Apertus runs:
 
 - **Batch size.** The launcher's default of 512 is a vLLM setting. At 512 Qwen2-Audio runs out of GPU memory and its backend returns empty answers for the whole batch; at 8 its outputs are identical to batch size 1 on 64 LibriSpeech samples.
-- **Attention on TED-LIUM long form.** With the backend's default eager attention, Qwen2.5-Omni runs out of GPU memory on the four longest talks and returns empty transcripts. `sdpa` computes the same attention without materializing the full matrix.
+- **Attention on TED-LIUM long form.** With the backend's default eager attention, Qwen2.5-Omni runs out of GPU memory on the four longest talks and returns empty transcripts. `sdpa` computes the same attention without materializing the full matrix, but rounds differently, and over 1,000-word greedy transcripts that changes the output: on the four talks eager can process, per-talk WER differs from eager by up to 4 points in both directions (mean 18.1 with sdpa against 19.0 with eager). The Qwen2.5-Omni TED-LIUM long form score is therefore an sdpa measurement; no eager score exists for the full task.
 
 The report's peer numbers come from the audio results page, except TED-LIUM long form, where the page ran the peers with the task's 256-token cap. TED-LIUM long form was rerun with these settings (lmms-eval 9aee58f2 from swiss-ai/lmms-eval#26, whose peer code matches the pinned commit apart from the TED-LIUM login flag):
 
