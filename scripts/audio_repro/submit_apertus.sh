@@ -21,7 +21,7 @@ if [[ -n "$(git status --short --ignore-submodules=none)" ]]; then
 fi
 
 export EVAL_ENVIRONMENT=${EVAL_ENVIRONMENT:-$ROOT/toml/shared/apertus-vllm-release-eval.toml}
-export SKIP_PREFLIGHT=1 VLLM_MAX_AUDIO_DECODE_DURATION_S=3600   # TED-LIUM long-form talks run ~22 min
+export SKIP_PREFLIGHT=1 VLLM_MAX_AUDIO_DECODE_DURATION_S=3600   # TED-LIUM long-form talks run up to 22 min
 unset GEN_KWARGS BATCH_SIZE NUM_PROCESSES GPU_MEMORY_UTILIZATION EXTRA_MODEL_ARGS
 
 TASKS=librispeech,open_asr_voxpopuli,open_asr_spgispeech,fleurs_en_us,fleurs_de_de,fleurs_fr_fr,fleurs_it_it,fleurs_es_419,fleurs_pl_pl,fleurs_uk_ua,covost2,mmau,muchomusic,clotho_aqa,vocalsound_test
@@ -58,7 +58,7 @@ submit() { bash launchers/eval.sh --eval-framework lmms-eval "${MODEL[@]}" --run
 
 echo "run $RUN_ID: suite $(git rev-parse --short HEAD), lmms-eval $(git -C third_party/lmms-eval rev-parse --short HEAD)"
 if [[ -n "$CORE" ]]; then submit --tasks "$CORE"; fi
-# Long-form items are 36k-52k audio tokens; the encoder cache follows
+# The longest long-form talks exceed the default encoder cache, which follows
 # max_num_batched_tokens. The task cap of 256 truncates the ~3,000-word transcripts.
 if [[ "$RUN_TED" -gt 0 ]]; then
   submit --tasks tedlium_long_form --max-num-batched-tokens 65536 --gen-kwargs max_new_tokens=4096 "${TED[@]}"
