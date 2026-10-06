@@ -29,14 +29,20 @@ if [[ -n "$(git status --short --ignore-submodules=none)" ]]; then
   echo "refusing to submit from a checkout with local changes" >&2; exit 1
 fi
 export SKIP_PREFLIGHT=1 VLLM_MAX_AUDIO_DECODE_DURATION_S=3600
-unset EVAL_ENVIRONMENT GEN_KWARGS BATCH_SIZE NUM_PROCESSES GPU_MEMORY_UTILIZATION EXTRA_MODEL_ARGS
+unset EVAL_ENVIRONMENT GEN_KWARGS NUM_PROCESSES GPU_MEMORY_UTILIZATION EXTRA_MODEL_ARGS
+# The peers run on Hugging Face generate, not vLLM, so the launcher's vLLM batch
+# size of 512 does not apply. At 512 Qwen2-Audio runs out of GPU memory and the
+# backend returns empty answers for the whole batch. Qwen2.5-Omni joins a batch
+# into one conversation, so it must run one request at a time. Qwen2-Audio at
+# batch size 8 gives the same outputs as at 1.
+export BATCH_SIZE=1
 
 ASR=librispeech,open_asr_voxpopuli,open_asr_spgispeech,fleurs_en_us,fleurs_de_de,fleurs_fr_fr,fleurs_it_it,fleurs_es_419,fleurs_pl_pl,fleurs_uk_ua
 UNDERSTAND=covost2,mmau,muchomusic,clotho_aqa
 VOICE=voicebench_advbench,voicebench_bbh,voicebench_ifeval,voicebench_mmsu,voicebench_openbookqa,mmsu
 
 case "$BACKEND" in
-  qwen2_audio)  MODEL="$PEER_MODEL_DIR/Qwen2-Audio-7B-Instruct" ;;
+  qwen2_audio)  MODEL="$PEER_MODEL_DIR/Qwen2-Audio-7B-Instruct"; BATCH_SIZE=8 ;;
   qwen2_5_omni) MODEL="$PEER_MODEL_DIR/Qwen2.5-Omni-7B"
                 [[ -f "${EXTRA_PYTHONPATH:-}/qwen_omni_utils/__init__.py" ]] || {
                   echo "set EXTRA_PYTHONPATH to an overlay with qwen-omni-utils (see header)" >&2; exit 1; } ;;
@@ -64,5 +70,5 @@ if [[ "$BACKEND" == qwen2_5_omni ]]; then
   submit "$VOICE"          "You are a helpful voice assistant."
 else
   submit "$ASR,$UNDERSTAND,vocalsound_test,$VOICE" ""
-  submit tedlium_long_form "" --gen-kwargs max_new_tokens=4096
+  BATCH_SIZE=1 submit tedlium_long_form "" --gen-kwargs max_new_tokens=4096   # ~20-minute talks
 fi
