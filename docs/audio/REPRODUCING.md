@@ -8,7 +8,7 @@ This branch runs the audio table of the Apertus 1.5 report: the released checkpo
 |---|---|
 | Suite | this branch, on top of `main` 101fba0 |
 | lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-eval-final` @ 794ab50e, on top of a0650005 (the commit `main` pins) |
-| Apertus image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64`; that base tag moves, so a rebuild can give a different hash |
+| Apertus image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64` (the vLLM image of the model card), adding the lmms-eval runtime; that base tag moves, so a rebuild can give a different hash |
 | Peer images | `toml/shared/apertus-vllm-vision-eval-prod.toml` (Qwen2-Audio, Qwen2.5-Omni), `toml/shared/apertus-vllm-vision-eval-2026-05-torch210.toml` (Kimi-Audio) |
 | Apertus weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3 |
 | Peer weights | `Qwen/Qwen2-Audio-7B-Instruct` @ 0a095220, `Qwen/Qwen2.5-Omni-7B` @ ae9e1690, `moonshotai/Kimi-Audio-7B-Instruct` @ 9a82a84c |
@@ -156,4 +156,3 @@ To resubmit only some tasks (for example after a preemption), pass them as the t
 ## Known limits
 
 - Qwen2-Audio's CoVoST2 runs have failed every time (an audio decoding error, or one data-parallel rank stalling), and Qwen2.5-Omni's CoVoST2 has not completed in our runs, so neither has a CoVoST2 score yet.
-- `toml/shared/apertus-vllm-release-eval.toml` points at a copy of the image in personal scratch (readable by the infra01 group only); it needs a shared location before this merges, or a rebuild with step 1.
