@@ -67,9 +67,10 @@ submit() {  # <comma task group> <model args or empty>: one job per selected tas
   local margs=$2 task
   for task in ${1//,/ }; do
     if [[ -n "$ONLY" ]] && ! tr ',' '\n' <<<"$ONLY" | grep -qx "$task"; then continue; fi
-    # DRY_RUN=1 prints each job's full arguments without submitting.
+    # DRY_RUN=1 prints each job's full arguments without submitting; LIMIT=N
+    # evaluates only the first N samples of each task (for checking the setup).
     EXTRA_MODEL_ARGS="$margs" bash launchers/eval.sh --eval-framework lmms-eval --model "$MODEL" --run-id "$RUN_ID" \
-      ${DRY_RUN:+--dry-run} --tasks "$task" --gen-kwargs "max_new_tokens=${TASK_CAP[$task]}"
+      ${DRY_RUN:+--dry-run} --tasks "$task" --gen-kwargs "max_new_tokens=${TASK_CAP[$task]}" ${LIMIT:+-- --limit "$LIMIT"}
   done
 }
 

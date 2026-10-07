@@ -60,7 +60,9 @@ export TOKENIZER_PATH="$CKPT" CHAT_TEMPLATE="$CKPT/chat_template.jinja"
 
 SELECTED=${ONLY:-$TASKS,tedlium_long_form}
 
-# DRY_RUN=1 prints each job's full arguments without submitting.
+# DRY_RUN=1 prints each job's full arguments without submitting; LIMIT=N
+# evaluates only the first N samples of each task (for checking the setup).
+JOB_ARGS=(); [[ -n "${LIMIT:-}" ]] && JOB_ARGS=(--limit "$LIMIT")
 submit() { bash launchers/eval.sh --eval-framework lmms-eval --model "$CKPT" --run-id "$RUN_ID" "${PROFILE[@]}" ${DRY_RUN:+--dry-run} "$@"; }
 
 echo "run $RUN_ID: suite $(git rev-parse --short HEAD), lmms-eval $(git -C third_party/lmms-eval rev-parse --short HEAD)"
@@ -69,8 +71,8 @@ for task in ${SELECTED//,/ }; do
   if [[ "$task" == tedlium_long_form ]]; then
     # The longest talks exceed the encoder cache, which follows
     # max_num_batched_tokens (launcher default 49152).
-    submit --tasks "$task" --gen-kwargs "max_new_tokens=${TASK_CAP[$task]}" -- --max-num-batched-tokens 65536
+    submit --tasks "$task" --gen-kwargs "max_new_tokens=${TASK_CAP[$task]}" -- --max-num-batched-tokens 65536 "${JOB_ARGS[@]}"
   else
-    submit --tasks "$task" --gen-kwargs "max_new_tokens=${TASK_CAP[$task]}"
+    submit --tasks "$task" --gen-kwargs "max_new_tokens=${TASK_CAP[$task]}" ${LIMIT:+-- --limit "$LIMIT"}
   fi
 done
