@@ -8,7 +8,7 @@ This branch evaluates the public release checkpoints `swiss-ai/Apertus-v1.5-8B` 
 |---|---|
 | Suite | this branch |
 | lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-release-ckpt` @ 649a28e2 (swiss-ai/lmms-eval#27, on `main`; below) |
-| Image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64` |
+| Image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64`; that base tag moves, so a rebuild can give a different hash |
 | Weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3; every file's sha256 matches the Hub |
 | Backend | `apertus_1p5_vllm` (suite default) with the tokenizer and chat template shipped with each checkpoint |
 
@@ -19,11 +19,11 @@ lmms-eval commits on top of `main`:
 3. 37e5ae90: CoVoST2 en-zh loads the dataset's `default` config (`lmms-lab-audio/covost2_en-zh` no longer has `en_zh`).
 4. 6bd2671b: a task's `max_new_tokens` is used as given. The vLLM backend took `max(task cap, 4096)`, so every cap of 256 or less silently became 4096.
 
-The results below come from two runs per model (2026-10-06) from a fresh clone of this branch at f06baa9 (lmms-eval 649a28e2), with all caches empty: datasets, vLLM compilation and image tokens.
+The results below come from two runs per model (2026-10-06) from one fresh clone of this branch at f06baa9 (lmms-eval 649a28e2). Its caches (datasets, vLLM compilation and image tokens) were empty for the first runs; the second runs reused what the first ones cached.
 
 ## Configuration
 
-These are the settings recorded in the result files of the reported runs.
+These are the settings of the reported runs, as recorded in their result files and logs; the environment variable is set by `submit_apertus.sh`.
 
 ### Tasks and generation
 
@@ -56,7 +56,7 @@ All tasks decode greedily (temperature 0, no sampling, one beam). Tasks that dec
 | `enable_prefix_caching` | true | true |
 | Model-level `max_new_tokens` | 4096, set in `submit_apertus.sh` (`--extra-model-args max_new_tokens=4096`). It applies only to tasks that declare no cap (MuChoMusic, VocalSound); a task's own cap takes precedence. | same |
 | lmms-eval `--batch_size` | 512 | 512 |
-| Seed | 1 | 1 |
+| Seed | vLLM engine 1; lmms-eval (Python, NumPy, PyTorch) 1234 | same |
 | Environment | `VLLM_MAX_AUDIO_DECODE_DURATION_S=3600` | same |
 
 `scripts/audio_repro/submit_apertus.sh` sets the model-specific values and the TED-LIUM overrides; the launcher defaults supply the rest (backend, `max_model_len`, batch size, seed).
@@ -66,7 +66,7 @@ All tasks decode greedily (temperature 0, no sampling, one beam). Tasks that dec
 - **Image.** The release checkpoints use the Transformers 5.14 layout (`Apertus1p5ForConditionalGeneration`) with `lm_head` pruned to the 131,072 text ids. The prod image's vLLM cannot load them (vocab-size assertion in `vocab_parallel_embedding`); the release vLLM can.
 - **Generation.** Each task's declared cap, temperature 0. TED-LIUM long-form gets 4096, because its task cap of 256 truncates the transcripts of its talks (3 to 22 minutes, up to 4,164 words); tasks that declare no cap (MuChoMusic, VocalSound) use the model-level cap of 4096 set in `submit_apertus.sh` (see Engine). With the old `max()` rule, one looping sample added about 10 WER to 70B FLEURS Italian (16.2 against 7.2).
 - **70B.** TP=4 with CUDA graphs. On this vLLM build the fused all-reduce + RMSNorm pass (`fuse_allreduce_rms`) fails graph capture at batch sizes up to 128 tokens with an illegal memory access, so only that pass is disabled. Running eager instead gives the same scores within about 1 point.
-- **TED-LIUM long-form.** The eight talks run 3 to 22 minutes, and the longest exceed vLLM's default encoder cache, which follows `max_num_batched_tokens` (16384): `VLLM_MAX_AUDIO_DECODE_DURATION_S=3600`, `max_num_batched_tokens=65536` (the encoder cache follows it), and on 70B `gpu_memory_utilization=0.75` (CUDA graphs need memory outside vLLM's share).
+- **TED-LIUM long-form.** The eight talks run 3 to 22 minutes, and the longest exceed the encoder cache, which follows `max_num_batched_tokens` (launcher default 49152): `VLLM_MAX_AUDIO_DECODE_DURATION_S=3600` (vLLM's default limit is 600 s), `max_num_batched_tokens=65536`, and on 70B `gpu_memory_utilization=0.75` (at 0.85 the longest talk runs out of memory).
 
 ## Steps
 
@@ -74,7 +74,10 @@ All tasks decode greedily (temperature 0, no sampling, one beam). Tasks that dec
 git clone --recurse-submodules -b ahadinia/audio-release-ckpt https://github.com/swiss-ai/MLLM-eval-suite
 cd MLLM-eval-suite
 
-# 1. Image (once): build it, check the sha256 above, and point `image =` in toml/shared/apertus-vllm-release-eval.toml at it.
+# 1. Image (once): build it and check the sha256 above. Point a copy of
+#    toml/shared/apertus-vllm-release-eval.toml outside the checkout at it (editing the
+#    file in place makes the checkout dirty, and the submit script refuses to run).
+#    export EVAL_ENVIRONMENT=/path/to/your/apertus-vllm-release-eval.toml
 sbatch --account=infra01 --nodes=1 --exclusive --time=04:00:00 \
   dockerfiles/build_release_eval_image.sh "$PWD" "$PWD/cache/image-builds/release-eval"
 
@@ -93,7 +96,7 @@ python scripts/audio_repro/compare_runs.py \
   results/lmms-eval/Apertus-v1.5-8B/apertus_8b_r1 results/lmms-eval/Apertus-v1.5-8B/apertus_8b_r2
 ```
 
-To compare against the old cap rule, check out lmms-eval 37e5ae90 (the commit before the cap fix) and submit again.
+To compare against the old cap rule, submit from a second clone whose lmms-eval submodule is checked out at 37e5ae90 (the commit before the cap fix) and committed, since the submit script refuses a checkout with local changes.
 
 ## Reproducibility check
 
@@ -130,10 +133,10 @@ WER lower is better; BLEU and accuracies higher is better (accuracies ×100). Bo
 | Clotho-AQA test | exact match | 52.8 / 52.8 | 57.3 / 57.4 |
 | VocalSound | accuracy | 16.1 / 16.1 | 5.0 / 5.3 ² |
 
-¹ 8 talks. On the four longest talks the 70B stops after 50-70% of the transcript in both runs; in run 2 one talk also repeats a passage, which accounts for the difference.
+¹ 8 talks. On the four longest talks the 70B stops after 40-71% of the transcript in both runs; in run 2 one talk also repeats a passage, which accounts for most of the difference.
 
 ² The task prompt does not list the six classes. The 70B mostly answers as if no audio were given (asks for a recording, or classifies the prompt text), so it scores below chance (16.7%); the score reflects the prompt more than audio recognition.
 
 ## Notes
 
-CoVoST2 zh-en BLEU is near zero for both models (8B 1.1, 70B 1.5): the translations are fluent but mostly unrelated to the references, while en-zh and Mandarin ASR work. This points to the zh-en data and is not reported.
+CoVoST2 zh-en BLEU is near zero for both models (8B 1.1 in both runs, 70B 1.5 and 1.4): the translations are mostly unrelated to the references. It is not reported.

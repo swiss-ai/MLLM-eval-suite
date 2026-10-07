@@ -59,7 +59,7 @@ submit() { bash launchers/eval.sh --eval-framework lmms-eval "${MODEL[@]}" --run
 echo "run $RUN_ID: suite $(git rev-parse --short HEAD), lmms-eval $(git -C third_party/lmms-eval rev-parse --short HEAD)"
 if [[ -n "$CORE" ]]; then submit --tasks "$CORE"; fi
 # The longest long-form talks exceed the default encoder cache, which follows
-# max_num_batched_tokens. The task cap of 256 truncates the ~3,000-word transcripts.
+# max_num_batched_tokens. The task cap of 256 truncates the transcripts (up to 4,164 words).
 if [[ "$RUN_TED" -gt 0 ]]; then
   submit --tasks tedlium_long_form --max-num-batched-tokens 65536 --gen-kwargs max_new_tokens=4096 "${TED[@]}"
 fi
