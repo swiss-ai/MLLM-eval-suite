@@ -90,6 +90,20 @@ The final run on this branch replaces earlier numbers that came from older code.
 - **Qwen2.5-Omni.** One consistent setup. The results page's Omni column mixed runs: FLEURS English and Ukrainian and MuChoMusic ran with Omni's default system prompt, and the other FLEURS languages through the earlier `google_fleurs` task.
 - **Tasks.** Only the table's 16 tasks; VoiceBench and MMSU are not run.
 
+## Validation
+
+Before the final run, each model ran LibriSpeech (first 32 samples of each of the four splits, `LIMIT=32`) from this branch, and the outputs were compared with the same samples of the runs behind the current report:
+
+| Model | Outputs identical to the earlier run | Note |
+|---|---|---|
+| Apertus 8B | 124/128 | one word differs in each split (for example "there are of two kinds" against "there are two kinds") |
+| Apertus 70B | 121/128 | the earlier 70B runs (TP=4) were not deterministic either |
+| Qwen2-Audio | 123/128 | batches of 8 are padded differently in a 32-sample run |
+| Qwen2.5-Omni | 128/128 | |
+| Kimi-Audio | 128/128 | the earlier run used older lmms-eval code |
+
+No output was empty, and each job log shows lmms-eval 794ab50e and the settings above.
+
 ## Steps
 
 ```bash
