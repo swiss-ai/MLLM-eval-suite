@@ -24,8 +24,10 @@ export EVAL_ENVIRONMENT=${EVAL_ENVIRONMENT:-$ROOT/toml/shared/apertus-vllm-relea
 export RUN_ID SKIP_PREFLIGHT=1
 export VLLM_MAX_AUDIO_DECODE_DURATION_S=3600   # vLLM's default (600 s) rejects the longest TED-LIUM talks
 
-# The 16 tasks of the report's audio table.
-TASKS=librispeech,open_asr_voxpopuli,open_asr_spgispeech,fleurs_en_us,fleurs_de_de,fleurs_fr_fr,fleurs_it_it,fleurs_es_419,fleurs_pl_pl,fleurs_uk_ua,covost2,mmau,muchomusic,clotho_aqa,vocalsound_test
+# The 16 tasks of the report's audio table. MMAU runs as mmau_test_mini, the
+# split the table reports: the mmau group also runs mmau_test, which has no public
+# answers, and main's run check rejects a group with an unscored member.
+TASKS=librispeech,open_asr_voxpopuli,open_asr_spgispeech,fleurs_en_us,fleurs_de_de,fleurs_fr_fr,fleurs_it_it,fleurs_es_419,fleurs_pl_pl,fleurs_uk_ua,covost2,mmau_test_mini,muchomusic,clotho_aqa,vocalsound_test
 
 # Each task's output cap, passed explicitly: main's launcher otherwise sets
 # max_new_tokens=16384 on every job. These are the caps the task definitions
@@ -34,7 +36,7 @@ TASKS=librispeech,open_asr_voxpopuli,open_asr_spgispeech,fleurs_en_us,fleurs_de_
 # words), so it gets 4096.
 declare -A TASK_CAP=([librispeech]=256 [open_asr_voxpopuli]=4096 [open_asr_spgispeech]=4096
   [fleurs_en_us]=256 [fleurs_de_de]=256 [fleurs_fr_fr]=256 [fleurs_it_it]=256 [fleurs_es_419]=256
-  [fleurs_pl_pl]=256 [fleurs_uk_ua]=256 [covost2]=256 [mmau]=128 [muchomusic]=4096 [clotho_aqa]=8
+  [fleurs_pl_pl]=256 [fleurs_uk_ua]=256 [covost2]=256 [mmau_test_mini]=128 [muchomusic]=4096 [clotho_aqa]=8
   [vocalsound_test]=4096 [tedlium_long_form]=4096)
 CAP=max_new_tokens=4096   # model-level fallback, as in the tested runs
 

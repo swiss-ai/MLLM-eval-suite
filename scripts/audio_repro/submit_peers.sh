@@ -38,7 +38,7 @@ export VLLM_MAX_AUDIO_DECODE_DURATION_S=3600
 export BATCH_SIZE=1
 
 ASR=librispeech,open_asr_voxpopuli,open_asr_spgispeech,fleurs_en_us,fleurs_de_de,fleurs_fr_fr,fleurs_it_it,fleurs_es_419,fleurs_pl_pl,fleurs_uk_ua
-UNDERSTAND=covost2,mmau,muchomusic,clotho_aqa
+UNDERSTAND=covost2,mmau_test_mini,muchomusic,clotho_aqa   # MMAU as mmau_test_mini: see submit_apertus.sh
 
 case "$BACKEND" in
   qwen2_audio)  MODEL="$PEER_MODEL_DIR/Qwen2-Audio-7B-Instruct"; BATCH_SIZE=8 ;;
@@ -60,7 +60,7 @@ esac
 case "$BACKEND" in qwen2_5_omni) NOCAP=4096 ;; *) NOCAP=256 ;; esac
 declare -A TASK_CAP=([librispeech]=256 [open_asr_voxpopuli]=4096 [open_asr_spgispeech]=4096
   [fleurs_en_us]=256 [fleurs_de_de]=256 [fleurs_fr_fr]=256 [fleurs_it_it]=256 [fleurs_es_419]=256
-  [fleurs_pl_pl]=256 [fleurs_uk_ua]=256 [covost2]=256 [mmau]=128 [muchomusic]=$NOCAP [clotho_aqa]=8
+  [fleurs_pl_pl]=256 [fleurs_uk_ua]=256 [covost2]=256 [mmau_test_mini]=128 [muchomusic]=$NOCAP [clotho_aqa]=8
   [vocalsound_test]=$NOCAP [tedlium_long_form]=4096)
 
 submit() {  # <comma task group> <model args or empty>: one job per selected task

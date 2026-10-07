@@ -56,7 +56,7 @@ Greedy decoding for every model, and each task's output cap passed explicitly to
 | `tedlium_long_form` | val (8 talks, 3 to 22 minutes) | 4096 (the task declares 256, which truncates the transcripts) |
 | `fleurs_en_us`, `de_de`, `fr_fr`, `it_it`, `es_419`, `pl_pl`, `uk_ua` | test | 256 |
 | `covost2` | en-zh test | 256 |
-| `mmau` | test-mini | 128 |
+| `mmau_test_mini` | test-mini | 128 (run as `mmau_test_mini`, not the `mmau` group: its test split has no public answers, and `main`'s run check rejects a group with an unscored member) |
 | `clotho_aqa` | test | 8 |
 | `muchomusic`, `vocalsound_test` | test | no task cap: 4096 for Apertus and Qwen2.5-Omni, 256 for Qwen2-Audio and Kimi-Audio (each backend's default) |
 
