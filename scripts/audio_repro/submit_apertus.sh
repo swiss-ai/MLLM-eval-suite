@@ -31,7 +31,8 @@ TASKS=librispeech,open_asr_voxpopuli,open_asr_spgispeech,fleurs_en_us,fleurs_de_
 
 # Each task's output cap, passed explicitly: main's launcher otherwise sets
 # max_new_tokens=16384 on every job. These are the caps the task definitions
-# declare; MuChoMusic and VocalSound declare none and get the model-level 4096.
+# declare; MuChoMusic and VocalSound declare none and get 4096 (the same for every
+# model, see submit_peers.sh).
 # TED-LIUM long form declares 256, which truncates its transcripts (up to 4,164
 # words), so it gets 4096.
 declare -A TASK_CAP=([librispeech]=256 [open_asr_voxpopuli]=4096 [open_asr_spgispeech]=4096

@@ -59,7 +59,7 @@ Greedy decoding for every model, and each task's output cap passed explicitly to
 | `covost2` | en-zh test | 256 |
 | `mmau_test_mini` | test-mini | 128 (run as `mmau_test_mini`, not the `mmau` group: its test split has no public answers, and `main`'s run check rejects a group with an unscored member) |
 | `clotho_aqa` | test | 8 |
-| `muchomusic`, `vocalsound_test` | test | no task cap: 4096 for Apertus and Qwen2.5-Omni, 256 for Qwen2-Audio and Kimi-Audio (each backend's default) |
+| `muchomusic`, `vocalsound_test` | test | 4096 for every model (the tasks declare no cap; earlier runs used each backend's default, 256 for Qwen2-Audio and Kimi-Audio, but their answers there are at most 46 words, so the cap never applied) |
 
 ### Apertus
 
@@ -89,6 +89,7 @@ The final run on this branch replaces earlier numbers that came from older code.
 - **lmms-eval base.** The earlier runs used lmms-eval 649a28e2 (Apertus) and 9aee58f2 (peers). This branch sits on a0650005, which adds an upstream merge: a rebuilt vLLM wrapper and changes to the evaluator. The task definitions, scorers and peer backends used here are identical to the tested ones apart from formatting; the Apertus vLLM path and the evaluator are not, so Apertus numbers can move.
 - **70B memory.** `gpu_memory_utilization` 0.75 on every task; the earlier non-TED 70B runs used 0.85.
 - **Qwen2.5-Omni.** One consistent setup. The results page's Omni column mixed runs: FLEURS English and Ukrainian and MuChoMusic ran with Omni's default system prompt, and the other FLEURS languages through the earlier `google_fleurs` task.
+- **Caps on MuChoMusic and VocalSound.** 4096 for every model; the earlier Qwen2-Audio and Kimi-Audio runs used their backend default of 256, which their answers (at most 46 words) never reached.
 - **Tasks.** Only the table's 16 tasks; VoiceBench and MMSU are not run.
 
 ## Validation

@@ -55,9 +55,9 @@ esac
 # Each task's output cap, passed explicitly: main's launcher otherwise sets
 # max_new_tokens=16384 on every job. These are the caps the task definitions
 # declare (TED-LIUM long form raised from 256 to 4096). MuChoMusic and VocalSound
-# declare none; they get the backend's own default, as in the tested runs:
-# 256 for Qwen2-Audio and Kimi-Audio, 4096 for Qwen2.5-Omni.
-case "$BACKEND" in qwen2_5_omni) NOCAP=4096 ;; *) NOCAP=256 ;; esac
+# declare none and get 4096, as for Apertus, so every model has the same cap on
+# every task (Qwen2-Audio and Kimi-Audio answer these in a few words).
+NOCAP=4096
 declare -A TASK_CAP=([librispeech]=256 [open_asr_voxpopuli]=4096 [open_asr_spgispeech]=4096
   [fleurs_en_us]=256 [fleurs_de_de]=256 [fleurs_fr_fr]=256 [fleurs_it_it]=256 [fleurs_es_419]=256
   [fleurs_pl_pl]=256 [fleurs_uk_ua]=256 [covost2]=256 [mmau_test_mini]=128 [muchomusic]=$NOCAP [clotho_aqa]=8
