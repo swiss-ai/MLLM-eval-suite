@@ -93,17 +93,17 @@ The final run on this branch replaces earlier numbers that came from older code.
 
 ## Validation
 
-Before the final run, each model ran LibriSpeech (first 32 samples of each of the four splits, `LIMIT=32`) from this branch, and the outputs were compared with the same samples of the runs behind the current report:
+Before the final run, every task ran for every model from a fresh clone of this branch with `LIMIT=32` (the first 32 samples of each task and split; TED-LIUM long form has 8 talks and ran in full), 85 jobs on the high-priority queue. Every job log shows lmms-eval 794ab50e, the task's cap and the batch size above, and no output is empty. Outputs were compared with the same samples of the runs behind the current report:
 
-| Model | Outputs identical to the earlier run | Note |
+| Model | Outputs identical to the earlier run | Where they differ |
 |---|---|---|
-| Apertus 8B | 124/128 | one word differs in each split (for example "there are of two kinds" against "there are two kinds") |
-| Apertus 70B | 121/128 | the earlier 70B runs (TP=4) were not deterministic either |
-| Qwen2-Audio | 123/128 | batches of 8 are padded differently in a 32-sample run |
-| Qwen2.5-Omni | 128/128 | |
-| Kimi-Audio | 128/128 | the earlier run used older lmms-eval code |
+| Kimi-Audio | every task | none |
+| Qwen2.5-Omni | every task except TED-LIUM long form (5/8) | `sdpa` is not deterministic on the long talks |
+| Qwen2-Audio | most tasks; FLEURS Polish 20/32, Ukrainian 22/32 | batches of 8 are padded differently in a 32-sample run; its Polish and Ukrainian outputs are garbled anyway |
+| Apertus 8B | most tasks; CoVoST2 102/128, FLEURS Polish 24/32, TED-LIUM 5/8 | late divergence on long outputs (TED-LIUM transcripts match for about 180 words), single characters in CoVoST2, and different paths on garbled Polish |
+| Apertus 70B | most tasks; CoVoST2 92/128, VocalSound 15/32, TED-LIUM 0/8 | as for 8B, plus its free-text VocalSound answers; the earlier 70B runs (TP=4) were not deterministic either |
 
-No output was empty, and each job log shows lmms-eval 794ab50e and the settings above.
+The Apertus differences come from small numeric changes (batch composition, the rebuilt vLLM wrapper) and do not shift scores: on the same 32 samples, FLEURS WER differs by -1.15 to +0.96 between old and new across the seven languages and both models, in both directions. MMAU runs as `mmau_test_mini` since this validation: the `mmau` group jobs scored test-mini but ended FAILED (see Changes), and the `mmau_test_mini` jobs completed with all outputs identical for every model. Qwen2-Audio's and Qwen2.5-Omni's CoVoST2 completed on these 32 samples; earlier full runs of Qwen2-Audio's CoVoST2 failed, so that job may still fail on the full set.
 
 ## Steps
 
