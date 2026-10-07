@@ -82,6 +82,8 @@ Greedy decoding for every model, and each task's output cap passed explicitly to
 | Attention | default | eager; `sdpa` on TED-LIUM long form, where eager runs out of memory on the longest talks | default |
 | Image | prod | prod with the qwen-omni-utils overlay | archived 2026-05 image with the Kimi overlay |
 
+System prompts against each model's own material: Qwen2-Audio's template default ("You are a helpful assistant.") is what Qwen2-Audio's README and its official chat evaluation use (its published ASR, translation and VocalSound numbers come from the base model with no system prompt). Kimi-Audio takes no system prompt; its inference code rejects the role. For Qwen2.5-Omni, the speech-recognition and vocal-sound prompts are those of Qwen's `cookbooks/universal_audio_understanding.ipynb`; Qwen publishes no prompt for audio question answering, and "You are an audio understanding model." follows the audio results page (the cookbook's speech-translation prompt is "You are a speech translation model."). The task prompts are the same for every model; Kimi-Audio's own evaluation toolkit lists the classes in its VocalSound prompt and scores classification with an LLM judge, so its published numbers are not directly comparable.
+
 ## Differences from the runs behind the current report
 
 The final run on this branch replaces earlier numbers that came from older code. What differs:
