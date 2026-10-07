@@ -70,12 +70,12 @@ bash launchers/eval.sh --model /path/to/your/checkpoint --suite smoke   # both h
 Results land under `results/<framework>/<run-id>/`, logs under `logs/<framework>/<run-id>/`.
 Add `--thinking` for the reasoning recipe described above.
 
-Cluster-account knobs (defaults target the current Apertus reservation; single source of truth in
+Cluster-account knobs (defaults submit without a reservation; single source of truth in
 `slurm/shared/sbatch_overrides.sh`):
 
 ```bash
 EVAL_ACCOUNT=<account>        # slurm account            (default: infra01)
-EVAL_RESERVATION=<name>       # set EVAL_RESERVATION= (empty) to submit without a reservation
+EVAL_RESERVATION=<name>       # reservation              (default: none)
 EVAL_ENVIRONMENT=<edf.toml>   # pyxis container config   (default: this repo's toml/shared/)
 ```
 

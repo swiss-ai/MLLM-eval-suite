@@ -4,14 +4,13 @@
 # sbatch "${SBATCH_OVERRIDES[@]}" slurm/<fw>/eval_job.slurm ...
 #
 #   EVAL_ACCOUNT      slurm account                     (default: infra01)
-#   EVAL_RESERVATION  reservation; set EVAL_RESERVATION= (empty) to submit
-#                     without one                        (default: SD-69241-apertus-1-5-0)
+#   EVAL_RESERVATION  reservation; empty submits without one   (default: none)
 #   EVAL_ENVIRONMENT  pyxis EDF toml                     (default: this repo's toml/shared/)
 
 _EVAL_ROOT="${ORCH_REPO_ROOT:-$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel 2>/dev/null)}"
 
 EVAL_ACCOUNT="${EVAL_ACCOUNT:-infra01}"
-EVAL_RESERVATION="${EVAL_RESERVATION-SD-69241-apertus-1-5-0}"
+EVAL_RESERVATION="${EVAL_RESERVATION:-}"
 EVAL_ENVIRONMENT="${EVAL_ENVIRONMENT:-${_EVAL_ROOT}/toml/shared/apertus-vllm-vision-eval-prod.toml}"
 
 [[ -f "${EVAL_ENVIRONMENT}" ]] || {
