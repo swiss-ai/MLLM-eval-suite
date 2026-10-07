@@ -25,6 +25,7 @@ This branch runs the audio table of the Apertus 1.5 report: the released checkpo
 | b19bf4d | `scripts/audio_repro/`: `submit_apertus.sh`, `submit_peers.sh`, `compare_runs.py`, `build_kimi_overlay.sbatch` | One command per model; settings below | #14 and #15, rewritten for `main`'s launcher |
 | 489b138 | lmms-eval pinned to `ahadinia/audio-eval-final` | The lmms-eval changes below | this branch |
 | 858120d | `LIMIT=N` in the submit scripts | Short runs to check the setup before a full run | this branch |
+| 747870c | MMAU runs as `mmau_test_mini` | The `mmau` group also runs `mmau_test`, which has no public answers; `main`'s run check rejects a group with an unscored member, so every MMAU job ended FAILED | this branch |
 
 ### lmms-eval (on top of a0650005)
 
@@ -121,12 +122,22 @@ export EVAL_ENVIRONMENT=/path/to/your/apertus-vllm-release-eval.toml
 uv venv --python 3.12 ~/venvs/mllm-eval && source ~/venvs/mllm-eval/bin/activate
 export HF_TOKEN=<token>
 
-# 3. Check the setup: print every job's arguments, then run the first 32 samples.
-export CKPT_DIR=/path/with/Apertus-v1.5-8B-and-70B PEER_MODEL_DIR=/path/with/peer/snapshots
+# 3. Weights at the pinned revisions, and the two peer overlays.
+export CKPT_DIR=/path/for/apertus PEER_MODEL_DIR=/path/for/peers
+hf download swiss-ai/Apertus-v1.5-8B  --revision a411d838600baf0e3635a3daf66fb7c55fc97bb6 --local-dir $CKPT_DIR/Apertus-v1.5-8B
+hf download swiss-ai/Apertus-v1.5-70B --revision 59e744e313e967811aefabde3732609b64201acc --local-dir $CKPT_DIR/Apertus-v1.5-70B
+hf download Qwen/Qwen2-Audio-7B-Instruct      --revision 0a095220c30b7b31434169c3086508ef3ea5bf0a --local-dir $PEER_MODEL_DIR/Qwen2-Audio-7B-Instruct
+hf download Qwen/Qwen2.5-Omni-7B              --revision ae9e1690543ffd5c0221dc27f79834d0294cba00 --local-dir $PEER_MODEL_DIR/Qwen2.5-Omni-7B
+hf download moonshotai/Kimi-Audio-7B-Instruct --revision 9a82a84c37ad9eb1307fb6ed8d7b397862ef9e6b --local-dir $PEER_MODEL_DIR/Kimi-Audio-7B-Instruct
+uv pip install --target /path/to/qwen-omni-overlay --no-deps qwen-omni-utils==0.0.8 audioread==3.0.1
+sbatch --account=infra01 --environment=$PWD/toml/shared/apertus-vllm-vision-eval-2026-05-torch210.toml \
+  scripts/audio_repro/build_kimi_overlay.sbatch /path/to/kimi-overlay
+
+# 4. Check the setup: print every job's arguments, then run the first 32 samples.
 DRY_RUN=1 bash scripts/audio_repro/submit_apertus.sh 8b check
 LIMIT=32 bash scripts/audio_repro/submit_apertus.sh 8b check librispeech
 
-# 4. Two runs per model (one job per task).
+# 5. Two runs per model (one job per task).
 for r in r1 r2; do
   bash scripts/audio_repro/submit_apertus.sh 8b  apertus_8b_$r
   bash scripts/audio_repro/submit_apertus.sh 70b apertus_70b_$r
@@ -135,7 +146,7 @@ for r in r1 r2; do
   EXTRA_PYTHONPATH=/path/to/kimi-overlay bash scripts/audio_repro/submit_peers.sh kimi_audio peers_kimi_audio_$r
 done
 
-# 5. Compare the two runs of a model.
+# 6. Compare the two runs of a model.
 python scripts/audio_repro/compare_runs.py \
   results/lmms-eval/Apertus-v1.5-8B/apertus_8b_r1 results/lmms-eval/Apertus-v1.5-8B/apertus_8b_r2
 ```
@@ -145,4 +156,4 @@ To resubmit only some tasks (for example after a preemption), pass them as the t
 ## Known limits
 
 - Qwen2-Audio's CoVoST2 runs have failed every time (an audio decoding error, or one data-parallel rank stalling), and Qwen2.5-Omni's CoVoST2 has not completed in our runs, so neither has a CoVoST2 score yet.
-- `toml/shared/apertus-vllm-release-eval.toml` points at a copy of the image in personal scratch; it needs a shared location before this merges.
+- `toml/shared/apertus-vllm-release-eval.toml` points at a copy of the image in personal scratch (readable by the infra01 group only); it needs a shared location before this merges, or a rebuild with step 1.
