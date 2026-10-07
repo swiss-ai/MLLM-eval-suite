@@ -7,7 +7,7 @@ This branch runs the audio table of the Apertus 1.5 report: the released checkpo
 | Input | Pin |
 |---|---|
 | Suite | this branch, on top of `main` 101fba0 |
-| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-eval-final` @ 794ab50e, on top of a0650005 (the commit `main` pins) |
+| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-eval-final` @ 7d38e311, on top of a0650005 (the commit `main` pins) |
 | Apertus image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64` (the vLLM image of the model card), adding the lmms-eval runtime; that base tag moves, so a rebuild can give a different hash |
 | Peer images | `toml/shared/apertus-vllm-vision-eval-prod.toml` (Qwen2-Audio, Qwen2.5-Omni), `toml/shared/apertus-vllm-vision-eval-2026-05-torch210.toml` (Kimi-Audio) |
 | Apertus weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3 |
@@ -41,6 +41,7 @@ This branch runs the audio table of the Apertus 1.5 report: the released checkpo
 | dd7be24e | Chat backends answer every request; Qwen2.5-Omni decodes dataset audio to mono 16 kHz | Batch size above 1 failed; dataset audio objects were not accepted | #26 / #28 |
 | 1807d8b1 | Qwen2-Audio and Kimi-Audio warn when a generation error leaves answers empty | At batch size 512 Qwen2-Audio ran out of memory and returned empty answers without a visible error | #26 / #28 |
 | 794ab50e | TED-LIUM loads without a Hugging Face login | The dataset is public; the other audio tasks still need a login | #28 |
+| 7d38e311 | Qwen2-Audio answers an undecodable clip empty | One CoVoST2 en-zh clip makes the audio decoder raise; Qwen2-Audio read audio outside its error handling, so the rank that drew it left the evaluation and the job hung until its time limit. Clips that decode are handled as before | this branch |
 
 Not ported: de31accd (keep `enable_thinking` across vLLM initialization), because a0650005 already carries 8fd62f0f, which does the same.
 
