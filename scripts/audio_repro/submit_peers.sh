@@ -76,13 +76,18 @@ submit() {  # <comma task group> <model args or empty>: one job per selected tas
 
 echo "run $RUN_ID: suite $(git rev-parse --short HEAD), lmms-eval $(git -C third_party/lmms-eval rev-parse --short HEAD)"
 if [[ "$BACKEND" == qwen2_5_omni ]]; then
-  # The per-category system prompts of the audio results page; speech
-  # translation and audio QA are not listed there and use the understanding prompt.
+  # Speech recognition, speech translation and vocal-sound classification use
+  # the system prompts of Qwen's cookbooks/universal_audio_understanding.ipynb.
+  # Qwen publishes no prompt for audio question answering; those tasks use the
+  # audio results page's understanding prompt. (Omni's default prompt, used in
+  # Qwen's chat examples, makes it add chat to short answers: Clotho-AQA 78.1
+  # against 87.0.)
   submit "$ASR"             "system_prompt=You are a speech recognition model."
   # Eager attention (the backend default) runs out of GPU memory on the longest
   # talks; sdpa computes the same attention without the full matrix.
   submit tedlium_long_form  "system_prompt=You are a speech recognition model.,attn_implementation=sdpa"
-  submit "$UNDERSTAND"      "system_prompt=You are an audio understanding model."
+  submit covost2            "system_prompt=You are a speech translation model."
+  submit mmau_test_mini,muchomusic,clotho_aqa "system_prompt=You are an audio understanding model."
   submit vocalsound_test    "system_prompt=You are a vocal sound classification model."
 else
   submit "$ASR,$UNDERSTAND,vocalsound_test" ""
