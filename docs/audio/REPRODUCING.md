@@ -7,7 +7,7 @@ This branch runs the audio table of the Apertus 1.5 report: the released checkpo
 | Input | Pin |
 |---|---|
 | Suite | this branch, on top of `main` 101fba0 |
-| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-eval-final` @ 7d38e311, on top of a0650005 (the commit `main` pins) |
+| lmms-eval | `swiss-ai/lmms-eval` branch `ahadinia/audio-eval-final` @ 255cda3a, on top of a0650005 (the commit `main` pins) |
 | Apertus image | `apertus-vllm-release-eval.sqsh`, sha256 `578ee90b642833c21509fa857e8581247fc89b6a218a26f82b142192478dcb4c`, built from `dockerfiles/Dockerfile.vllm-apertus-release-eval` on `ghcr.io/swiss-ai/vllm_apertus_1.5_release:latest-arm64` (the vLLM image of the model card), adding the lmms-eval runtime; that base tag moves, so a rebuild can give a different hash |
 | Peer images | `toml/shared/apertus-vllm-vision-eval-prod.toml` (Qwen2-Audio, Qwen2.5-Omni), `toml/shared/apertus-vllm-vision-eval-2026-05-torch210.toml` (Kimi-Audio) |
 | Apertus weights | `swiss-ai/Apertus-v1.5-8B` @ a411d838, `swiss-ai/Apertus-v1.5-70B` @ 59e744e3 |
@@ -42,6 +42,7 @@ This branch runs the audio table of the Apertus 1.5 report: the released checkpo
 | 1807d8b1 | Qwen2-Audio and Kimi-Audio warn when a generation error leaves answers empty | At batch size 512 Qwen2-Audio ran out of memory and returned empty answers without a visible error | #26 / #28 |
 | 794ab50e | TED-LIUM loads without a Hugging Face login | The dataset is public; the other audio tasks still need a login | #28 |
 | 7d38e311 | Qwen2-Audio answers an undecodable clip empty | One CoVoST2 en-zh clip makes the audio decoder raise; Qwen2-Audio read audio outside its error handling, so the rank that drew it left the evaluation and the job hung until its time limit. Clips that decode are handled as before | this branch |
+| 255cda3a | Qwen2.5-Omni's text output follows `max_new_tokens` | Omni's `generate()` in `transformers` caps the text model with `thinker_max_new_tokens` (default 1024) and passes a plain `max_new_tokens` only to its speech model, without a warning. Both Omni backends passed only `max_new_tokens`, so every Omni task ran with 1024 text tokens: TED-LIUM long form transcripts stopped at 853 to 967 words on talks of 1,108 to 3,219 words, and short-answer tasks could run past their caps. Qwen's cookbooks pass `thinker_max_new_tokens`; upstream lmms-eval main has the same bug | this branch |
 
 Not ported: de31accd (keep `enable_thinking` across vLLM initialization), because a0650005 already carries 8fd62f0f, which does the same.
 
@@ -79,11 +80,11 @@ Greedy decoding for every model, and each task's output cap passed explicitly to
 |---|---|---|---|
 | Backend | `qwen2_audio` | `qwen2_5_omni` (chat) | `kimi_audio` |
 | Batch size | 8 (1 on TED-LIUM long form) | 1 (the backend joins a batch into one conversation) | 1 |
-| System prompt | none | "You are a speech recognition model." (speech recognition), "You are an audio understanding model." (MMAU, MuChoMusic, Clotho-AQA, CoVoST2), "You are a vocal sound classification model." (VocalSound) | none |
+| System prompt | none | "You are a speech recognition model." (speech recognition), "You are a speech translation model." (CoVoST2), "You are an audio understanding model." (MMAU, MuChoMusic, Clotho-AQA), "You are a vocal sound classification model." (VocalSound) | none |
 | Attention | default | eager; `sdpa` on TED-LIUM long form, where eager runs out of memory on the longest talks | default |
 | Image | prod | prod with the qwen-omni-utils overlay | archived 2026-05 image with the Kimi overlay |
 
-System prompts against each model's own material: Qwen2-Audio's template default ("You are a helpful assistant.") is what Qwen2-Audio's README and its official chat evaluation use (its published ASR, translation and VocalSound numbers come from the base model with no system prompt). Kimi-Audio takes no system prompt; its inference code rejects the role. For Qwen2.5-Omni, the speech-recognition and vocal-sound prompts are those of Qwen's `cookbooks/universal_audio_understanding.ipynb`; Qwen publishes no prompt for audio question answering, and "You are an audio understanding model." follows the audio results page (the cookbook's speech-translation prompt is "You are a speech translation model."). The task prompts are the same for every model; Kimi-Audio's own evaluation toolkit lists the classes in its VocalSound prompt and scores classification with an LLM judge, so its published numbers are not directly comparable.
+System prompts against each model's own material: Qwen2-Audio's template default ("You are a helpful assistant.") is what Qwen2-Audio's README and its official chat evaluation use (its published ASR, translation and VocalSound numbers come from the base model with no system prompt). Kimi-Audio takes no system prompt; its inference code rejects the role. For Qwen2.5-Omni, the speech-recognition, speech-translation and vocal-sound prompts are those of Qwen's `cookbooks/universal_audio_understanding.ipynb`. Qwen publishes no prompt for audio question answering; "You are an audio understanding model." follows the audio results page. Qwen's chat examples (for example `omni_chatting_for_music.ipynb`) use Omni's default prompt ("You are Qwen, a virtual human ..."); with it, Omni adds chat to short answers ("Yes. If you have any other questions, feel free to ask"), and its scores move both ways (two runs each, before the cap fix: MMAU 66.3 against 67.8, MuChoMusic 65.9 against 62.5, Clotho-AQA 78.1 against 87.0), so it is not used. The speech-translation prompt replaced the understanding prompt on CoVoST2 with the same score (43.9 against 43.7 BLEU, before the cap fix). The task prompts are the same for every model; Kimi-Audio's own evaluation toolkit lists the classes in its VocalSound prompt and scores classification with an LLM judge, so its published numbers are not directly comparable.
 
 ## Differences from the runs behind the current report
 
@@ -91,7 +92,7 @@ The final run on this branch replaces earlier numbers that came from older code.
 
 - **lmms-eval base.** The earlier runs used lmms-eval 649a28e2 (Apertus) and 9aee58f2 (peers). This branch sits on a0650005, which adds an upstream merge: a rebuilt vLLM wrapper and changes to the evaluator. The task definitions, scorers and peer backends used here are identical to the tested ones apart from formatting; the Apertus vLLM path and the evaluator are not, so Apertus numbers can move.
 - **70B memory.** `gpu_memory_utilization` 0.75 on every task; the earlier non-TED 70B runs used 0.85.
-- **Qwen2.5-Omni.** One consistent setup. The results page's Omni column mixed runs: FLEURS English and Ukrainian and MuChoMusic ran with Omni's default system prompt, and the other FLEURS languages through the earlier `google_fleurs` task.
+- **Qwen2.5-Omni.** One consistent setup, with task caps that take effect (255cda3a; every earlier Omni run, including the results page's, had 1024 text tokens on every task). The results page's Omni column mixed runs: FLEURS English and Ukrainian and MuChoMusic ran with Omni's default system prompt, and the other FLEURS languages through the earlier `google_fleurs` task.
 - **Caps on MuChoMusic and VocalSound.** 4096 for every model; the earlier Qwen2-Audio and Kimi-Audio runs used their backend default of 256, which their answers (at most 46 words) never reached.
 - **Tasks.** Only the table's 16 tasks; VoiceBench and MMSU are not run.
 
