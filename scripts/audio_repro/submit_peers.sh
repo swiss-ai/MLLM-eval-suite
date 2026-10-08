@@ -78,7 +78,7 @@ echo "run $RUN_ID: suite $(git rev-parse --short HEAD), lmms-eval $(git -C third
 if [[ "$BACKEND" == qwen2_5_omni ]]; then
   # Speech recognition, speech translation and vocal-sound classification use
   # the system prompts of Qwen's cookbooks/universal_audio_understanding.ipynb.
-  # Qwen publishes no prompt for audio question answering; those tasks use the
+  # Qwen publishes no evaluation prompt for audio question answering; those tasks use the
   # audio results page's understanding prompt. (Omni's default prompt, used in
   # Qwen's chat examples, makes it add chat to short answers: Clotho-AQA 78.1
   # against 87.0.)
